@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "axios": "^1.7.9",
     "clsx": "^2.1.1",
     "inter-ui": "^4.1.0",
     "lucide-react": "^0.474.0",

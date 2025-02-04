@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
+import axios from 'axios'; // Import axios
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -11,9 +12,37 @@ const Login: React.FC = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    alert('Logged in!');
+  const handleLogin = async () => {
+    try {
+      const response = await axios.post('http://localhost:3000/api/login', {
+        username,
+        password,
+      });
+      alert(response.data.message); // Show success message
+      setIsLoggedIn(true); // Update login state
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data.message || 'Login failed'); // Show error message
+      } else {
+        alert('An unexpected error occurred');
+      }
+    }
+  };
+
+  const handleSignUp = async () => {
+    try {
+      const response = await axios.post('http://localhost:3000/api/signup', {
+        username,
+        password,
+      });
+      alert(response.data.message); // Show success message
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data.message || 'Sign-up failed'); // Show error message
+      } else {
+        alert('An unexpected error occurred');
+      }
+    }
   };
 
   return (
@@ -65,13 +94,16 @@ const Login: React.FC = () => {
         </div>
 
         <button
-          onClick={handleLogin} // Add onClick handler for login
+          onClick={handleLogin}
           className="w-full bg-dark2 text-white py-2 rounded-lg hover:shadow-md transition duration-300"
         >
           Log In
         </button>
 
-        <button className="text-white font-bold mt-3">
+        <button
+          onClick={handleSignUp}
+          className="text-white font-bold mt-3"
+        >
           Sign up
         </button>
       </div>
