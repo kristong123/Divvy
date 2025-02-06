@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import axios from 'axios'; // Import axios
+// import React, { useState } from 'react';
+// import { EyeIcon, EyeOffIcon } from 'lucide-react';
+// import axios from 'axios'; // Import axios
 
 const Dashboard: React.FC = () => {
   return (
