@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import axios from 'axios'; // Import axios
+import Dashboard from './Dashboard';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  if (isLoggedIn) {
+    return <Dashboard/>;
+  }
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
