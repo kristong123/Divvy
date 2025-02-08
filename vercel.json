@@ -8,5 +8,11 @@
           "distDir": "dist"
         }
       }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "/"
+      }
     ]
   }
