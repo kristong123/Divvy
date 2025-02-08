@@ -19,7 +19,7 @@ const Login: React.FC = () => {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('http://localhost:3000/api/login', {
+      const response = await axios.post('https://divvy-server.onrender.com/api/login', {
         username,
         password,
       });
@@ -36,7 +36,7 @@ const Login: React.FC = () => {
 
   const handleSignUp = async () => {
     try {
-      const response = await axios.post('http://localhost:3000/api/signup', {
+      const response = await axios.post('https://divvy-server.onrender.com/api/signup', {
         username,
         password,
       });
