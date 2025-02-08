@@ -13,7 +13,7 @@ require('dotenv').config();
 console.log('Current working directory:', process.cwd());
 
 // Firebase Admin SDK initialization
-const serviceAccount = require(process.env.FIREBASE_ADMIN_KEY);
+const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_KEY);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
