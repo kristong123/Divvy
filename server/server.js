@@ -31,6 +31,7 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:5173',
       'http://localhost:3000',
+      'https://https://divvy-1655shfsb-kristong123s-projects.vercel.app/'
     ];
 
     if (allowedOrigins.indexOf(origin) === -1) {
