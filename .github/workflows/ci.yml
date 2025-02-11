@@ -25,9 +25,6 @@ jobs:
     - name: Create env file
       run: |
         echo "VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}" >> .env
-
-    - name: Run TypeScript compile check
-      run: npx tsc --noEmit
       
     - name: Type checking
       run: npm run type-check || npm run tsc
