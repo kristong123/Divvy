@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import axios from 'axios'; // Import axios
-import Dashboard from './Dashboard';
+import axios from 'axios';
+import { useDispatch } from 'react-redux';
+import { setUser } from '../store/slice/userSlice'; // Import the setUser action
+import { useNavigate } from 'react-router-dom'; // Add this
 
 const Login: React.FC = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  if (isLoggedIn) {
-    return <Dashboard/>;
-  }
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -19,12 +18,17 @@ const Login: React.FC = () => {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('https://divvy-server.onrender.com/api/login', {
+      const response = await axios.post('https://divvy-server.onrender.com/api/auth/login', {
         username,
         password,
       });
       alert(response.data.message); // Show success message
-      setIsLoggedIn(true); // Update login state
+
+      // Update Redux store with the username
+      dispatch(setUser({ username }));
+
+      navigate('/dashboard');
+
     } catch (error) {
       if (axios.isAxiosError(error)) {
         alert(error.response?.data.message || 'Login failed'); // Show error message
@@ -36,7 +40,7 @@ const Login: React.FC = () => {
 
   const handleSignUp = async () => {
     try {
-      const response = await axios.post('https://divvy-server.onrender.com/api/signup', {
+      const response = await axios.post('https://divvy-server.onrender.com/api/auth/signup', {
         username,
         password,
       });

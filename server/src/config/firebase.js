@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 require('dotenv').config();
 
 
-//Check the current working directory
+// Check the current working directory
 console.log("FIREBASE_ADMIN_KEY:", process.env.FIREBASE_ADMIN_KEY ? "Loaded" : "Missing");
 
 if (!process.env.FIREBASE_ADMIN_KEY) {
