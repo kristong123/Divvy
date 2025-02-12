@@ -1,4 +1,4 @@
-import { Users, Bell, UserRound } from 'lucide-react';
+import { UserRound } from 'lucide-react';
 import { useSelector } from 'react-redux'; // Import useSelector
 import { RootState } from '../store/store'; // Import RootState to type the state
 
