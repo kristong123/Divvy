@@ -8,7 +8,6 @@ import Main from './components/Main';
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isLoggedIn = useSelector((state: RootState) => state.user.isLoggedIn);
-  console.log(useSelector((state: RootState) => state.user.isLoggedIn));
   
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
