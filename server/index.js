@@ -26,7 +26,13 @@ app.get("/", (req, res) => {
   res.send("Welcome to the API");
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+// Export app for testing
+module.exports = app;
+
+// Start the server only if not in test mode
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}

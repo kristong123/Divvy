@@ -24,8 +24,9 @@ jobs:
     
     - name: Create env file
       run: |
-        echo "VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}" >> .env
-      
+        echo "PORT=3000" >> .env
+        echo "FIREBASE_ADMIN_KEY=${{ secrets.FIREBASE_ADMIN_KEY }}" >> .env
+
     - name: Type checking
       run: npm run type-check || npm run tsc
       
@@ -35,5 +36,8 @@ jobs:
     - name: Build project
       run: npm run build
     
-    - name: Run tests
+    - name: Run frontend tests
       run: npm test
+
+    - name: Run backend tests
+      run: cd server && npm test
