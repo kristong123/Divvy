@@ -39,6 +39,15 @@ const Login: React.FC = () => {
   };
 
   const handleSignUp = async () => {
+    if(!username || !password){
+      alert('Please enter both username and password');
+      return;
+    }
+    if(username.includes(' ') || password.includes(' ')){
+      alert('Username and password cannot contain spaces');
+      return;
+    }
+
     try {
       const response = await axios.post('https://divvy-server.onrender.com/api/auth/signup', {
         username,
