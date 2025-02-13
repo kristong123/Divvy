@@ -14,7 +14,7 @@
     "dotenv": "^16.4.7"
   },
   "scripts": {
-    "type-check": "tsc --noEmit",
+    "type-check": "npx tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run",
     "build": "vite build"
