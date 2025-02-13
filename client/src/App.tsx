@@ -1,15 +1,12 @@
 // client/src/App.tsx
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from './store/store';
 import Login from './components/Login';
 import Main from './components/Main';
 
-type ProtectedRouteProps = {
-  children: React.ReactNode;
-};
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+// Protected Route component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isLoggedIn = useSelector((state: RootState) => state.user.isLoggedIn);
   
   if (!isLoggedIn) {
@@ -19,22 +16,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   return <>{children}</>;
 };
 
-const App: React.FC = () => {
+function App() {
   return (
-    <main>
+    <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route
-          path="/*"
+        <Route 
+          path="/dashboard" 
           element={
             <ProtectedRoute>
-              <Main />
+              <Main/>
             </ProtectedRoute>
-          }
+          } 
+        />
+        {/* Redirect root to dashboard or login */}
+        <Route 
+          path="/" 
+          element={<Navigate to="/dashboard" replace />} 
         />
       </Routes>
-    </main>
+    </BrowserRouter>
   );
-};
+}
 
 export default App;
