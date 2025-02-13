@@ -11,12 +11,6 @@ import {
   declineFriendRequest,
 } from '../store/slice/friendsSlice';
 
-type SentRequest = {
-  recipient: string;
-  createdAt: string;
-  status: string;
-};
-
 const Requests: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const username = useSelector((state: RootState) => state.user.username);

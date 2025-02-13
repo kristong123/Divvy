@@ -56,7 +56,7 @@ export const sendFriendRequest = createAsyncThunk(
 export const acceptFriendRequest = createAsyncThunk(
   'friends/acceptRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.post('https://divvy-server.onrender.com/api/friends/accept-request', {
+    const response = await axios.put('https://divvy-server.onrender.com/api/friends/accept-request', {
       user1,
       user2,
     });
@@ -67,9 +67,8 @@ export const acceptFriendRequest = createAsyncThunk(
 export const declineFriendRequest = createAsyncThunk(
   'friends/declineRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.post('https://divvy-server.onrender.com/api/friends/decline-request', {
-      user1,
-      user2,
+    const response = await axios.delete('https://divvy-server.onrender.com/api/friends/decline-request', {
+      data: { user1, user2 }
     });
     return { sender: user1, message: response.data.message };
   }
