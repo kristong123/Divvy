@@ -81,7 +81,7 @@ const getPendingRequests = async (req, res) => {
     }
   };
 
-// Accept a friend request
+// Accept a friend request and move message requests to direct chat
 const acceptFriendRequest = async (req, res) => {
   try {
     const { user1, user2 } = req.body;
@@ -91,12 +91,40 @@ const acceptFriendRequest = async (req, res) => {
       return res.status(400).json({ message: "No pending friend request found" });
     }
 
+    // Update friendship status
     await db.collection("friends").doc(docId).update({ status: "accepted" });
+
+    // Check for message requests
+    const messageRequestId = [user1, user2].sort().join("_");
+    const messageRequestRef = db.collection("messageRequests").doc(messageRequestId);
+    const messageSnapshot = await messageRequestRef.collection("messages").get();
+
+    if (!messageSnapshot.empty) {
+      const batch = db.batch();
+
+      messageSnapshot.forEach((doc) => {
+        batch.set(db.collection("chats").doc(messageRequestId).collection("messages").doc(doc.id), doc.data());
+        batch.delete(doc.ref); // Remove from messageRequests
+      });
+
+      // Create a new chat entry in `chats`
+      batch.set(db.collection("chats").doc(messageRequestId), {
+        users: [user1, user2],
+        lastMessage: "Friend request accepted.",
+        updatedAt: new Date(),
+      });
+
+      // Commit all changes
+      await batch.commit();
+
+      // Delete the message request
+      await messageRequestRef.delete();
+    }
 
     res.status(200).json({ message: "Friend request accepted!" });
   } catch (error) {
-    console.error("Error:", error.message);
-    res.status(500).json({ message: error.message || "Internal server error" });
+    console.error("Error accepting friend request:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
