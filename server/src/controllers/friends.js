@@ -8,7 +8,7 @@ const getFriendDoc = async (user1, user2) => {
 
   const docId = [user1, user2].sort().join("_");
   const friendDoc = await db.collection("friends").doc(docId).get();
-  
+
   return { docId, friendDoc };
 };
 
@@ -55,31 +55,31 @@ const sendFriendRequest = async (req, res) => {
 
 // Get pending friend requests
 const getPendingRequests = async (req, res) => {
-    try {
-      const userId = req.params.userId;
-  
-      const pendingSnapshot = await db.collection("friends")
-        .where("status", "==", "pending")
-        .get();
-  
-      const pendingRequests = [];
-      pendingSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.user2 === userId) {  // Only show requests where the user is the recipient
-          pendingRequests.push({
-            requestId: doc.id,
-            sender: data.user1,  // The person who sent the request
-            createdAt: data.createdAt.toDate().toISOString(), // Timestamp
-          });
-        }
-      });
-  
-      res.status(200).json({ pendingRequests });
-    } catch (error) {
-      console.error("Error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  };
+  try {
+    const userId = req.params.userId;
+
+    const pendingSnapshot = await db.collection("friends")
+      .where("status", "==", "pending")
+      .get();
+
+    const pendingRequests = [];
+    pendingSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.user2 === userId) {  // Only show requests where the user is the recipient
+        pendingRequests.push({
+          requestId: doc.id,
+          sender: data.user1,  // The person who sent the request
+          createdAt: data.createdAt.toDate().toISOString(), // Timestamp
+        });
+      }
+    });
+
+    res.status(200).json({ pendingRequests });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 // Accept a friend request and move message requests to direct chat
 const acceptFriendRequest = async (req, res) => {
@@ -187,6 +187,33 @@ const removeFriend = async (req, res) => {
   }
 };
 
+// Add this new function to get sent requests
+const getSentRequests = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const sentSnapshot = await db.collection("friends")
+      .where("user1", "==", userId)
+      .where("status", "==", "pending")
+      .get();
+
+    const sentRequests = [];
+    sentSnapshot.forEach((doc) => {
+      const data = doc.data();
+      sentRequests.push({
+        recipient: data.user2,
+        status: data.status,
+        createdAt: data.createdAt.toDate().toISOString(),
+      });
+    });
+
+    res.status(200).json({ sentRequests });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   sendFriendRequest,
   acceptFriendRequest,
@@ -195,4 +222,5 @@ module.exports = {
   getFriendsList,
   removeFriend,
   getPendingRequests,
+  getSentRequests,
 };

@@ -1,4 +1,5 @@
 const express = require("express");
+const router = express.Router();
 const {
   sendFriendRequest,
   getPendingRequests,
@@ -6,10 +7,9 @@ const {
   cancelFriendRequest,
   declineFriendRequest,
   getFriendsList,
-  removeFriend
+  removeFriend,
+  getSentRequests
 } = require("../controllers/friends");
-
-const router = express.Router();
 
 router.post("/send-request", sendFriendRequest);
 router.get("/:userId/pending-requests", getPendingRequests);
@@ -18,5 +18,6 @@ router.delete("/cancel-request", cancelFriendRequest);
 router.delete("/decline-request", declineFriendRequest);
 router.get("/:userId/friends", getFriendsList);
 router.delete("/remove", removeFriend);
+router.get("/:userId/sent-requests", getSentRequests);
 
 module.exports = router;
