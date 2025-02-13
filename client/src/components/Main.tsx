@@ -5,7 +5,13 @@ const Dashboard: React.FC = () => {
   return (
     <div className="row w-screen h-screen bg-white">
       <Sidebar/>
-      <h1 className='text-5xl font-bold text-dark1'>Divvy</h1>
+      <div className='col w-full'>
+        <h1 className='ml-96 mt-10 text-5xl font-bold text-dark1'>Divvy</h1>
+        <div className='row flex-wrap'>
+          
+        </div>
+      </div>
+      
     </div>
   )
 };

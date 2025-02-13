@@ -1,5 +1,13 @@
 const express = require("express");
-const {sendFriendRequest,getPendingRequests, acceptFriendRequest,cancelFriendRequest,declineFriendRequest,getFriendsList,removeFriend} = require("../controllers/friends");
+const {
+  sendFriendRequest,
+  getPendingRequests,
+  acceptFriendRequest,
+  cancelFriendRequest,
+  declineFriendRequest,
+  getFriendsList,
+  removeFriend
+} = require("../controllers/friends");
 
 const router = express.Router();
 
