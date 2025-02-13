@@ -20,7 +20,9 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci
+      run: |
+        npm ci
+        cd client && npm ci
     
     - name: Create env file
       run: |
@@ -28,16 +30,16 @@ jobs:
         echo "FIREBASE_ADMIN_KEY=${{ secrets.FIREBASE_ADMIN_KEY }}" >> .env
 
     - name: Type checking
-      run: npm run type-check || npm run tsc
+      run: cd client && npm run type-check
       
     - name: Run linting
-      run: npm run lint || npm run eslint
+      run: cd client && npm run lint
     
     - name: Build project
-      run: npm run build
+      run: cd client && npm run build
     
     - name: Run frontend tests
-      run: npm test
+      run: cd client && npm test
 
     - name: Run backend tests
       run: cd server && npm test
