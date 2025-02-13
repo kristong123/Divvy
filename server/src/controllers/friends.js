@@ -20,6 +20,11 @@ const sendFriendRequest = async (req, res) => {
       return res.status(400).json({ message: "User IDs required" });
     }
 
+    // Prevent users from sending a friend request to themselves
+    if (user1 === user2) {
+      return res.status(400).json({ message: "You cannot send a friend request to yourself" });
+    }
+
     // Ensure consistent document ID format
     const docId = [user1, user2].sort().join("_");
     const friendDoc = await db.collection("friends").doc(docId).get();
