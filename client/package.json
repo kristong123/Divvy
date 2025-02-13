@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build", 
     "lint": "eslint .",
     "preview": "vite preview",
-    "type-check": "npx tsc --noEmit"
+    "type-check": "npx tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.5.1",
