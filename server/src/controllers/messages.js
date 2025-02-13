@@ -1,6 +1,14 @@
 const { db } = require("../config/firebase");
 
-// Send a message
+
+// Check if two users are friends
+const areUsersFriends = async (user1, user2) => {
+    const docId = [user1, user2].sort().join("_"); // Standardized ID for friend collection
+    const friendDoc = await db.collection("friends").doc(docId).get();
+    return friendDoc.exists; // Returns true if they are friends
+};
+
+// Send a message (either direct chat or request)
 const sendMessage = async (req, res) => {
     try {
         const { senderId, receiverId, content } = req.body;
@@ -8,28 +16,36 @@ const sendMessage = async (req, res) => {
             return res.status(400).json({ message: "Missing fields" });
         }
 
-        // Ensure chat ID is always consistent (sorted IDs)
+        // Check if users are friends
+        const isFriend = await areUsersFriends(senderId, receiverId);
+        const chatType = isFriend ? "chats" : "messageRequests"; // Store in direct chat or request
+
         const chatId = [senderId, receiverId].sort().join("_");
 
-        // Store message in Firestore
         const newMessage = {
             senderId,
             receiverId,
             content,
             timestamp: new Date(),
-            status: "sent"
+            status: "sent",
         };
 
-        await db.collection("chats").doc(chatId).collection("messages").add(newMessage);
+        // Store message in the correct collection
+        await db.collection(chatType).doc(chatId).collection("messages").add(newMessage);
 
-        // Update last message in chat metadata
-        await db.collection("chats").doc(chatId).set({
-            users: [senderId, receiverId],
-            lastMessage: content,
-            updatedAt: new Date()
-        }, { merge: true });
+        // Update chat metadata
+        await db.collection(chatType).doc(chatId).set(
+            {
+                users: [senderId, receiverId],
+                lastMessage: content,
+                updatedAt: new Date(),
+            },
+            { merge: true }
+        );
 
-        res.status(200).json({ message: "Message sent!" });
+        res.status(200).json({
+            message: isFriend ? "Message sent!" : "Message request sent!",
+        });
     } catch (error) {
         console.error("Error:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -138,4 +154,70 @@ const deleteMessage = async (req, res) => {
     }
 };
 
-module.exports = { sendMessage, getMessages, markMessagesAsRead, deleteMessage };
+// Accept a message request (move to direct chat)
+const acceptMessageRequest = async (req, res) => {
+    try {
+        const { senderId, receiverId } = req.body;
+        const requestChatId = [senderId, receiverId].sort().join("_");
+
+        const requestRef = db.collection("messageRequests").doc(requestChatId);
+        const messagesSnapshot = await requestRef.collection("messages").get();
+
+        if (messagesSnapshot.empty) {
+            return res.status(404).json({ message: "No message request found." });
+        }
+
+        // Move messages to direct chat
+        const batch = db.batch();
+        messagesSnapshot.forEach((doc) => {
+            batch.set(db.collection("chats").doc(requestChatId).collection("messages").doc(doc.id), doc.data());
+            batch.delete(doc.ref); // Delete from messageRequests
+        });
+
+        // Set up chat metadata
+        batch.set(db.collection("chats").doc(requestChatId), {
+            users: [senderId, receiverId],
+            lastMessage: "Accepted message request",
+            updatedAt: new Date(),
+        });
+
+        await batch.commit();
+
+        // Ensure the message request document is deleted
+        await requestRef.delete();
+
+        res.status(200).json({ message: "Message request accepted! You can now chat directly." });
+    } catch (error) {
+        console.error("Error accepting message request:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// Reject a message request
+const rejectMessageRequest = async (req, res) => {
+    try {
+        const { senderId, receiverId } = req.body;
+        const requestChatId = [senderId, receiverId].sort().join("_");
+
+        const requestRef = db.collection("messageRequests").doc(requestChatId);
+        const messagesSnapshot = await requestRef.collection("messages").get();
+
+        if (messagesSnapshot.empty) {
+            return res.status(404).json({ message: "No message request found." });
+        }
+
+        // Delete all messages in the message request
+        const batch = db.batch();
+        messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
+        batch.delete(requestRef); // Delete the request document itself
+
+        await batch.commit();
+
+        res.status(200).json({ message: "Message request rejected!" });
+    } catch (error) {
+        console.error("Error rejecting message request:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+module.exports = { sendMessage, getMessages, markMessagesAsRead, deleteMessage, acceptMessageRequest, rejectMessageRequest };

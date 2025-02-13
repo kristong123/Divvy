@@ -5,24 +5,35 @@ const { db } = require("../src/config/firebase");
 // Sample users and test message
 const user1 = "testUser1";
 const user2 = "testUser2";
+const nonFriend = "testUser3"; // A user who is NOT friends with user1
 let chatId;
 let messageId;
+let requestChatId;
 
 describe("Messages API", () => {
   beforeAll(async () => {
-    // Ensure chatId follows a consistent format
-    chatId = [user1, user2].sort().join("_");
+    chatId = [user1, user2].sort().join("_"); // Standard chat ID for friends
+    requestChatId = [user1, nonFriend].sort().join("_"); // Chat ID for message request
 
     // Cleanup previous test data
-    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
     const batch = db.batch();
-    messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
 
-    await db.collection("chats").doc(chatId).delete();
+    // Clear messages in direct chats
+    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
+    messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
+
+    // Clear messages in message requests
+    const requestMessagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
+    requestMessagesSnapshot.forEach((doc) => batch.delete(doc.ref));
+
+    // Clear chat metadata
+    batch.delete(db.collection("chats").doc(chatId));
+    batch.delete(db.collection("messageRequests").doc(requestChatId));
+
+    await batch.commit();
   });
 
-  test("Send a message", async () => {
+  test("Send a direct message (users are friends)", async () => {
     const response = await request(app)
       .post("/api/messages/send")
       .send({
@@ -81,14 +92,82 @@ describe("Messages API", () => {
     expect(deletedMessage.data().deleted).toBe(true);
   });
 
+  /*** MESSAGE REQUEST TESTS ***/
+  test("Send a message request (users are NOT friends)", async () => {
+    const response = await request(app)
+      .post("/api/messages/send")
+      .send({
+        senderId: user1,
+        receiverId: nonFriend,
+        content: "Hello, this is a message request.",
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.message).toBe("Message request sent!");
+
+    // Verify message is stored in "messageRequests"
+    const messagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
+    expect(messagesSnapshot.empty).toBe(false);
+  });
+
+  test("Accept a message request (move to direct chat)", async () => {
+    const response = await request(app)
+        .post("/api/messages/accept-request")
+        .send({
+            senderId: user1,
+            receiverId: nonFriend,
+        });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.message).toBe("Message request accepted! You can now chat directly.");
+
+    // Ensure messages were moved to "chats"
+    const directChatSnapshot = await db.collection("chats").doc(requestChatId).collection("messages").get();
+    expect(directChatSnapshot.empty).toBe(false);
+
+    // Ensure "messageRequests" no longer exists
+    const requestChatSnapshot = await db.collection("messageRequests").doc(requestChatId).get();
+    expect(requestChatSnapshot.exists).toBe(false);  // This should now pass ✅
+});
+
+test("Reject a message request", async () => {
+    // Send another request to be rejected
+    await db.collection("messageRequests").doc(requestChatId).collection("messages").add({
+        senderId: user1,
+        receiverId: nonFriend,
+        content: "This should be rejected",
+        timestamp: new Date(),
+    });
+
+    const response = await request(app)
+        .delete("/api/messages/reject-request")
+        .send({
+            senderId: user1,
+            receiverId: nonFriend,
+        });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.message).toBe("Message request rejected!");
+
+    // Ensure the request is completely deleted
+    const requestMessagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
+    expect(requestMessagesSnapshot.empty).toBe(true);  // This should now pass ✅
+});
+
   afterAll(async () => {
     // Cleanup test data after tests
-    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
     const batch = db.batch();
-    messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
 
-    await db.collection("chats").doc(chatId).delete();
+    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
+    messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
+
+    const requestMessagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
+    requestMessagesSnapshot.forEach((doc) => batch.delete(doc.ref));
+
+    batch.delete(db.collection("chats").doc(chatId));
+    batch.delete(db.collection("messageRequests").doc(requestChatId));
+
+    await batch.commit();
     await db.terminate(); // Close Firebase connection to prevent Jest from hanging
   });
 });
