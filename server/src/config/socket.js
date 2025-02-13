@@ -1,15 +1,11 @@
 const { Server } = require("socket.io");
+const corsOptions = require("./corsOptions");
 
 let io;
 
 const initializeSocket = (server) => {
     io = new Server(server, {
-        cors: {
-            origin: ["http://localhost:3000", "http://localhost:5173"],
-            methods: ["GET", "POST"],
-            credentials: true,
-            transports: ['websocket', 'polling']
-        },
+        cors: corsOptions,
         allowEIO3: true
     });
 
