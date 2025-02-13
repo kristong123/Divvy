@@ -29,6 +29,15 @@ const sendFriendRequest = async (req, res) => {
       return res.status(400).json({ message: "You cannot send a friend request to yourself" });
     }
 
+    // Check if recipient exists
+    const recipientSnapshot = await db.collection("users")
+      .where("username", "==", user2)
+      .get();
+
+    if (recipientSnapshot.empty) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     // Ensure consistent document ID format
     const docId = [user1, user2].sort().join("_");
     const friendDoc = await db.collection("friends").doc(docId).get();
