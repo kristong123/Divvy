@@ -1,5 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import io from 'socket.io-client';
+import { BASE_URL, SOCKET_URL } from '../../config/api';
+
+const socket = io(SOCKET_URL);
 
 interface FriendState {
   friends: string[];
@@ -21,7 +25,7 @@ const initialState: FriendState = {
 export const fetchFriends = createAsyncThunk(
   'friends/fetchFriends',
   async (username: string) => {
-    const response = await axios.get(`https://divvy-server.onrender.com/api/friends/${username}/friends`);
+    const response = await axios.get(`${BASE_URL}/friends/${username}/friends`);
     return response.data.friends;
   }
 );
@@ -29,7 +33,7 @@ export const fetchFriends = createAsyncThunk(
 export const fetchPendingRequests = createAsyncThunk(
   'friends/fetchPendingRequests',
   async (username: string) => {
-    const response = await axios.get(`https://divvy-server.onrender.com/api/friends/${username}/pending-requests`);
+    const response = await axios.get(`${BASE_URL}/friends/${username}/pending-requests`);
     return response.data.pendingRequests;
   }
 );
@@ -37,7 +41,7 @@ export const fetchPendingRequests = createAsyncThunk(
 export const fetchSentRequests = createAsyncThunk(
   'friends/fetchSentRequests',
   async (username: string) => {
-    const response = await axios.get(`https://divvy-server.onrender.com/api/friends/${username}/sent-requests`);
+    const response = await axios.get(`${BASE_URL}/friends/${username}/sent-requests`);
     return response.data.sentRequests;
   }
 );
@@ -45,7 +49,7 @@ export const fetchSentRequests = createAsyncThunk(
 export const sendFriendRequest = createAsyncThunk(
   'friends/sendRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.post('https://divvy-server.onrender.com/api/friends/send-request', {
+    const response = await axios.post(`${BASE_URL}/friends/send-request`, {
       user1,
       user2,
     });
@@ -56,7 +60,7 @@ export const sendFriendRequest = createAsyncThunk(
 export const acceptFriendRequest = createAsyncThunk(
   'friends/acceptRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.put('https://divvy-server.onrender.com/api/friends/accept-request', {
+    const response = await axios.put(`${BASE_URL}/friends/accept-request`, {
       user1,
       user2,
     });
@@ -67,7 +71,7 @@ export const acceptFriendRequest = createAsyncThunk(
 export const declineFriendRequest = createAsyncThunk(
   'friends/declineRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.delete('https://divvy-server.onrender.com/api/friends/decline-request', {
+    const response = await axios.delete(`${BASE_URL}/friends/decline-request`, {
       data: { user1, user2 }
     });
     return { sender: user1, message: response.data.message };
@@ -77,7 +81,17 @@ export const declineFriendRequest = createAsyncThunk(
 const friendsSlice = createSlice({
   name: 'friends',
   initialState,
-  reducers: {},
+  reducers: {
+    setFriends: (state, action) => {
+      state.friends = action.payload;
+    },
+    setPendingRequests: (state, action) => {
+      state.pendingRequests = action.payload;
+    },
+    setSentRequests: (state, action) => {
+      state.sentRequests = action.payload;
+    },
+  },
   extraReducers: (builder) => {
     builder
       // Fetch Friends
@@ -124,5 +138,55 @@ const friendsSlice = createSlice({
       });
   },
 });
+
+export const { setFriends, setPendingRequests, setSentRequests } = friendsSlice.actions;
+
+// Socket.IO event handlers
+export const setupFriendsListeners = (username: string) => async (dispatch: any) => {
+  // Initial data fetch
+  const fetchInitialData = async () => {
+    try {
+      const [friendsRes, pendingRes, sentRes] = await Promise.all([
+        axios.get(`${BASE_URL}/friends/${username}/friends`),
+        axios.get(`${BASE_URL}/friends/${username}/pending-requests`),
+        axios.get(`${BASE_URL}/friends/${username}/sent-requests`)
+      ]);
+
+      dispatch(setFriends(friendsRes.data.friends));
+      dispatch(setPendingRequests(pendingRes.data.pendingRequests));
+      dispatch(setSentRequests(sentRes.data.sentRequests));
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+    }
+  };
+
+  // Join user's room
+  socket.emit('join', username);
+  await fetchInitialData();
+
+  // Set up real-time listeners
+  socket.on('friends-update', async () => {
+    const res = await axios.get(`${BASE_URL}/friends/${username}/friends`);
+    dispatch(setFriends(res.data.friends));
+  });
+
+  socket.on('pending-requests-update', async () => {
+    const res = await axios.get(`${BASE_URL}/friends/${username}/pending-requests`);
+    dispatch(setPendingRequests(res.data.pendingRequests));
+  });
+
+  socket.on('sent-requests-update', async () => {
+    const res = await axios.get(`${BASE_URL}/friends/${username}/sent-requests`);
+    dispatch(setSentRequests(res.data.sentRequests));
+  });
+
+  // Cleanup function
+  return () => {
+    socket.off('friends-update');
+    socket.off('pending-requests-update');
+    socket.off('sent-requests-update');
+    socket.emit('leave', username);
+  };
+};
 
 export default friendsSlice.reducer; 

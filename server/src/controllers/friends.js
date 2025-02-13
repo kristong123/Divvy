@@ -1,4 +1,8 @@
 const { db } = require("../config/firebase");
+const { getIO } = require("../config/socket");
+
+// Use getIO() instead of io directly
+const io = getIO();
 
 // Helper function to generate a consistent docId and validate user IDs
 const getFriendDoc = async (user1, user2) => {
@@ -45,6 +49,10 @@ const sendFriendRequest = async (req, res) => {
       status: "pending",
       createdAt: new Date(),
     });
+
+    // Emit events after successful request
+    io.to(user2).emit('pending-requests-update');
+    io.to(user1).emit('sent-requests-update');
 
     res.status(200).json({ message: "Friend request sent!" });
   } catch (error) {
@@ -120,6 +128,12 @@ const acceptFriendRequest = async (req, res) => {
       // Delete the message request
       await messageRequestRef.delete();
     }
+
+    // Emit updates to both users
+    io.to(user1).emit('friends-update');
+    io.to(user2).emit('friends-update');
+    io.to(user1).emit('pending-requests-update');
+    io.to(user2).emit('sent-requests-update');
 
     res.status(200).json({ message: "Friend request accepted!" });
   } catch (error) {

@@ -26,7 +26,8 @@ const Friends: React.FC = () => {
       <p className="text-sm font-bold text-black">Friends</p>
       <div className="mt-2">
         {friends.map((friend) => (
-          <div key={friend} className="row text-sm text-black mb-2">
+          <div key={friend} className="row text-sm text-black mb-2 hover:bg-gray-50
+            transition-all duration-300 ease-smooth transform hover:scale-102">
             <div className="flex items-center">
               <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1">
                 <UserRound className="m-auto h-6 w-6"/>

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Notifications from './Notifications';
 import Friends from './Friends';
 import Requests from './Requests';
-import { fetchFriends, fetchPendingRequests, fetchSentRequests } from '../store/slice/friendsSlice';
+import { setupFriendsListeners } from '../store/slice/friendsSlice';
 
 const Sidebar: React.FC = () => {
   const username = useSelector((state: RootState) => state.user.username);
@@ -14,9 +14,11 @@ const Sidebar: React.FC = () => {
 
   useEffect(() => {
     if (username) {
-      dispatch(fetchFriends(username));
-      dispatch(fetchPendingRequests(username));
-      dispatch(fetchSentRequests(username));
+      dispatch(setupFriendsListeners(username)).then(cleanup => {
+        return () => {
+          if (cleanup) cleanup();
+        };
+      });
     }
   }, [dispatch, username]);
 
@@ -36,25 +38,29 @@ const Sidebar: React.FC = () => {
           <div className='row py-3'>
             <button 
               onClick={() => setActiveSection('notifications')}
-              className='m-auto'
+              className="m-auto transition-all duration-300 ease-smooth hover:scale-110"
             >
-              <Bell className={`h-8 w-8 ${activeSection === 'notifications' ? 'stroke-dark1' : 'stroke-black'}`}/>
+              <Bell className={`h-8 w-8 ${activeSection === 'notifications' ? 'stroke-dark1' : 'stroke-black'}
+                transition-colors duration-300 ease-smooth`}/>
             </button>
             <button 
               onClick={() => setActiveSection('friends')}
-              className='m-auto'
+              className="m-auto transition-all duration-300 ease-smooth hover:scale-110"
             >
-              <UsersRound className={`h-8 w-8 ${activeSection === 'friends' ? 'stroke-dark1' : 'stroke-black'}`}/>
+              <UsersRound className={`h-8 w-8 ${activeSection === 'friends' ? 'stroke-dark1' : 'stroke-black'}
+                transition-colors duration-300 ease-smooth`}/>
             </button>
             <button 
               onClick={() => setActiveSection('requests')}
-              className='m-auto'
+              className="m-auto transition-all duration-300 ease-smooth hover:scale-110"
             >
-              <UserRoundPlus className={`h-8 w-8 ${activeSection === 'requests' ? 'stroke-dark1' : 'stroke-black'}`}/>
+              <UserRoundPlus className={`h-8 w-8 ${activeSection === 'requests' ? 'stroke-dark1' : 'stroke-black'}
+                transition-colors duration-300 ease-smooth`}/>
             </button>
           </div>
           <div>
-            <div className={activeSection === 'notifications' ? '' : 'hidden'}>
+            <div className={`${activeSection === 'notifications' ? 'opacity-100' : 'opacity-0 hidden'} 
+              transition-opacity duration-300 ease-smooth`}>
               <Notifications />
             </div>
             <div className={activeSection === 'friends' ? '' : 'hidden'}>

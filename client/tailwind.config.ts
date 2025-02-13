@@ -25,8 +25,15 @@ export default {
       textShadow: {
         default: '0px 4px 4px rgba(0, 0, 0, 0.3)',
       },
-      transition: {
-        default: 'all duration-300 ease-out'
+      transitionProperty: {
+        'height': 'height',
+        'spacing': 'margin, padding',
+      },
+      transitionTimingFunction: {
+        'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
+      },
+      transitionDuration: {
+        '400': '400ms',
       },
     }
   },

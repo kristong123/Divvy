@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useDispatch } from 'react-redux';
 import { setUser } from '../store/slice/userSlice'; // Import the setUser action
 import { useNavigate } from 'react-router-dom'; // Add this
+import { BASE_URL } from '../config/api';
 
 const Login: React.FC = () => {
   const dispatch = useDispatch();
@@ -18,22 +19,21 @@ const Login: React.FC = () => {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('https://divvy-server.onrender.com/api/auth/login', {
+      const url = `${BASE_URL}/auth/login`;
+      console.log('BASE_URL:', BASE_URL);
+      console.log('Full URL:', url);
+      const response = await axios.post(url, {
         username,
         password,
       });
-      alert(response.data.message); // Show success message
+      console.log('Login response:', response);
 
-      // Update Redux store with the username
       dispatch(setUser({ username }));
-
       navigate('/dashboard');
-
     } catch (error) {
+      console.log('Login error:', error);
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data.message || 'Login failed'); // Show error message
-      } else {
-        alert('An unexpected error occurred');
+        console.log('Error response:', error.response);
       }
     }
   };
@@ -49,16 +49,27 @@ const Login: React.FC = () => {
     }
 
     try {
-      const response = await axios.post('https://divvy-server.onrender.com/api/auth/signup', {
+      // Then proceed with your server signup
+      const response = await axios.post(`${BASE_URL}/auth/signup`, {
         username,
         password,
       });
-      alert(response.data.message); // Show success message
+      alert(response.data.message);
     } catch (error) {
       if (axios.isAxiosError(error)) {
         alert(error.response?.data.message || 'Sign-up failed'); // Show error message
       } else {
         alert('An unexpected error occurred');
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        handleSignUp();
+      } else {
+        handleLogin();
       }
     }
   };
@@ -79,8 +90,10 @@ const Login: React.FC = () => {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-light1"
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-light1 
+              transition-all duration-300 ease-smooth hover:border-dark2"
             placeholder="Enter your username"
+            onKeyDown={handleKeyDown}
           />
         </div>
 
@@ -94,8 +107,10 @@ const Login: React.FC = () => {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-light1 pr-10"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-light1 pr-10 
+                transition-all duration-300 ease-smooth hover:border-dark2"
               placeholder="Enter your password"
+              onKeyDown={handleKeyDown}
             />
             <button
               type="button"
@@ -113,14 +128,16 @@ const Login: React.FC = () => {
 
         <button
           onClick={handleLogin}
-          className="w-full bg-dark2 text-white py-2 rounded-lg hover:shadow-md transition duration-300"
+          className="w-full bg-dark2 text-white py-2 rounded-lg hover:shadow-md 
+            transition-all duration-300 ease-smooth"
         >
           Log In
         </button>
 
         <button
           onClick={handleSignUp}
-          className="text-white font-bold mt-3"
+          className="text-white font-bold mt-3 
+            transition-all duration-300 ease-smooth"
         >
           Sign up
         </button>

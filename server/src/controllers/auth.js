@@ -1,6 +1,7 @@
-const { db, admin } = require("../config/firebase");
+const { db } = require("../config/firebase");
 
 exports.login = async (req, res) => {
+  console.log('Login attempt:', req.body);
   try {
     const { username, password } = req.body;
 
@@ -15,7 +16,6 @@ exports.login = async (req, res) => {
     const userDoc = snapshot.docs[0];
     const userData = userDoc.data();
 
-    // In production, you should use proper password hashing
     if (userData.password === password) {
       res.status(200).json({
         message: 'Login successful',
@@ -49,18 +49,15 @@ exports.signup = async (req, res) => {
     const newUser = {
       username,
       password, // In production, hash the password
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
-    const docRef = await usersRef.add(newUser);
+    await usersRef.add(newUser);
 
     res.status(201).json({
       message: 'Sign-up successful',
-      user: {
-        id: docRef.id,
-        username
-      }
+      user: { username }
     });
   } catch (error) {
     console.error('Signup error:', error);

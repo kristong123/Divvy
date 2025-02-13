@@ -72,8 +72,9 @@ const Requests: React.FC = () => {
         <p className="text-sm font-bold text-black">Add Friend</p>
         <form onSubmit={handleSendFriendRequest} className="w-full">
           <input 
-            className='w-full border-2 border-gray-300 focus:border-dark1
-              rounded-md p-1 mb-0 mt-auto text-black' 
+            className="w-full border-2 border-gray-300 focus:border-dark1
+              rounded-md p-1 mb-0 mt-auto text-black
+              transition-all duration-300 ease-smooth hover:border-dark2"
             placeholder='Username'
             value={friendUsername}
             onChange={(e) => setFriendUsername(e.target.value)}
@@ -92,7 +93,8 @@ const Requests: React.FC = () => {
             </div>
             <div className="flex gap-2 ml-4">
               <button 
-                className="text-green-500 hover:text-green-600"
+                className="text-green-500 hover:text-green-600 transition-colors duration-300 ease-smooth
+                  hover:scale-110 transform"
                 onClick={() => handleAcceptRequest(request.sender)}
               >
                 <Check className="h-5 w-5"/>
