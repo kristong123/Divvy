@@ -22,9 +22,4 @@
   .col {
     @apply flex flex-col;
   }
-
-  /* Bubble components */
-  .bubble {
-    @apply rounded shadow;
-  }
 }

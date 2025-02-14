@@ -1,4 +1,4 @@
-import { UserRound, UserRoundPlus, UsersRound, Bell } from 'lucide-react';
+import { UserRoundPlus, UsersRound, Bell } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { useState, useEffect } from 'react';
@@ -6,6 +6,7 @@ import Notifications from './Notifications';
 import Friends from './Friends';
 import Requests from './Requests';
 import { setupFriendsListeners } from '../store/slice/friendsSlice';
+import ProfilePicture from './ProfilePicture';
 
 const Sidebar: React.FC = () => {
   const username = useSelector((state: RootState) => state.user.username);
@@ -27,9 +28,7 @@ const Sidebar: React.FC = () => {
       <div className='w-60'>
         <div className='col h-fit'>
           <div className='row p-4'>
-            <div className='flex rounded-full w-16 h-16 bg-gradient-to-br from-dark2 to-light1'>
-              <UserRound className='m-auto h-12 w-12'/>
-            </div>
+            <ProfilePicture />
             <p className='ml-4 my-auto text-2xl font-bold text-black'>
               {username || 'Guest'}
             </p> 

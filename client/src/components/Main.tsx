@@ -6,7 +6,7 @@ const Dashboard: React.FC = () => {
     <div className="row w-screen h-screen bg-white">
       <Sidebar/>
       <div className='col w-full'>
-        <h1 className='ml-96 mt-10 text-5xl font-bold text-dark1'>Divvy</h1>
+        <h1 className='ml-96 mt-6 text-5xl font-bold text-dark1'>Divvy</h1>
         <div className='row flex-wrap'>
           
         </div>

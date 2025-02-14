@@ -5,23 +5,21 @@ exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Query users collection
-    const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('username', '==', username).get();
+    // Get user document directly by username
+    const userDoc = await db.collection('users').doc(username).get();
 
-    if (snapshot.empty) {
+    if (!userDoc.exists) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    const userDoc = snapshot.docs[0];
     const userData = userDoc.data();
 
     if (userData.password === password) {
       res.status(200).json({
         message: 'Login successful',
         user: {
-          id: userDoc.id,
-          username: userData.username
+          username: userData.username,
+          profilePicture: userData.profilePicture
         }
       });
     } else {
@@ -38,22 +36,22 @@ exports.signup = async (req, res) => {
     const { username, password } = req.body;
 
     // Check if username exists
-    const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('username', '==', username).get();
+    const userDoc = await db.collection('users').doc(username).get();
 
-    if (!snapshot.empty) {
+    if (userDoc.exists) {
       return res.status(400).json({ message: 'Username already exists' });
     }
 
-    // Create new user document
+    // Create new user document using username as the document ID
     const newUser = {
       username,
       password, // In production, hash the password
+      profilePicture: null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
-    await usersRef.add(newUser);
+    await db.collection('users').doc(username).set(newUser);
 
     res.status(201).json({
       message: 'Sign-up successful',

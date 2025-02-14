@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from './store/store';
 import Login from './components/Login';
 import Main from './components/Main';
+import { Toaster } from 'react-hot-toast';
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -18,24 +19,27 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Main/>
-            </ProtectedRoute>
-          } 
-        />
-        {/* Redirect root to dashboard or login */}
-        <Route 
-          path="/" 
-          element={<Navigate to="/dashboard" replace />} 
-        />
-      </Routes>
-    </BrowserRouter>
+    <>
+      <Toaster position="top-center" />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <Main/>
+              </ProtectedRoute>
+            } 
+          />
+          {/* Redirect root to dashboard or login */}
+          <Route 
+            path="/" 
+            element={<Navigate to="/dashboard" replace />} 
+          />
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 }
 

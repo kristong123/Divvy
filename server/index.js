@@ -15,8 +15,9 @@ initializeSocket(server);
 app.use(cors());
 
 // Parse JSON bodies
-app.use(express.json());
-app.use(bodyParser.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -32,9 +33,11 @@ app.use((req, res, next) => {
 // Define routes AFTER Socket.IO initialization
 const authRoutes = require('./src/routes/authRoutes');
 const friendsRoutes = require('./src/routes/friendsRoutes');
+const userRoutes = require('./src/routes/userRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/friends', friendsRoutes);
+app.use('/api/user', userRoutes);
 
 // Basic test route
 app.get('/test', (req, res) => {

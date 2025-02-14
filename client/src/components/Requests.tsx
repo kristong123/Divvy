@@ -10,6 +10,7 @@ import {
   acceptFriendRequest,
   declineFriendRequest,
 } from '../store/slice/friendsSlice';
+import { toast } from 'react-hot-toast';
 
 const Requests: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -32,10 +33,10 @@ const Requests: React.FC = () => {
         const resultAction = await dispatch(
           sendFriendRequest({ user1: username, user2: friendUsername })
         ).unwrap();
-        alert(resultAction.message);
+        toast.success(resultAction.message);
         setFriendUsername('');
       } catch (error) {
-        alert('Failed to send friend request');
+        toast.error('Failed to send friend request');
       }
     }
   };
@@ -46,9 +47,9 @@ const Requests: React.FC = () => {
         const resultAction = await dispatch(
           acceptFriendRequest({ user1: senderUsername, user2: username })
         ).unwrap();
-        alert(resultAction.message);
+        toast.success(resultAction.message);
       } catch (error) {
-        alert('Failed to accept friend request');
+        toast.error('Failed to accept friend request');
       }
     }
   };
@@ -59,9 +60,9 @@ const Requests: React.FC = () => {
         const resultAction = await dispatch(
           declineFriendRequest({ user1: senderUsername, user2: username })
         ).unwrap();
-        alert(resultAction.message);
+        toast.success(resultAction.message);
       } catch (error) {
-        alert('Failed to decline friend request');
+        toast.error('Failed to decline friend request');
       }
     }
   };

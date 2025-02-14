@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import axios from 'axios';
-import { useDispatch } from 'react-redux';
-import { setUser } from '../store/slice/userSlice'; // Import the setUser action
+import { useAppDispatch } from '../store/hooks'; // Type-safe dispatch
+import { setUser } from '../store/slice/userSlice';
 import { useNavigate } from 'react-router-dom'; // Add this
 import { BASE_URL } from '../config/api';
+import { toast } from 'react-hot-toast';
 
 const Login: React.FC = () => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -20,46 +21,45 @@ const Login: React.FC = () => {
   const handleLogin = async () => {
     try {
       const url = `${BASE_URL}/auth/login`;
-      console.log('BASE_URL:', BASE_URL);
-      console.log('Full URL:', url);
       const response = await axios.post(url, {
         username,
         password,
       });
-      console.log('Login response:', response);
-
-      dispatch(setUser({ username }));
+      dispatch(setUser({ 
+        username: response.data.user.username,
+        profilePicture: response.data.user.profilePicture 
+      }));
       navigate('/dashboard');
     } catch (error) {
-      console.log('Login error:', error);
       if (axios.isAxiosError(error)) {
-        console.log('Error response:', error.response);
+        toast.error(error.response?.data.message || 'Login failed');
+      } else {
+        toast.error('An unexpected error occurred');
       }
     }
   };
 
   const handleSignUp = async () => {
     if(!username || !password){
-      alert('Please enter both username and password');
+      toast.error('Please enter both username and password');
       return;
     }
     if(username.includes(' ') || password.includes(' ')){
-      alert('Username and password cannot contain spaces');
+      toast.error('Username and password cannot contain spaces');
       return;
     }
 
     try {
-      // Then proceed with your server signup
       const response = await axios.post(`${BASE_URL}/auth/signup`, {
         username,
         password,
       });
-      alert(response.data.message);
+      toast.success(response.data.message);
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data.message || 'Sign-up failed'); // Show error message
+        toast.error(error.response?.data.message || 'Sign-up failed');
       } else {
-        alert('An unexpected error occurred');
+        toast.error('An unexpected error occurred');
       }
     }
   };
