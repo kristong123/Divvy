@@ -12,13 +12,6 @@ import {
 } from '../store/slice/friendsSlice';
 import { toast } from 'react-hot-toast';
 
-interface RequestWithPicture {
-  sender: string;
-  recipient: string;
-  status: string;
-  profilePicture?: string | null;
-}
-
 const Requests: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const username = useSelector((state: RootState) => state.user.username);
