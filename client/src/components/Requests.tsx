@@ -12,6 +12,13 @@ import {
 } from '../store/slice/friendsSlice';
 import { toast } from 'react-hot-toast';
 
+interface RequestWithPicture {
+  sender: string;
+  recipient: string;
+  status: string;
+  profilePicture?: string | null;
+}
+
 const Requests: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const username = useSelector((state: RootState) => state.user.username);
@@ -87,8 +94,22 @@ const Requests: React.FC = () => {
         {pendingRequests.map((request) => (
           <div key={request.sender} className="row text-sm text-black mb-2">
             <div className="flex items-center">
-              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1">
-                <UserRound className="m-auto h-6 w-6"/>
+              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1 relative">
+                <div className="m-auto">
+                  {request.profilePicture ? (
+                    <img 
+                      src={request.profilePicture} 
+                      alt={request.sender}
+                      className="w-7 h-7 rounded-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = '';
+                        toast.error(`Failed to load ${request.sender}'s profile picture`);
+                      }}
+                    />
+                  ) : (
+                    <UserRound className="m-auto h-6 w-6"/>
+                  )}
+                </div>
               </div>
               <span className="ml-2">{request.sender}</span>
             </div>
@@ -115,8 +136,22 @@ const Requests: React.FC = () => {
         {sentRequests.map((request) => (
           <div key={request.recipient} className="row text-sm text-black mb-2">
             <div className="flex items-center">
-              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1">
-                <UserRound className="m-auto h-6 w-6"/>
+              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1 relative">
+                <div className="m-auto">
+                  {request.profilePicture ? (
+                    <img 
+                      src={request.profilePicture} 
+                      alt={request.recipient}
+                      className="w-7 h-7 rounded-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = '';
+                        toast.error(`Failed to load ${request.recipient}'s profile picture`);
+                      }}
+                    />
+                  ) : (
+                    <UserRound className="m-auto h-6 w-6"/>
+                  )}
+                </div>
               </div>
               <span className="ml-2">{request.recipient}</span>
             </div>

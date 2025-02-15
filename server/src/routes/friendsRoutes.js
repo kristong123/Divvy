@@ -12,12 +12,10 @@ const {
 } = require("../controllers/friends");
 
 router.post("/send-request", sendFriendRequest);
-router.get("/:userId/pending-requests", getPendingRequests);
-router.put("/accept-request", acceptFriendRequest);
-router.delete("/cancel-request", cancelFriendRequest);
-router.delete("/decline-request", declineFriendRequest);
+router.get("/requests/pending/:username", getPendingRequests);
+router.get("/requests/sent/:username", getSentRequests);
 router.get("/:userId/friends", getFriendsList);
-router.delete("/remove", removeFriend);
-router.get("/:userId/sent-requests", getSentRequests);
+router.put("/accept-request", acceptFriendRequest);
+router.delete("/decline-request", declineFriendRequest);
 
 module.exports = router;

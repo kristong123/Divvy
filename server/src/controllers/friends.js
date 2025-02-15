@@ -78,28 +78,29 @@ const sendFriendRequest = async (req, res) => {
 // Get pending friend requests
 const getPendingRequests = async (req, res) => {
   try {
-    const userId = req.params.userId;
-
-    const pendingSnapshot = await db.collection("friends")
-      .where("status", "==", "pending")
+    const { username } = req.params;
+    const requests = await db.collection('friendRequests')
+      .where('recipient', '==', username)
+      .where('status', '==', 'pending')
       .get();
 
     const pendingRequests = [];
-    pendingSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.user2 === userId) {  // Only show requests where the user is the recipient
-        pendingRequests.push({
-          requestId: doc.id,
-          sender: data.user1,  // The person who sent the request
-          createdAt: data.createdAt.toDate().toISOString(), // Timestamp
-        });
-      }
-    });
 
-    res.status(200).json({ pendingRequests });
+    for (const doc of requests.docs) {
+      const request = doc.data();
+      // Get sender's profile picture
+      const senderDoc = await db.collection('users').doc(request.sender).get();
+      const senderData = senderDoc.data();
+
+      pendingRequests.push({
+        ...request,
+        profilePicture: senderData?.profilePicture || null
+      });
+    }
+
+    res.json(pendingRequests);
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: 'Error fetching pending requests' });
   }
 };
 
@@ -178,19 +179,36 @@ const cancelOrDeclineFriendRequest = async (req, res) => {
 const getFriendsList = async (req, res) => {
   try {
     const userId = req.params.userId;
-    const friendsSnapshot = await db.collection("friends").where("status", "==", "accepted").get();
+    const friendsSnapshot = await db.collection("friends")
+      .where("status", "==", "accepted")
+      .get();
 
     const friends = [];
-    friendsSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.user1 === userId) {
-        friends.push(data.user2);
-      } else if (data.user2 === userId) {
-        friends.push(data.user1);
-      }
-    });
 
-    res.status(200).json({ friends });
+    for (const doc of friendsSnapshot.docs) {
+      const data = doc.data();
+      let friendUsername;
+
+      if (data.user1 === userId) {
+        friendUsername = data.user2;
+      } else if (data.user2 === userId) {
+        friendUsername = data.user1;
+      } else {
+        continue;
+      }
+
+      // Get friend's profile picture
+      const friendDoc = await db.collection('users').doc(friendUsername).get();
+      const friendData = friendDoc.data();
+
+      friends.push({
+        username: friendUsername,
+        profilePicture: friendData?.profilePicture || null
+      });
+    }
+
+    // Return just the array, not wrapped in an object
+    res.status(200).json(friends);
   } catch (error) {
     console.error("Error:", error.message);
     res.status(500).json({ message: error.message || "Internal server error" });
@@ -218,26 +236,32 @@ const removeFriend = async (req, res) => {
 // Add this new function to get sent requests
 const getSentRequests = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const { username } = req.params;
 
-    const sentSnapshot = await db.collection("friends")
-      .where("user1", "==", userId)
+    const sentRequestsSnapshot = await db.collection("friends")
+      .where("user1", "==", username)
       .where("status", "==", "pending")
       .get();
 
     const sentRequests = [];
-    sentSnapshot.forEach((doc) => {
+
+    for (const doc of sentRequestsSnapshot.docs) {
       const data = doc.data();
+      // Get recipient's profile picture
+      const recipientDoc = await db.collection('users').doc(data.user2).get();
+      const recipientData = recipientDoc.data();
+
       sentRequests.push({
         recipient: data.user2,
         status: data.status,
         createdAt: data.createdAt.toDate().toISOString(),
+        profilePicture: recipientData?.profilePicture || null
       });
-    });
+    }
 
-    res.status(200).json({ sentRequests });
+    res.status(200).json(sentRequests);
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error fetching sent requests:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

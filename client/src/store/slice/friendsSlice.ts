@@ -5,10 +5,28 @@ import { BASE_URL, SOCKET_URL } from '../../config/api';
 
 const socket = io(SOCKET_URL);
 
+interface PendingRequest {
+  sender: string;
+  createdAt: string;
+  profilePicture?: string | null;
+}
+
+interface SentRequest {
+  recipient: string;
+  createdAt: string;
+  status: string;
+  profilePicture?: string | null;
+}
+
+interface Friend {
+  username: string;
+  profilePicture: string | null;
+}
+
 interface FriendState {
-  friends: string[];
-  pendingRequests: Array<{ sender: string; createdAt: string }>;
-  sentRequests: Array<{ recipient: string; createdAt: string; status: string }>;
+  friends: Friend[];
+  pendingRequests: PendingRequest[];
+  sentRequests: SentRequest[];
   loading: boolean;
   error: string | null;
 }
@@ -26,23 +44,23 @@ export const fetchFriends = createAsyncThunk(
   'friends/fetchFriends',
   async (username: string) => {
     const response = await axios.get(`${BASE_URL}/friends/${username}/friends`);
-    return response.data.friends;
+    return response.data;
   }
 );
 
 export const fetchPendingRequests = createAsyncThunk(
   'friends/fetchPendingRequests',
   async (username: string) => {
-    const response = await axios.get(`${BASE_URL}/friends/${username}/pending-requests`);
-    return response.data.pendingRequests;
+    const response = await axios.get(`${BASE_URL}/friends/requests/pending/${username}`);
+    return response.data;
   }
 );
 
 export const fetchSentRequests = createAsyncThunk(
   'friends/fetchSentRequests',
   async (username: string) => {
-    const response = await axios.get(`${BASE_URL}/friends/${username}/sent-requests`);
-    return response.data.sentRequests;
+    const response = await axios.get(`${BASE_URL}/friends/requests/sent/${username}`);
+    return response.data;
   }
 );
 
@@ -128,7 +146,10 @@ const friendsSlice = createSlice({
         state.pendingRequests = state.pendingRequests.filter(
           (request) => request.sender !== action.payload.sender
         );
-        state.friends.push(action.payload.sender);
+        state.friends.push({
+          username: action.payload.sender,
+          profilePicture: null,
+        });
       })
       // Decline Friend Request
       .addCase(declineFriendRequest.fulfilled, (state, action) => {
@@ -143,18 +164,17 @@ export const { setFriends, setPendingRequests, setSentRequests } = friendsSlice.
 
 // Socket.IO event handlers
 export const setupFriendsListeners = (username: string) => async (dispatch: any) => {
-  // Initial data fetch
   const fetchInitialData = async () => {
     try {
       const [friendsRes, pendingRes, sentRes] = await Promise.all([
         axios.get(`${BASE_URL}/friends/${username}/friends`),
-        axios.get(`${BASE_URL}/friends/${username}/pending-requests`),
-        axios.get(`${BASE_URL}/friends/${username}/sent-requests`)
+        axios.get(`${BASE_URL}/friends/requests/pending/${username}`),
+        axios.get(`${BASE_URL}/friends/requests/sent/${username}`)
       ]);
 
-      dispatch(setFriends(friendsRes.data.friends));
-      dispatch(setPendingRequests(pendingRes.data.pendingRequests));
-      dispatch(setSentRequests(sentRes.data.sentRequests));
+      dispatch(setFriends(friendsRes.data));
+      dispatch(setPendingRequests(pendingRes.data));
+      dispatch(setSentRequests(sentRes.data));
     } catch (error) {
       console.error('Error fetching initial data:', error);
     }
@@ -167,7 +187,7 @@ export const setupFriendsListeners = (username: string) => async (dispatch: any)
   // Set up real-time listeners
   socket.on('friends-update', async () => {
     const res = await axios.get(`${BASE_URL}/friends/${username}/friends`);
-    dispatch(setFriends(res.data.friends));
+    dispatch(setFriends(res.data));
   });
 
   socket.on('pending-requests-update', async () => {
@@ -176,8 +196,8 @@ export const setupFriendsListeners = (username: string) => async (dispatch: any)
   });
 
   socket.on('sent-requests-update', async () => {
-    const res = await axios.get(`${BASE_URL}/friends/${username}/sent-requests`);
-    dispatch(setSentRequests(res.data.sentRequests));
+    const res = await axios.get(`${BASE_URL}/friends/requests/sent/${username}`);
+    dispatch(setSentRequests(res.data));
   });
 
   // Cleanup function

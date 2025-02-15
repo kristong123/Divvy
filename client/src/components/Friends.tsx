@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
 import { fetchFriends } from '../store/slice/friendsSlice';
 import { AppDispatch } from '../store/store';
+import { toast } from 'react-hot-toast';
 
 const Friends: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -26,13 +27,26 @@ const Friends: React.FC = () => {
       <p className="text-sm font-bold text-black">Friends</p>
       <div className="mt-2">
         {friends.map((friend) => (
-          <div key={friend} className="row text-sm text-black mb-2 hover:bg-gray-50
-            transition-all duration-300 ease-smooth transform hover:scale-102">
+          <div key={friend.username} className="row text-sm text-black mb-2">
             <div className="flex items-center">
-              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1">
-                <UserRound className="m-auto h-6 w-6"/>
+              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1 relative">
+                <div className="m-auto">
+                  {friend.profilePicture ? (
+                    <img 
+                      src={friend.profilePicture} 
+                      alt={friend.username}
+                      className="w-7 h-7 rounded-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = '';
+                        toast.error(`Failed to load ${friend.username}'s profile picture`);
+                      }}
+                    />
+                  ) : (
+                    <UserRound className="m-auto h-6 w-6"/>
+                  )}
+                </div>
               </div>
-              <span className="ml-2">{friend}</span>
+              <span className="ml-2">{friend.username}</span>
             </div>
           </div>
         ))}
