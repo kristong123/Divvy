@@ -1,32 +1,6 @@
 import React, { useState } from 'react';
-import styled from 'styled-components';
-import CreateGroupModal from './CreateGroupModal';
-
-const ButtonContainer = styled.div`
-  background: white;
-  border-radius: 16px;
-  width: 120px;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-`;
-
-const StyledButton = styled.div`
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgb(87, 227, 220), white);
-  color: black;
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  padding-bottom: 2px;
-`;
+import CreateGroupWindow from './CreateGroupWindow';
+import clsx from 'clsx';
 
 interface AddGroupButtonProps {
   onConfirm: (groupName: string) => void;
@@ -40,15 +14,36 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
     setIsModalOpen(false);
   };
 
+  const buttonContainer = clsx(
+    // Layout
+    'w-[120px] h-[120px]',
+    'flex items-center justify-center',
+    // Appearance
+    'bg-white rounded-2xl shadow-md',
+    // Interactive
+    'cursor-pointer'
+  );
+
+  const plusButton = clsx(
+    // Layout
+    'w-10 h-10',
+    'flex items-center justify-center',
+    // Appearance
+    'rounded-full',
+    'bg-gradient-to-tr from-[#57E3DC] to-white',
+    // Typography
+    'text-black text-2xl',
+    // Spacing
+    'pb-0.5'
+  );
+
   return (
     <>
-      <ButtonContainer onClick={() => setIsModalOpen(true)}>
-        <StyledButton>
-          +
-        </StyledButton>
-      </ButtonContainer>
+      <div className={buttonContainer} onClick={() => setIsModalOpen(true)}>
+        <div className={plusButton}>+</div>
+      </div>
       
-      <CreateGroupModal
+      <CreateGroupWindow
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleCreateGroup}

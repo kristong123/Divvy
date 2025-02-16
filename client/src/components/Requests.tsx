@@ -1,6 +1,7 @@
 import { UserRound, Check, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import clsx from 'clsx';
 import { RootState } from '../store/store';
 import { AppDispatch } from '../store/store';
 import {
@@ -18,6 +19,108 @@ const Requests: React.FC = () => {
   const pendingRequests = useSelector((state: RootState) => state.friends.pendingRequests);
   const sentRequests = useSelector((state: RootState) => state.friends.sentRequests);
   const [friendUsername, setFriendUsername] = useState('');
+
+  const container = clsx(
+    // Spacing
+    'p-4 pt-0'
+  );
+
+  const addFriendSection = clsx(
+    // Layout
+    'flex flex-col items-center'
+  );
+
+  const sectionTitle = clsx(
+    // Typography
+    'text-sm font-bold text-black'
+  );
+
+  const addFriendForm = clsx(
+    // Layout
+    'w-full'
+  );
+
+  const input = clsx(
+    // Layout
+    'w-full',
+    // Border
+    'border-2 border-gray-300',
+    'rounded-md',
+    // Spacing
+    'p-1 mb-0 mt-auto',
+    // Typography
+    'text-black',
+    // Focus & Hover
+    'focus:border-dark1',
+    'hover:border-dark2',
+    // Transitions
+    'transition-all duration-300 ease-smooth'
+  );
+
+  const requestItem = clsx(
+    // Layout
+    'row text-sm text-black',
+    // Spacing
+    'mb-2'
+  );
+
+  const userInfo = clsx(
+    // Layout
+    'flex items-center'
+  );
+
+  const avatarWrapper = clsx(
+    // Layout
+    'flex rounded-full w-8 h-8',
+    // Appearance
+    'bg-gradient-to-br from-dark2 to-light1',
+    // Position
+    'relative'
+  );
+
+  const avatarInner = clsx(
+    // Layout
+    'm-auto'
+  );
+
+  const profileImage = clsx(
+    // Layout
+    'w-7 h-7',
+    // Appearance
+    'rounded-full object-cover'
+  );
+
+  const usernameStyle = clsx(
+    // Spacing
+    'ml-2'
+  );
+
+  const actionButtons = clsx(
+    // Layout
+    'flex gap-2',
+    // Spacing
+    'ml-4'
+  );
+
+  const acceptButton = clsx(
+    // Color
+    'text-green-500 hover:text-green-600',
+    // Transitions
+    'transition-colors duration-300 ease-smooth',
+    'hover:scale-110 transform'
+  );
+
+  const declineButton = clsx(
+    // Color
+    'text-red-500 hover:text-red-600'
+  );
+
+  const statusText = clsx(
+    // Layout
+    'ml-auto',
+    // Typography
+    'text-xs text-gray-500 italic'
+  );
 
   useEffect(() => {
     if (username) {
@@ -68,14 +171,12 @@ const Requests: React.FC = () => {
   };
 
   return (
-    <div className="p-4 pt-0">
-      <div className='col items-center'>
-        <p className="text-sm font-bold text-black">Add Friend</p>
-        <form onSubmit={handleSendFriendRequest} className="w-full">
+    <div className={container}>
+      <div className={addFriendSection}>
+        <p className={sectionTitle}>Add Friend</p>
+        <form onSubmit={handleSendFriendRequest} className={addFriendForm}>
           <input 
-            className="w-full border-2 border-gray-300 focus:border-dark1
-              rounded-md p-1 mb-0 mt-auto text-black
-              transition-all duration-300 ease-smooth hover:border-dark2"
+            className={input}
             placeholder='Username'
             value={friendUsername}
             onChange={(e) => setFriendUsername(e.target.value)}
@@ -85,15 +186,15 @@ const Requests: React.FC = () => {
       <p className="mt-4 text-sm font-bold text-black">Friend Requests</p>
       <div className="mt-2">
         {pendingRequests.map((request) => (
-          <div key={request.sender} className="row text-sm text-black mb-2">
-            <div className="flex items-center">
-              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1 relative">
-                <div className="m-auto">
+          <div key={request.sender} className={requestItem}>
+            <div className={userInfo}>
+              <div className={avatarWrapper}>
+                <div className={avatarInner}>
                   {request.profilePicture ? (
                     <img 
                       src={request.profilePicture} 
                       alt={request.sender}
-                      className="w-7 h-7 rounded-full object-cover"
+                      className={profileImage}
                       onError={(e) => {
                         e.currentTarget.src = '';
                         toast.error(`Failed to load ${request.sender}'s profile picture`);
@@ -104,18 +205,17 @@ const Requests: React.FC = () => {
                   )}
                 </div>
               </div>
-              <span className="ml-2">{request.sender}</span>
+              <span className={usernameStyle}>{request.sender}</span>
             </div>
-            <div className="flex gap-2 ml-4">
+            <div className={actionButtons}>
               <button 
-                className="text-green-500 hover:text-green-600 transition-colors duration-300 ease-smooth
-                  hover:scale-110 transform"
+                className={acceptButton}
                 onClick={() => handleAcceptRequest(request.sender)}
               >
                 <Check className="h-5 w-5"/>
               </button>
               <button 
-                className="text-red-500 hover:text-red-600"
+                className={declineButton}
                 onClick={() => handleDeclineRequest(request.sender)}
               >
                 <X className="h-5 w-5"/>
@@ -127,15 +227,15 @@ const Requests: React.FC = () => {
       <p className="mt-4 text-sm font-bold text-black">Sent Requests</p>
       <div className="mt-2">
         {sentRequests.map((request) => (
-          <div key={request.recipient} className="row text-sm text-black mb-2">
-            <div className="flex items-center">
-              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1 relative">
-                <div className="m-auto">
+          <div key={request.recipient} className={requestItem}>
+            <div className={userInfo}>
+              <div className={avatarWrapper}>
+                <div className={avatarInner}>
                   {request.profilePicture ? (
                     <img 
                       src={request.profilePicture} 
                       alt={request.recipient}
-                      className="w-7 h-7 rounded-full object-cover"
+                      className={profileImage}
                       onError={(e) => {
                         e.currentTarget.src = '';
                         toast.error(`Failed to load ${request.recipient}'s profile picture`);
@@ -146,9 +246,9 @@ const Requests: React.FC = () => {
                   )}
                 </div>
               </div>
-              <span className="ml-2">{request.recipient}</span>
+              <span className={usernameStyle}>{request.recipient}</span>
             </div>
-            <span className="ml-auto text-xs text-gray-500 italic">
+            <span className={statusText}>
               {request.status}
             </span>
           </div>

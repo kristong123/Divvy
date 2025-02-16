@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import clsx from 'clsx';
 import Sidebar from './Sidebar';
 import AddGroupButton from './AddGroupButton';
 import GroupCard from './GroupCard';
-import GroupChatView from './GroupChatView';
-import styled from 'styled-components';
+import GroupChatView from './ChatView';
 
 interface Group {
   id: string;
@@ -12,22 +12,28 @@ interface Group {
   amount?: string;
 }
 
-const TitleLink = styled.h1`
-  margin-left: 24rem;
-  margin-top: 1.5rem;
-  font-size: 3rem;
-  font-weight: bold;
-  color: rgb(87, 227, 220);
-  cursor: pointer;
-  
-  &:hover {
-    opacity: 0.8;
-  }
-`;
-
-const Dashboard: React.FC = () => {
+const Main: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+
+  const titleLink = clsx(
+    // Layout
+    'ml-96 mt-6',
+    // Typography
+    'text-5xl font-bold',
+    'text-[#57E3DC]',
+    // Interactive
+    'cursor-pointer hover:opacity-80',
+    // Transitions
+    'transition-opacity duration-300'
+  );
+
+  const groupsContainer = clsx(
+    // Layout
+    'flex flex-wrap',
+    // Spacing
+    'gap-4 p-4'
+  );
 
   const handleCreateGroup = (groupName: string) => {
     const newGroup: Group = {
@@ -44,17 +50,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleTitleClick = () => {
-    setSelectedGroup(null); // Reset selected group to return to dashboard
-  };
-
   return (
-    <div className="row w-screen h-screen bg-white">
+    <div className="flex w-screen h-screen bg-white">
       <Sidebar/>
-      <div className='col w-full'>
-        <TitleLink onClick={handleTitleClick}>Divvy</TitleLink>
+      <div className='flex flex-col w-full'>
+        <h1 className={titleLink} onClick={() => setSelectedGroup(null)}>
+          Divvy
+        </h1>
         {!selectedGroup ? (
-          <div className='row flex-wrap gap-4 p-4'>
+          <div className={groupsContainer}>
             {groups.map(group => (
               <GroupCard
                 key={group.id}
@@ -73,4 +77,4 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default Dashboard;
+export default Main;

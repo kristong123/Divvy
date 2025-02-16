@@ -1,6 +1,7 @@
 import { UserRound } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import clsx from 'clsx';
 import { RootState } from '../store/store';
 import { fetchFriends } from '../store/slice/friendsSlice';
 import { AppDispatch } from '../store/store';
@@ -12,6 +13,61 @@ const Friends: React.FC = () => {
   const friends = useSelector((state: RootState) => state.friends.friends);
   const loading = useSelector((state: RootState) => state.friends.loading);
 
+  const container = clsx(
+    // Spacing
+    'p-4 pt-0'
+  );
+
+  const title = clsx(
+    // Typography
+    'text-sm font-bold text-black'
+  );
+
+  const friendsList = clsx(
+    // Spacing
+    'mt-2'
+  );
+
+  const friendItem = clsx(
+    // Layout
+    'row',
+    // Typography
+    'text-sm text-black',
+    // Spacing
+    'mb-2'
+  );
+
+  const avatarContainer = clsx(
+    // Layout
+    'flex items-center'
+  );
+
+  const avatarWrapper = clsx(
+    // Layout
+    'flex rounded-full w-8 h-8',
+    // Appearance
+    'bg-gradient-to-br from-dark2 to-light1',
+    // Position
+    'relative'
+  );
+
+  const avatarInner = clsx(
+    // Layout
+    'm-auto'
+  );
+
+  const profileImage = clsx(
+    // Layout
+    'w-7 h-7',
+    // Appearance
+    'rounded-full object-cover'
+  );
+
+  const friendName = clsx(
+    // Spacing
+    'ml-2'
+  );
+
   useEffect(() => {
     if (username) {
       dispatch(fetchFriends(username));
@@ -19,23 +75,23 @@ const Friends: React.FC = () => {
   }, [dispatch, username]);
 
   if (loading) {
-    return <div className="p-4 pt-0">Loading...</div>;
+    return <div className={container}>Loading...</div>;
   }
 
   return (
-    <div className="p-4 pt-0">
-      <p className="text-sm font-bold text-black">Friends</p>
-      <div className="mt-2">
+    <div className={container}>
+      <p className={title}>Friends</p>
+      <div className={friendsList}>
         {friends.map((friend) => (
-          <div key={friend.username} className="row text-sm text-black mb-2">
-            <div className="flex items-center">
-              <div className="flex rounded-full w-8 h-8 bg-gradient-to-br from-dark2 to-light1 relative">
-                <div className="m-auto">
+          <div key={friend.username} className={friendItem}>
+            <div className={avatarContainer}>
+              <div className={avatarWrapper}>
+                <div className={avatarInner}>
                   {friend.profilePicture ? (
                     <img 
                       src={friend.profilePicture} 
                       alt={friend.username}
-                      className="w-7 h-7 rounded-full object-cover"
+                      className={profileImage}
                       onError={(e) => {
                         e.currentTarget.src = '';
                         toast.error(`Failed to load ${friend.username}'s profile picture`);
@@ -46,7 +102,7 @@ const Friends: React.FC = () => {
                   )}
                 </div>
               </div>
-              <span className="ml-2">{friend.username}</span>
+              <span className={friendName}>{friend.username}</span>
             </div>
           </div>
         ))}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import axios from 'axios';
+import clsx from 'clsx';
 import { useAppDispatch } from '../store/hooks'; // Type-safe dispatch
 import { setUser } from '../store/slice/userSlice';
 import { useNavigate } from 'react-router-dom'; // Add this
@@ -74,48 +75,125 @@ const Login: React.FC = () => {
     }
   };
 
+  const container = clsx(
+    // Layout
+    'col min-h-screen',
+    // Alignment
+    'items-center justify-center',
+    // Typography
+    'text-black'
+  );
+
+  const formContainer = clsx(
+    // Layout
+    'col',
+    // Alignment
+    'justify-center'
+  );
+
+  const title = clsx(
+    // Typography
+    'text-4xl font-bold text-white text-center',
+    // Spacing
+    'mb-4'
+  );
+
+  const inputLabel = clsx(
+    // Typography
+    'block text-white text-sm font-bold',
+    // Spacing
+    'mb-2'
+  );
+
+  const baseInput = clsx(
+    // Layout
+    'w-full',
+    // Spacing
+    'px-3 py-2',
+    // Border
+    'border rounded-lg',
+    // Focus
+    'focus:outline-none focus:ring-2 focus:ring-light1',
+    // Transitions
+    'transition-all duration-300 ease-smooth',
+    // Hover
+    'hover:border-dark2'
+  );
+
+  const passwordContainer = clsx(
+    // Layout
+    'relative',
+    // Spacing
+    'mb-6'
+  );
+
+  const passwordToggle = clsx(
+    // Position
+    'absolute inset-y-0 right-0 px-3',
+    // Layout
+    'flex items-center',
+    // Typography
+    'text-gray-600',
+    // Hover
+    'hover:text-gray-800'
+  );
+
+  const loginButton = clsx(
+    // Layout
+    'w-full',
+    // Spacing
+    'py-2',
+    // Appearance
+    'bg-dark2 text-white rounded-lg',
+    // Effects
+    'hover:shadow-md',
+    // Transitions
+    'transition-all duration-300 ease-smooth'
+  );
+
+  const signupButton = clsx(
+    // Typography
+    'text-white font-bold',
+    // Spacing
+    'mt-3',
+    // Transitions
+    'transition-all duration-300 ease-smooth'
+  );
+
   return (
-    <div className="col items-center justify-center min-h-screen text-black">
-      <div className="col justify-center">
-        <h1 className="text-4xl font-bold text-center mb-4 text-white">
-          Divvy
-        </h1>
+    <div className={container}>
+      <div className={formContainer}>
+        <h1 className={title}>Divvy</h1>
 
         <div className="mb-4">
-          <label htmlFor="username" className="block text-white text-sm font-bold mb-2">
-            Username
-          </label>
+          <label htmlFor="username" className={inputLabel}>Username</label>
           <input
             id="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-light1 
-              transition-all duration-300 ease-smooth hover:border-dark2"
+            className={baseInput}
             placeholder="Enter your username"
             onKeyDown={handleKeyDown}
           />
         </div>
 
-        <div className="mb-6 relative">
-          <label htmlFor="password" className="block text-white text-sm font-bold mb-2">
-            Password
-          </label>
+        <div className={passwordContainer}>
+          <label htmlFor="password" className={inputLabel}>Password</label>
           <div className="relative">
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-light1 pr-10 
-                transition-all duration-300 ease-smooth hover:border-dark2"
+              className={clsx(baseInput, 'pr-10')}
               placeholder="Enter your password"
               onKeyDown={handleKeyDown}
             />
             <button
               type="button"
               onClick={togglePasswordVisibility}
-              className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-600 hover:text-gray-800"
+              className={passwordToggle}
             >
               {showPassword ? (
                 <EyeOffIcon className="h-5 w-5" />
@@ -126,19 +204,11 @@ const Login: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleLogin}
-          className="w-full bg-dark2 text-white py-2 rounded-lg hover:shadow-md 
-            transition-all duration-300 ease-smooth"
-        >
+        <button onClick={handleLogin} className={loginButton}>
           Log In
         </button>
 
-        <button
-          onClick={handleSignUp}
-          className="text-white font-bold mt-3 
-            transition-all duration-300 ease-smooth"
-        >
+        <button onClick={handleSignUp} className={signupButton}>
           Sign up
         </button>
       </div>

@@ -21,12 +21,7 @@ app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log('\n--- Incoming Request ---');
-  console.log('Time:', new Date().toISOString());
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
+  console.log('Request:', req.url);
   next();
 });
 

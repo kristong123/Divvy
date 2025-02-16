@@ -1,17 +1,72 @@
 import React, { useRef } from 'react';
 import { UserRound } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
+import clsx from 'clsx';
 import { RootState } from '../store/store';
 import { updateProfilePicture } from '../store/slice/userSlice';
 import axios from 'axios';
 import { BASE_URL } from '../config/api';
-import imageCompression from 'browser-image-compression';
 import { toast } from 'react-hot-toast';
 
 const ProfilePicture: React.FC = () => {
   const dispatch = useDispatch();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { username, profilePicture } = useSelector((state: RootState) => state.user);
+
+  const container = clsx(
+    // Layout
+    'flex rounded-full w-16 h-16',
+    // Appearance
+    'bg-gradient-to-br from-dark2 to-light1',
+    // Position
+    'relative',
+    // Interactive
+    'cursor-pointer',
+    // Group
+    'group'
+  );
+
+  const innerContainer = clsx(
+    // Layout
+    'm-auto'
+  );
+
+  const defaultAvatar = clsx(
+    // Layout
+    'flex rounded-full w-14 h-14',
+    // Appearance
+    'bg-slate-300'
+  );
+
+  const defaultIcon = clsx(
+    // Layout
+    'm-auto w-3/4 h-3/4'
+  );
+
+  const profileImage = clsx(
+    // Layout
+    'w-14 h-14',
+    // Appearance
+    'rounded-full object-cover'
+  );
+
+  const overlay = clsx(
+    // Layout
+    'absolute inset-0',
+    // Appearance
+    'bg-black bg-opacity-50 rounded-full',
+    // Visibility
+    'opacity-0 group-hover:opacity-100',
+    // Layout
+    'flex items-center justify-center',
+    // Transitions
+    'transition-opacity'
+  );
+
+  const overlayText = clsx(
+    // Typography
+    'text-white text-xs'
+  );
 
   const handleClick = () => {
     fileInputRef.current?.click();
@@ -21,85 +76,56 @@ const ProfilePicture: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Show loading toast
     const loadingToast = toast.loading('Uploading profile picture...');
 
     try {
-      if (file.size > 5 * 1024 * 1024) { // 5MB
-        toast.error('Image is too large. Maximum size is 5MB', {
-          id: loadingToast
-        });
-        return;
-      }
+      // Send only the file data
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('username', username || '');
 
-      // Compress the image
-      const compressedFile = await imageCompression(file, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1024,
-        useWebWorker: true,
-        onProgress: (progress) => {
-          toast.loading(`Compressing: ${Math.round(progress)}%`, {
-            id: loadingToast
-          });
+      const response = await axios.post(
+        `${BASE_URL}/user/profile-picture`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
         }
+      );
+      
+      dispatch(updateProfilePicture(response.data.url));
+      toast.success('Profile picture updated!', {
+        id: loadingToast
       });
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        
-        try {
-          const response = await axios.post(
-            `${BASE_URL}/user/profile-picture`,
-            {
-              image: base64,
-              username: username
-            }
-          );
-          
-          dispatch(updateProfilePicture(response.data.url));
-          toast.success('Profile picture updated successfully!', {
-            id: loadingToast
-          });
-        } catch (error) {
-          console.error('Error uploading profile picture:', error);
-          toast.error('Failed to upload profile picture', {
-            id: loadingToast
-          });
-        }
-      };
-      reader.readAsDataURL(compressedFile);
     } catch (error) {
-      console.error('Error compressing image:', error);
-      toast.error('Failed to compress image.', {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload image', {
         id: loadingToast
       });
     }
   };
 
   return (
-    <div 
-      className='flex rounded-full w-16 h-16 bg-gradient-to-br from-dark2 to-light1 relative cursor-pointer group'
-      onClick={handleClick}
-    >
-      <div className="m-auto">
+    <div className={container} onClick={handleClick}>
+      <div className={innerContainer}>
         {profilePicture ? (
           <img 
             src={profilePicture} 
             alt="Profile"
-            className="w-14 h-14 rounded-full object-cover"
+            className={profileImage}
             onError={(e) => {
               e.currentTarget.src = ''; // Clear the broken image
               toast.error('Failed to load profile picture');
             }}
           />
         ) : (
-          <div className="flex rounded-full w-14 h-14 bg-slate-300">
-            <UserRound className="m-auto w-3/4 h-3/4"/>
+          <div className={defaultAvatar}>
+            <UserRound className={defaultIcon}/>
           </div>
         )}
-        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <span className="text-white text-xs">Edit</span>
+        <div className={overlay}>
+          <span className={overlayText}>Edit</span>
         </div>
         <input
           type="file"
