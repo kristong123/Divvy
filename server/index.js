@@ -3,16 +3,17 @@ const http = require("http");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { initializeSocket } = require("./src/config/socket");
+const corsOptions = require("./src/config/corsOptions");
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO FIRST
+// Initialize Socket.IO with existing corsOptions
 initializeSocket(server);
 
-// Basic CORS setup
-app.use(cors());
+// Use existing CORS config
+app.use(cors(corsOptions));
 
 // Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));

@@ -8,9 +8,12 @@ const {
     deleteGroup,
     getGroupDetails,
     updateGroupChat,
-    pinGroupMessage
+    pinGroupMessage,
+    createGroup,
+    sendGroupInvite,
+    joinGroup
 } = require("../controllers/groupMessages");
-const { createGroup, getUserGroups } = require('../controllers/groups');
+const { getUserGroups } = require('../controllers/groups');
 
 const router = express.Router();
 
@@ -27,8 +30,12 @@ router.delete("/remove-user", removeUserFromGroup);
 router.delete("/leave", leaveGroup);
 
 // Messages
-router.post("/send", sendGroupMessage);
+router.post("/:groupId/messages", sendGroupMessage);
 router.get("/:groupId/messages", getGroupMessages);
 router.put("/:groupId/pin-message", pinGroupMessage);
+
+// Invites
+router.post("/invite", sendGroupInvite);
+router.post("/join", joinGroup);
 
 module.exports = router;

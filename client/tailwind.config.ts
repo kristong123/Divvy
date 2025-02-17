@@ -35,6 +35,12 @@ export default {
       transitionDuration: {
         '400': '400ms',
       },
+      borderWidth: {
+        'divider': '2px',
+      },
+      borderColor: {
+        'divider': '#E5E7EB',
+      }
     }
   },
 } satisfies Config

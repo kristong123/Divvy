@@ -1,23 +1,37 @@
 const { db } = require("../config/firebase");
+const { getIO } = require("../config/socket");
+const { getUserGroups } = require("./groups");
 
 // Create a group chat
 const createGroupChat = async (req, res) => {
     try {
-        const { name, createdBy, users } = req.body;
-        if (!name || !createdBy || !users || users.length < 2) {
-            return res.status(400).json({ message: "Invalid group data. At least two users required." });
-        }
+        const { name, createdBy } = req.body;
 
+        // Create group with just username reference
         const groupRef = await db.collection("groupChats").add({
             name,
             createdBy,
             admin: createdBy,
-            users,
+            users: [createdBy],
             lastMessage: "",
             updatedAt: new Date(),
+            createdAt: new Date()
         });
 
-        res.status(201).json({ groupId: groupRef.id, message: "Group chat created!" });
+        // Get creator's data for the response only
+        const userDoc = await db.collection("users").doc(createdBy).get();
+        const userData = userDoc.data();
+
+        res.status(201).json({
+            id: groupRef.id,
+            name,
+            createdBy,
+            users: [{
+                username: createdBy,
+                profilePicture: userData?.profilePicture || null,
+                isAdmin: true
+            }]
+        });
     } catch (error) {
         console.error("Error creating group chat:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -27,34 +41,43 @@ const createGroupChat = async (req, res) => {
 // Send a message in a group chat
 const sendGroupMessage = async (req, res) => {
     try {
-        const { groupId, senderId, content } = req.body;
-        if (!groupId || !senderId || !content) {
-            return res.status(400).json({ message: "Missing fields" });
-        }
+        const { groupId } = req.params;  // Get from URL params
+        const { content, senderId } = req.body;
 
-        const groupRef = db.collection("groupChats").doc(groupId);
+        const groupRef = db.collection('groupChats').doc(groupId);
+
+        // Verify group exists
         const groupDoc = await groupRef.get();
         if (!groupDoc.exists) {
-            return res.status(404).json({ message: "Group chat not found." });
+            return res.status(404).json({ message: "Group not found" });
         }
 
-        const newMessage = {
-            senderId,
+        // Add message
+        const messageRef = await groupRef.collection('messages').add({
             content,
+            senderId,
             timestamp: new Date(),
-            status: "sent",
-        };
-
-        await groupRef.collection("messages").add(newMessage);
-        await groupRef.update({
-            lastMessage: content,
-            updatedAt: new Date(),
+            system: false
         });
 
-        res.status(200).json({ message: "Message sent to group!" });
+        // Update group
+        await groupRef.update({
+            lastMessage: content,
+            lastMessageTime: new Date(),
+            updatedAt: new Date()
+        });
+
+        // Get message with ID
+        const messageDoc = await messageRef.get();
+        const messageData = {
+            id: messageRef.id,
+            ...messageDoc.data(),
+            timestamp: messageDoc.data().timestamp.toDate().toISOString()
+        };
+
+        res.status(201).json(messageData);
     } catch (error) {
-        console.error("Error sending group message:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: 'Failed to send message' });
     }
 };
 
@@ -62,16 +85,19 @@ const sendGroupMessage = async (req, res) => {
 const getGroupMessages = async (req, res) => {
     try {
         const { groupId } = req.params;
+        const groupRef = db.collection("groupChats").doc(groupId);
 
-        const messagesSnapshot = await db.collection("groupChats")
-            .doc(groupId)
+        // Verify group exists
+        const groupDoc = await groupRef.get();
+        if (!groupDoc.exists) {
+            return res.status(404).json({ message: "Group chat not found" });
+        }
+
+        // Get messages from subcollection
+        const messagesSnapshot = await groupRef
             .collection("messages")
             .orderBy("timestamp", "asc")
             .get();
-
-        if (messagesSnapshot.empty) {
-            return res.status(404).json({ message: "No messages found in this group chat." });
-        }
 
         const messages = messagesSnapshot.docs.map(doc => ({
             id: doc.id,
@@ -82,7 +108,7 @@ const getGroupMessages = async (req, res) => {
         res.status(200).json(messages);
     } catch (error) {
         console.error("Error fetching group messages:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Failed to fetch messages" });
     }
 };
 
@@ -109,8 +135,9 @@ const addUserToGroup = async (req, res) => {
             return res.status(400).json({ message: "User is already in the group" });
         }
 
+        // Add just the username
         await groupRef.update({
-            users: [...groupData.users, userId],
+            users: [...groupData.users, userId], // Just store username
         });
 
         res.status(200).json({ message: "User added to group!" });
@@ -228,7 +255,6 @@ const deleteGroup = async (req, res) => {
 const getGroupDetails = async (req, res) => {
     try {
         const { groupId } = req.params;
-
         const groupRef = db.collection("groupChats").doc(groupId);
         const groupDoc = await groupRef.get();
 
@@ -236,7 +262,37 @@ const getGroupDetails = async (req, res) => {
             return res.status(404).json({ message: "Group not found" });
         }
 
-        res.status(200).json({ groupId, ...groupDoc.data() });
+        const groupData = groupDoc.data();
+
+        // Fetch user details for each username in the group
+        const userPromises = groupData.users.map(async (username) => {
+            const userDoc = await db.collection("users").doc(username).get();
+            if (!userDoc.exists) {
+                return {
+                    username,
+                    profilePicture: null,
+                    isAdmin: username === groupData.admin
+                };
+            }
+            const userData = userDoc.data();
+            return {
+                username,
+                profilePicture: userData.profilePicture || null,
+                isAdmin: username === groupData.admin
+            };
+        });
+
+        const users = await Promise.all(userPromises);
+
+        res.status(200).json({
+            groupId,
+            name: groupData.name,
+            admin: groupData.admin,
+            users, // Now contains full user details
+            createdBy: groupData.createdBy,
+            createdAt: groupData.createdAt,
+            updatedAt: groupData.updatedAt
+        });
     } catch (error) {
         console.error("Error fetching group details:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -304,5 +360,162 @@ const pinGroupMessage = async (req, res) => {
     }
 };
 
+// Create a new group
+const createGroup = async (req, res) => {
+    try {
+        const { name, createdBy } = req.body;
 
-module.exports = { createGroupChat, sendGroupMessage, getGroupMessages, addUserToGroup, removeUserFromGroup, leaveGroup, deleteGroup, getGroupDetails, updateGroupChat, pinGroupMessage };
+        const groupRef = await db.collection("groupChats").add({
+            name,
+            createdBy,
+            admin: createdBy,
+            users: [createdBy], // Just store username
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastMessage: "",
+            lastMessageTime: null
+        });
+
+        // Create messages subcollection
+        await groupRef.collection("messages").add({
+            system: true,
+            content: "Group created",
+            timestamp: new Date(),
+            senderId: "system"
+        });
+
+        // Get user data for response only
+        const userDoc = await db.collection("users").doc(createdBy).get();
+        const userData = userDoc.data();
+
+        res.status(201).json({
+            id: groupRef.id,
+            name,
+            createdBy,
+            users: [{
+                username: createdBy,
+                profilePicture: userData?.profilePicture || null,
+                isAdmin: true
+            }]
+        });
+    } catch (error) {
+        console.error("Error creating group:", error);
+        res.status(500).json({ message: "Failed to create group" });
+    }
+};
+
+const sendGroupInvite = async (req, res) => {
+    try {
+        const { groupId, username } = req.body;
+
+        // Verify group exists
+        const groupRef = db.collection("groupChats").doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            return res.status(404).json({ message: "Group not found" });
+        }
+
+        // Check if user exists
+        const userDoc = await db.collection("users").doc(username).get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Check if user is already in group
+        const groupData = groupDoc.data();
+        if (groupData.users.includes(username)) {
+            return res.status(400).json({ message: "User is already in the group" });
+        }
+
+        // Create invite
+        const inviteRef = await db.collection("groupInvites").add({
+            groupId,
+            groupName: groupData.name,
+            invitedUser: username,
+            invitedBy: groupData.admin,
+            status: 'pending',
+            createdAt: new Date()
+        });
+
+        // Emit socket event to invited user
+        const io = getIO();
+        io.to(username).emit('group-invite', {
+            id: inviteRef.id,
+            groupId,
+            groupName: groupData.name,
+            invitedBy: groupData.admin
+        });
+
+        res.status(200).json({ message: "Invite sent successfully" });
+    } catch (error) {
+        console.error("Error sending group invite:", error);
+        res.status(500).json({ message: "Failed to send invite" });
+    }
+};
+
+const joinGroup = async (req, res) => {
+    try {
+        const { groupId, userId } = req.body;
+
+        const groupRef = db.collection("groupChats").doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        if (!groupDoc.exists) {
+            return res.status(404).json({ message: "Group not found" });
+        }
+
+        const groupData = groupDoc.data();
+
+        // Add just the username to group
+        await groupRef.update({
+            users: [...groupData.users, userId], // Just store username
+            updatedAt: new Date()
+        });
+
+        // Add system message
+        await groupRef.collection("messages").add({
+            system: true,
+            content: `${userId} joined the group`,
+            timestamp: new Date(),
+            senderId: "system"
+        });
+
+        // Notify members
+        const io = getIO();
+        groupData.users.forEach(member => {
+            io.to(member).emit('group-member-joined', {
+                groupId,
+                username: userId
+            });
+        });
+
+        res.status(200).json({ message: "Joined group successfully" });
+    } catch (error) {
+        console.error("Error joining group:", error);
+        res.status(500).json({ message: "Failed to join group" });
+    }
+};
+
+module.exports = {
+    // Group creation and management
+    createGroup,
+    createGroupChat,
+    deleteGroup,
+    updateGroupChat,
+
+    // Group membership
+    addUserToGroup,
+    removeUserFromGroup,
+    leaveGroup,
+
+    // Group messages
+    sendGroupMessage,
+    getGroupMessages,
+    pinGroupMessage,
+
+    // Group info
+    getGroupDetails,
+    sendGroupInvite,
+    joinGroup
+};

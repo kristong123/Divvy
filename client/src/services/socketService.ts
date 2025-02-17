@@ -5,6 +5,9 @@ import { setFriends, setPendingRequests, setSentRequests } from '../store/slice/
 import { addMessage } from '../store/slice/chatSlice';
 import { toast } from 'react-hot-toast';
 import { MessageData, SocketMessageEvent, SocketErrorEvent, UserStatusEvent, FriendRequestEvent } from '../types/messages';
+import axios from 'axios';
+import { BASE_URL } from '../config/api';
+import { groupActions } from '../store/slice/groupSlice';
 
 const socket = io(SOCKET_URL);
 
@@ -13,10 +16,18 @@ export const initializeSocket = (username: string) => {
     socket.emit('join', username);
     socket.emit('user-online', username);
 
-    // Listen for new messages
+    // Listen for direct messages
     socket.on('new-message', (data: SocketMessageEvent) => {
         store.dispatch(addMessage({
             chatId: data.chatId,
+            message: data.message
+        }));
+    });
+
+    // Listen for group messages
+    socket.on('new-group-message', (data: SocketMessageEvent) => {
+        store.dispatch(addMessage({
+            chatId: `group_${data.groupId}`,
             message: data.message
         }));
     });
@@ -45,6 +56,7 @@ export const initializeSocket = (username: string) => {
 
     return () => {
         socket.off('new-message');
+        socket.off('new-group-message');
         socket.off('new-friend-request');
         socket.off('friend-request-accepted');
         socket.off('friend-request-declined');
@@ -53,9 +65,32 @@ export const initializeSocket = (username: string) => {
     };
 };
 
-export const sendMessage = (data: MessageData) => {
-    console.log('Sending message:', data); // Debug log
-    socket.emit('private-message', data);
+export const sendMessage = async (data: MessageData) => {
+    if (data.chatId.startsWith('group_')) {
+        const groupId = data.chatId.replace('group_', '');
+        
+        // Emit socket event immediately for instant UI update
+        socket.emit('group-message', {
+            groupId,
+            message: {
+                ...data,
+                timestamp: new Date().toISOString()
+            }
+        });
+
+        // Save to database in background
+        try {
+            await axios.post(`${BASE_URL}/api/groups/${groupId}/messages`, {
+                content: data.content,
+                senderId: data.senderId
+            });
+        } catch (error) {
+            toast.error('Failed to save message');
+        }
+    } else {
+        // Direct messages remain the same
+        socket.emit('private-message', data);
+    }
 };
 
 export const sendFriendRequest = (data: any) => {

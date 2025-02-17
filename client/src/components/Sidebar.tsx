@@ -3,11 +3,11 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import Notifications from './Notifications';
-import Friends from './Friends';
-import Requests from './Requests';
+import Notifications from './sidebar/Notifications';
+import Friends from './sidebar/Friends';
+import Requests from './sidebar/Requests';
 import { setupFriendsListeners } from '../store/slice/friendsSlice';
-import ProfilePicture from './ProfilePicture';
+import ProfilePicture from './sidebar/ProfilePicture';
 
 interface SidebarProps {
   onChatSelect: (chatId: string) => void;
@@ -26,7 +26,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
 
   const sidebar = clsx(
     // Layout
-    'w-60'
+    'w-60',
+    // Border
+    'border-r'
   );
 
   const profileSection = clsx(
@@ -38,7 +40,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
     // Layout
     'flex flex-row',
     // Spacing
-    'p-4'
+    'p-4',
+    // Border
+    'border-b'
   );
 
   const usernameStyle = clsx(
@@ -46,20 +50,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
     'ml-4 my-auto',
     // Typography
     'text-2xl font-bold text-black'
-  );
-
-  const divider = clsx(
-    // Layout
-    'h-0.5',
-    // Appearance
-    'bg-gradient-to-l from-black to-white'
-  );
-
-  const verticalDivider = clsx(
-    // Layout
-    'w-0.5',
-    // Appearance
-    'bg-gradient-to-b from-black to-white'
   );
 
   const navigationButtons = clsx(
@@ -127,7 +117,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
               {currentUser || 'Guest'}
             </p> 
           </div>
-          <div className={divider}></div>
           <div className={navigationButtons}>
             <button 
               onClick={() => setActiveSection('notifications')}
@@ -161,7 +150,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
           </div>
         </div>
       </div>
-      <div className={verticalDivider}></div>
       <button 
         className={homeButton}
         onClick={onHomeClick}

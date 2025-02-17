@@ -7,15 +7,19 @@ let io;
 const initializeSocket = (server) => {
     io = new Server(server, {
         cors: corsOptions,
-        allowEIO3: true
+        allowEIO3: true,
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        transports: ['websocket', 'polling']
     });
 
     io.on('connection', (socket) => {
-        console.log('Client connected:', socket.id);
-
+        // Only log actual user connections
         socket.on('join', (username) => {
-            socket.join(username);
-            console.log(`${username} joined their room`);
+            if (username) {
+                console.log(`User connected: ${username} (${socket.id})`);
+                socket.join(username);
+            }
         });
 
         socket.on('private-message', async (data) => {
@@ -78,11 +82,26 @@ const initializeSocket = (server) => {
         });
 
         // Group events
-        socket.on('group-message', (data) => {
-            // Emit to all group members
-            data.groupMembers.forEach(member => {
-                io.to(member).emit('new-group-message', data);
-            });
+        socket.on('group-message', async (data) => {
+            try {
+                // Get group data to find members
+                const groupRef = await db.collection('groupChats').doc(data.groupId).get();
+                const groupData = groupRef.data();
+
+                if (!groupData) {
+                    throw new Error('Group not found');
+                }
+
+                // Emit to all group members
+                groupData.users.forEach(member => {
+                    io.to(member).emit('new-group-message', {
+                        groupId: data.groupId,
+                        message: data.message
+                    });
+                });
+            } catch (error) {
+                console.error('Error broadcasting group message:', error);
+            }
         });
 
         socket.on('group-created', (data) => {

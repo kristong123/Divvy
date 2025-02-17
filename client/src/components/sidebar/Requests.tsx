@@ -1,17 +1,18 @@
-import { UserRound, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import { RootState } from '../store/store';
-import { AppDispatch } from '../store/store';
+import { RootState } from '../../store/store';
+import { AppDispatch } from '../../store/store';
 import {
   fetchPendingRequests,
   fetchSentRequests,
   sendFriendRequest,
   acceptFriendRequest,
   declineFriendRequest,
-} from '../store/slice/friendsSlice';
+} from '../../store/slice/friendsSlice';
 import { toast } from 'react-hot-toast';
+import ProfileAvatar from '../shared/ProfileAvatar';
 
 const Requests: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -67,27 +68,6 @@ const Requests: React.FC = () => {
   const userInfo = clsx(
     // Layout
     'flex items-center'
-  );
-
-  const avatarWrapper = clsx(
-    // Layout
-    'flex rounded-full w-8 h-8',
-    // Appearance
-    'bg-gradient-to-br from-dark2 to-light1',
-    // Position
-    'relative'
-  );
-
-  const avatarInner = clsx(
-    // Layout
-    'm-auto'
-  );
-
-  const profileImage = clsx(
-    // Layout
-    'w-7 h-7',
-    // Appearance
-    'rounded-full object-cover'
   );
 
   const usernameStyle = clsx(
@@ -188,23 +168,11 @@ const Requests: React.FC = () => {
         {pendingRequests.map((request) => (
           <div key={request.sender} className={requestItem}>
             <div className={userInfo}>
-              <div className={avatarWrapper}>
-                <div className={avatarInner}>
-                  {request.profilePicture ? (
-                    <img 
-                      src={request.profilePicture} 
-                      alt={request.sender}
-                      className={profileImage}
-                      onError={(e) => {
-                        e.currentTarget.src = '';
-                        toast.error(`Failed to load ${request.sender}'s profile picture`);
-                      }}
-                    />
-                  ) : (
-                    <UserRound className="text-white m-auto h-6 w-6"/>
-                  )}
-                </div>
-              </div>
+              <ProfileAvatar
+                username={request.sender}
+                imageUrl={request.profilePicture}
+                size="sm"
+              />
               <span className={usernameStyle}>{request.sender}</span>
             </div>
             <div className={actionButtons}>
@@ -229,28 +197,16 @@ const Requests: React.FC = () => {
         {sentRequests.map((request) => (
           <div key={request.recipient} className={requestItem}>
             <div className={userInfo}>
-              <div className={avatarWrapper}>
-                <div className={avatarInner}>
-                  {request.profilePicture ? (
-                    <img 
-                      src={request.profilePicture} 
-                      alt={request.recipient}
-                      className={profileImage}
-                      onError={(e) => {
-                        e.currentTarget.src = '';
-                        toast.error(`Failed to load ${request.recipient}'s profile picture`);
-                      }}
-                    />
-                  ) : (
-                    <UserRound className="text-white m-auto h-6 w-6"/>
-                  )}
-                </div>
-              </div>
+              <ProfileAvatar
+                username={request.recipient}
+                imageUrl={request.profilePicture}
+                size="sm"
+              />
               <span className={usernameStyle}>{request.recipient}</span>
+              <span className={statusText}>
+                {request.status}
+              </span>
             </div>
-            <span className={statusText}>
-              {request.status}
-            </span>
           </div>
         ))}
       </div>

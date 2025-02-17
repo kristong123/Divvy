@@ -1,11 +1,10 @@
-import { UserRound } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import { RootState } from '../store/store';
-import { fetchFriends } from '../store/slice/friendsSlice';
-import { AppDispatch } from '../store/store';
-import { toast } from 'react-hot-toast';
+import { RootState } from '../../store/store';
+import { fetchFriends } from '../../store/slice/friendsSlice';
+import { AppDispatch } from '../../store/store';
+import ProfileAvatar from '../shared/ProfileAvatar';
 
 interface FriendsProps {
   onChatSelect: (chatId: string) => void;
@@ -46,27 +45,6 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
     'flex items-center'
   );
 
-  const avatarWrapper = clsx(
-    // Layout
-    'flex rounded-full w-8 h-8',
-    // Appearance
-    'bg-gradient-to-br from-dark2 to-light1',
-    // Position
-    'relative'
-  );
-
-  const avatarInner = clsx(
-    // Layout
-    'm-auto'
-  );
-
-  const profileImage = clsx(
-    // Layout
-    'w-7 h-7',
-    // Appearance
-    'rounded-full object-cover'
-  );
-
   const friendName = clsx(
     // Spacing
     'ml-2'
@@ -93,23 +71,11 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
             onClick={() => onChatSelect(friend.username)}
           >
             <div className={avatarContainer}>
-              <div className={avatarWrapper}>
-                <div className={avatarInner}>
-                  {friend.profilePicture ? (
-                    <img 
-                      src={friend.profilePicture} 
-                      alt={friend.username}
-                      className={profileImage}
-                      onError={(e) => {
-                        e.currentTarget.src = '';
-                        toast.error(`Failed to load ${friend.username}'s profile picture`);
-                      }}
-                    />
-                  ) : (
-                    <UserRound className="m-auto h-6 w-6 text-white"/>
-                  )}
-                </div>
-              </div>
+              <ProfileAvatar
+                username={friend.username}
+                imageUrl={friend.profilePicture}
+                size="sm"
+              />
               <span className={friendName}>{friend.username}</span>
             </div>
           </div>

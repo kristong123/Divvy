@@ -10,6 +10,7 @@ export interface MessageData {
 
 export interface SocketMessageEvent {
   chatId: string;
+  groupId?: string;
   message: MessageData;
 }
 

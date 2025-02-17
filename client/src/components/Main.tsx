@@ -1,20 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import Sidebar from './Sidebar';
-import AddGroupButton from './AddGroupButton';
-import GroupCard from './GroupCard';
-import ChatView from './ChatView';
+import AddGroupButton from './groups/AddGroupButton';
+import GroupCard from './groups/GroupCard';
+import ChatView from './shared/ChatView';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { BASE_URL } from '../config/api';
 import { RootState } from '../store/store';
+import { groupActions } from '../store/slice/groupSlice';
+
+interface GroupMember {
+  username: string;
+  profilePicture: string | null;
+  isAdmin: boolean;
+}
 
 interface Group {
   id: string;
   name: string;
   imageUrl?: string;
   amount?: string;
+  isGroup: true;
+  users: GroupMember[];
+  admin: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface DirectChat {
@@ -26,6 +39,7 @@ interface DirectChat {
 
 const Main: React.FC = () => {
   const username = useSelector((state: RootState) => state.user.username);
+  const dispatch = useDispatch();
   const [groups, setGroups] = useState<Group[]>([]);
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<{
@@ -53,16 +67,26 @@ const Main: React.FC = () => {
       if (username) {
         try {
           const response = await axios.get(`${BASE_URL}/api/groups/user/${username}`);
-          setGroups(response.data);
+          const formattedGroups = response.data.map((group: any) => ({
+            id: group.id,
+            name: group.name,
+            isGroup: true,
+            users: group.users,
+            admin: group.admin,
+            createdBy: group.createdBy,
+            createdAt: group.createdAt,
+            updatedAt: group.updatedAt
+          }));
+          setGroups(formattedGroups);
+          dispatch(groupActions.setGroups(formattedGroups));
         } catch (error) {
-          console.error('Fetch groups error:', error);
           toast.error('Failed to fetch groups');
         }
       }
     };
 
     fetchGroups();
-  }, [username]);
+  }, [username, dispatch]);
 
   const handleCreateGroup = async (groupName: string) => {
     try {
@@ -74,8 +98,20 @@ const Main: React.FC = () => {
       const newGroup: Group = {
         id: response.data.id,
         name: response.data.name,
+        isGroup: true,
+        users: response.data.users.map((user: any) => ({
+          username: user.username,
+          profilePicture: user.profilePicture,
+          isAdmin: user.isAdmin
+        })),
+        admin: response.data.admin,
+        createdBy: response.data.createdBy,
+        createdAt: response.data.createdAt,
+        updatedAt: response.data.updatedAt
       };
+
       setGroups([...groups, newGroup]);
+      dispatch(groupActions.addGroup(newGroup));
     } catch (error) {
       toast.error('Failed to create group');
     }
@@ -97,6 +133,20 @@ const Main: React.FC = () => {
     setSelectedChat({ type: 'direct', data: chat });
   };
 
+  const handleGroupClick = (group: Group) => {
+    setSelectedChat({ 
+      type: 'group', 
+      data: {
+        id: group.id,
+        name: group.name,
+        imageUrl: group.imageUrl,
+        amount: group.amount,
+        isGroup: true,
+        users: group.users
+      }
+    });
+  };
+
   return (
     <div className="flex w-screen h-screen bg-white">
       <Sidebar 
@@ -113,7 +163,7 @@ const Main: React.FC = () => {
                   key={group.id}
                   name={group.name}
                   imageUrl={group.imageUrl}
-                  onClick={() => setSelectedChat({ type: 'group', data: group })}
+                  onClick={() => handleGroupClick(group)}
                 />
               ))}
               <AddGroupButton onConfirm={handleCreateGroup} />
