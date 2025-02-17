@@ -11,6 +11,7 @@ import io from 'socket.io-client';
 import { SOCKET_URL } from '../config/api';
 import { sendMessage } from '../services/socketService';
 import { setMessages, addMessage } from '../store/slice/chatSlice';
+import { SocketMessageEvent, MessageData } from '../types/messages';
 
 interface ChatViewProps {
   chat: {
@@ -176,9 +177,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     socket.emit('join', currentUser);
 
     // Listen for new messages
-    socket.on('new-message', (data) => {
+    socket.on('new-message', (data: SocketMessageEvent) => {
       if (data.chatId === [currentUser, chat.name].sort().join('_')) {
-        // Add single message instead of replacing all messages
         dispatch(addMessage({ chatId: data.chatId, message: data.message }));
       }
     });
@@ -194,7 +194,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     if (!inputText.trim() || !currentUser) return;
 
     try {
-      const messageData = {
+      const messageData: MessageData = {
         chatId,
         senderId: currentUser,
         receiverId: chat.name,
