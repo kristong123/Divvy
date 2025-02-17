@@ -16,7 +16,7 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
 
   const buttonContainer = clsx(
     // Layout
-    'w-[120px] h-[120px]',
+    'w-48 h-48',
     'flex items-center justify-center',
     // Appearance
     'bg-white rounded-2xl shadow-md',

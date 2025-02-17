@@ -201,7 +201,7 @@ const Requests: React.FC = () => {
                       }}
                     />
                   ) : (
-                    <UserRound className="m-auto h-6 w-6"/>
+                    <UserRound className="text-white m-auto h-6 w-6"/>
                   )}
                 </div>
               </div>
@@ -242,7 +242,7 @@ const Requests: React.FC = () => {
                       }}
                     />
                   ) : (
-                    <UserRound className="m-auto h-6 w-6"/>
+                    <UserRound className="text-white m-auto h-6 w-6"/>
                   )}
                 </div>
               </div>

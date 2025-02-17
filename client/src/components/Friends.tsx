@@ -7,7 +7,11 @@ import { fetchFriends } from '../store/slice/friendsSlice';
 import { AppDispatch } from '../store/store';
 import { toast } from 'react-hot-toast';
 
-const Friends: React.FC = () => {
+interface FriendsProps {
+  onChatSelect: (chatId: string) => void;
+}
+
+const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
   const dispatch = useDispatch<AppDispatch>();
   const username = useSelector((state: RootState) => state.user.username);
   const friends = useSelector((state: RootState) => state.friends.friends);
@@ -83,7 +87,11 @@ const Friends: React.FC = () => {
       <p className={title}>Friends</p>
       <div className={friendsList}>
         {friends.map((friend) => (
-          <div key={friend.username} className={friendItem}>
+          <div 
+            key={friend.username} 
+            className={clsx(friendItem, 'cursor-pointer')}
+            onClick={() => onChatSelect(friend.username)}
+          >
             <div className={avatarContainer}>
               <div className={avatarWrapper}>
                 <div className={avatarInner}>
@@ -98,7 +106,7 @@ const Friends: React.FC = () => {
                       }}
                     />
                   ) : (
-                    <UserRound className="m-auto h-6 w-6"/>
+                    <UserRound className="m-auto h-6 w-6 text-white"/>
                   )}
                 </div>
               </div>

@@ -10,7 +10,7 @@ interface GroupCardProps {
 const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
   const card = clsx(
     // Layout
-    'w-[120px] h-[120px]',
+    'w-48 h-48',
     'flex flex-col',
     'relative',
     // Spacing

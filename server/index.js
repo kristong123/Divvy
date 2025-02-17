@@ -29,10 +29,14 @@ app.use((req, res, next) => {
 const authRoutes = require('./src/routes/authRoutes');
 const friendsRoutes = require('./src/routes/friendsRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const groupRoutes = require('./src/routes/groupRoutes');
+const messagesRoutes = require('./src/routes/messagesRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/groups', groupRoutes);
+app.use('/api/messages', messagesRoutes);
 
 // Basic test route
 app.get('/test', (req, res) => {

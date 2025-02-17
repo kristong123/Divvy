@@ -19,49 +19,55 @@ const Login: React.FC = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validation
+    if (!username.trim()) {
+      toast.error('Username cannot be empty');
+      return;
+    }
+    if (!password.trim()) {
+      toast.error('Password cannot be empty');
+      return;
+    }
+
     try {
-      const url = `${BASE_URL}/auth/login`;
-      const response = await axios.post(url, {
+      const response = await axios.post(`${BASE_URL}/api/auth/login`, {
         username,
-        password,
+        password
       });
+      
       dispatch(setUser({ 
-        username: response.data.user.username,
-        profilePicture: response.data.user.profilePicture 
+        username: response.data.username,
+        profilePicture: response.data.profilePicture || null 
       }));
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data.message || 'Login failed');
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      console.error('Login error:', error); // Debug log
+      toast.error('Login failed');
     }
   };
 
   const handleSignUp = async () => {
-    if(!username || !password){
-      toast.error('Please enter both username and password');
+    // Validation
+    if (!username.trim()) {
+      toast.error('Username cannot be empty');
       return;
     }
-    if(username.includes(' ') || password.includes(' ')){
-      toast.error('Username and password cannot contain spaces');
+    if (!password.trim()) {
+      toast.error('Password cannot be empty');
       return;
     }
 
     try {
-      const response = await axios.post(`${BASE_URL}/auth/signup`, {
+      await axios.post(`${BASE_URL}/api/auth/signup`, {
         username,
-        password,
+        password
       });
-      toast.success(response.data.message);
+      toast.success('Account created! Please log in');
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data.message || 'Sign-up failed');
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      toast.error('Sign up failed');
     }
   };
 
@@ -70,7 +76,7 @@ const Login: React.FC = () => {
       if (e.shiftKey) {
         handleSignUp();
       } else {
-        handleLogin();
+        handleLogin(e);
       }
     }
   };

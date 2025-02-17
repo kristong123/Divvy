@@ -43,7 +43,7 @@ const initialState: FriendState = {
 export const fetchFriends = createAsyncThunk(
   'friends/fetchFriends',
   async (username: string) => {
-    const response = await axios.get(`${BASE_URL}/friends/${username}/friends`);
+    const response = await axios.get(`${BASE_URL}/api/friends/${username}`);
     return response.data;
   }
 );
@@ -51,7 +51,7 @@ export const fetchFriends = createAsyncThunk(
 export const fetchPendingRequests = createAsyncThunk(
   'friends/fetchPendingRequests',
   async (username: string) => {
-    const response = await axios.get(`${BASE_URL}/friends/requests/pending/${username}`);
+    const response = await axios.get(`${BASE_URL}/api/friends/requests/${username}`);
     return response.data;
   }
 );
@@ -59,7 +59,7 @@ export const fetchPendingRequests = createAsyncThunk(
 export const fetchSentRequests = createAsyncThunk(
   'friends/fetchSentRequests',
   async (username: string) => {
-    const response = await axios.get(`${BASE_URL}/friends/requests/sent/${username}`);
+    const response = await axios.get(`${BASE_URL}/api/friends/sent/${username}`);
     return response.data;
   }
 );
@@ -67,30 +67,40 @@ export const fetchSentRequests = createAsyncThunk(
 export const sendFriendRequest = createAsyncThunk(
   'friends/sendRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.post(`${BASE_URL}/friends/send-request`, {
+    const response = await axios.post(`${BASE_URL}/api/friends/add`, {
       user1,
       user2,
     });
-    return { recipient: user2, status: 'pending', message: response.data.message };
+    return { 
+      recipient: user2, 
+      status: 'pending', 
+      message: response.data.message,
+      profilePicture: response.data.profilePicture
+    };
   }
 );
 
 export const acceptFriendRequest = createAsyncThunk(
   'friends/acceptRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.put(`${BASE_URL}/friends/accept-request`, {
+    const response = await axios.post(`${BASE_URL}/api/friends/accept`, {
       user1,
       user2,
     });
-    return { sender: user1, message: response.data.message };
+    return { 
+      sender: user1, 
+      message: response.data.message,
+      profilePicture: response.data.profilePicture 
+    };
   }
 );
 
 export const declineFriendRequest = createAsyncThunk(
   'friends/declineRequest',
   async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.delete(`${BASE_URL}/friends/decline-request`, {
-      data: { user1, user2 }
+    const response = await axios.post(`${BASE_URL}/api/friends/decline`, {
+      user1,
+      user2,
     });
     return { sender: user1, message: response.data.message };
   }
@@ -139,6 +149,7 @@ const friendsSlice = createSlice({
           recipient: action.payload.recipient,
           status: action.payload.status,
           createdAt: new Date().toISOString(),
+          profilePicture: action.payload.profilePicture
         });
       })
       // Accept Friend Request
@@ -148,7 +159,7 @@ const friendsSlice = createSlice({
         );
         state.friends.push({
           username: action.payload.sender,
-          profilePicture: null,
+          profilePicture: action.payload.profilePicture
         });
       })
       // Decline Friend Request
@@ -167,9 +178,9 @@ export const setupFriendsListeners = (username: string) => async (dispatch: any)
   const fetchInitialData = async () => {
     try {
       const [friendsRes, pendingRes, sentRes] = await Promise.all([
-        axios.get(`${BASE_URL}/friends/${username}/friends`),
-        axios.get(`${BASE_URL}/friends/requests/pending/${username}`),
-        axios.get(`${BASE_URL}/friends/requests/sent/${username}`)
+        axios.get(`${BASE_URL}/api/friends/${username}`),
+        axios.get(`${BASE_URL}/api/friends/requests/${username}`),
+        axios.get(`${BASE_URL}/api/friends/sent/${username}`)
       ]);
 
       dispatch(setFriends(friendsRes.data));
@@ -186,17 +197,17 @@ export const setupFriendsListeners = (username: string) => async (dispatch: any)
 
   // Set up real-time listeners
   socket.on('friends-update', async () => {
-    const res = await axios.get(`${BASE_URL}/friends/${username}/friends`);
+    const res = await axios.get(`${BASE_URL}/api/friends/${username}`);
     dispatch(setFriends(res.data));
   });
 
   socket.on('pending-requests-update', async () => {
-    const res = await axios.get(`${BASE_URL}/friends/${username}/pending-requests`);
+    const res = await axios.get(`${BASE_URL}/api/friends/requests/${username}`);
     dispatch(setPendingRequests(res.data.pendingRequests));
   });
 
   socket.on('sent-requests-update', async () => {
-    const res = await axios.get(`${BASE_URL}/friends/requests/sent/${username}`);
+    const res = await axios.get(`${BASE_URL}/api/friends/sent/${username}`);
     dispatch(setSentRequests(res.data));
   });
 

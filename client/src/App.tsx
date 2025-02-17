@@ -1,10 +1,12 @@
 // client/src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { useEffect } from 'react';
 import { RootState } from './store/store';
 import Login from './components/Login';
 import Main from './components/Main';
 import { Toaster } from 'react-hot-toast';
+import { initializeSocket } from './services/socketService';
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -18,6 +20,15 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
+  const username = useSelector((state: RootState) => state.user.username);
+
+  useEffect(() => {
+    if (username) {
+      const cleanup = initializeSocket(username);
+      return cleanup;
+    }
+  }, [username]);
+
   return (
     <>
       <Toaster position="top-center" />

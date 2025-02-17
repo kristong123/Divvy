@@ -1,4 +1,4 @@
-import { UserRoundPlus, UsersRound, Bell } from 'lucide-react';
+import { UserRoundPlus, UsersRound, Bell, Home } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { useState, useEffect } from 'react';
@@ -9,7 +9,12 @@ import Requests from './Requests';
 import { setupFriendsListeners } from '../store/slice/friendsSlice';
 import ProfilePicture from './ProfilePicture';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onChatSelect: (chatId: string) => void;
+  onHomeClick: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
   const currentUser = useSelector((state: RootState) => state.user.username);
   const dispatch = useDispatch<AppDispatch>();
   const [activeSection, setActiveSection] = useState<'notifications' | 'friends' | 'requests'>('friends');
@@ -89,6 +94,19 @@ const Sidebar: React.FC = () => {
     'transition-opacity duration-300 ease-smooth'
   );
 
+  const homeButton = clsx(
+    // Position
+    'absolute bottom-4 left-4',
+    // Layout
+    'p-2 rounded-full',
+    // Appearance
+    'bg-gradient-to-tr from-[#57E3DC] to-white',
+    // Interactive
+    'cursor-pointer hover:scale-110',
+    // Transitions
+    'transition-transform duration-300'
+  );
+
   useEffect(() => {
     if (currentUser) {
       dispatch(setupFriendsListeners(currentUser)).then(cleanup => {
@@ -135,7 +153,7 @@ const Sidebar: React.FC = () => {
               <Notifications />
             </div>
             <div className={activeSection === 'friends' ? '' : 'hidden'}>
-              <Friends />
+              <Friends onChatSelect={onChatSelect} />
             </div>
             <div className={activeSection === 'requests' ? '' : 'hidden'}>
               <Requests />
@@ -144,6 +162,12 @@ const Sidebar: React.FC = () => {
         </div>
       </div>
       <div className={verticalDivider}></div>
+      <button 
+        className={homeButton}
+        onClick={onHomeClick}
+      >
+        <Home className="h-6 w-6 text-black" />
+      </button>
     </div>
   );
 };

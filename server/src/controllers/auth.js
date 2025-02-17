@@ -16,11 +16,9 @@ exports.login = async (req, res) => {
 
     if (userData.password === password) {
       res.status(200).json({
-        message: 'Login successful',
-        user: {
-          username: userData.username,
-          profilePicture: userData.profilePicture
-        }
+        username: username,
+        profilePicture: userData?.profilePicture || null,
+        message: 'Login successful'
       });
     } else {
       res.status(401).json({ message: 'Invalid username or password' });

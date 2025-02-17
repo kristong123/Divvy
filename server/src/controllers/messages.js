@@ -1,4 +1,5 @@
 const { db } = require("../config/firebase");
+const { getIO } = require("../config/socket");
 
 
 // Check if two users are friends
@@ -11,44 +12,50 @@ const areUsersFriends = async (user1, user2) => {
 // Send a message (either direct chat or request)
 const sendMessage = async (req, res) => {
     try {
-        const { senderId, receiverId, content } = req.body;
-        if (!senderId || !receiverId || !content) {
-            return res.status(400).json({ message: "Missing fields" });
-        }
+        const { chatId, senderId, receiverId, content } = req.body;
 
-        // Check if users are friends
-        const isFriend = await areUsersFriends(senderId, receiverId);
-        const chatType = isFriend ? "chats" : "messageRequests"; // Store in direct chat or request
+        // Create message document
+        const messageRef = await db.collection('chats')
+            .doc(chatId)
+            .collection('messages')
+            .add({
+                senderId,
+                content,
+                timestamp: new Date(),
+                status: 'sent'
+            });
 
-        const chatId = [senderId, receiverId].sort().join("_");
+        // Update or create chat document
+        await db.collection('chats').doc(chatId).set({
+            users: [senderId, receiverId],
+            lastMessage: content,
+            lastMessageTime: new Date(),
+            updatedAt: new Date()
+        }, { merge: true });
 
-        const newMessage = {
+        const messageData = {
+            id: messageRef.id,
             senderId,
             receiverId,
             content,
-            timestamp: new Date(),
-            status: "sent",
+            timestamp: new Date().toISOString(),
+            status: 'sent'
         };
 
-        // Store message in the correct collection
-        await db.collection(chatType).doc(chatId).collection("messages").add(newMessage);
-
-        // Update chat metadata
-        await db.collection(chatType).doc(chatId).set(
-            {
-                users: [senderId, receiverId],
-                lastMessage: content,
-                updatedAt: new Date(),
-            },
-            { merge: true }
-        );
+        // Emit socket event
+        const io = getIO();
+        io.to(receiverId).to(senderId).emit('new-message', {
+            chatId,
+            message: messageData
+        });
 
         res.status(200).json({
-            message: isFriend ? "Message sent!" : "Message request sent!",
+            messageId: messageRef.id,
+            message: 'Message sent successfully'
         });
     } catch (error) {
-        console.error("Error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        console.error('Send message error:', error);
+        res.status(500).json({ message: 'Failed to send message' });
     }
 };
 
@@ -56,27 +63,14 @@ const sendMessage = async (req, res) => {
 const getMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
-        const { lastMessageId } = req.query;
 
-        let query = db.collection("chats")
+        const messagesRef = await db.collection('chats')
             .doc(chatId)
-            .collection("messages")
-            .orderBy("timestamp", "asc")
-            .limit(20); // Retrieve 20 messages at a time
+            .collection('messages')
+            .orderBy('timestamp', 'asc')
+            .get();
 
-        if (lastMessageId) {
-            const lastMessageRef = await db.collection("chats")
-                .doc(chatId)
-                .collection("messages")
-                .doc(lastMessageId)
-                .get();
-            if (lastMessageRef.exists) {
-                query = query.startAfter(lastMessageRef);
-            }
-        }
-
-        const messagesSnapshot = await query.get();
-        const messages = messagesSnapshot.docs.map(doc => ({
+        const messages = messagesRef.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             timestamp: doc.data().timestamp.toDate().toISOString()
@@ -84,8 +78,8 @@ const getMessages = async (req, res) => {
 
         res.status(200).json(messages);
     } catch (error) {
-        console.error("Error fetching messages:", error);
-        res.status(500).json({ message: "Internal server error" });
+        console.error('Get messages error:', error);
+        res.status(500).json({ message: 'Failed to fetch messages' });
     }
 };
 
