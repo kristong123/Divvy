@@ -7,7 +7,6 @@ import { toast } from 'react-hot-toast';
 import { MessageData, SocketMessageEvent, SocketErrorEvent, UserStatusEvent, FriendRequestEvent } from '../types/messages';
 import axios from 'axios';
 import { BASE_URL } from '../config/api';
-import { groupActions } from '../store/slice/groupSlice';
 
 const socket = io(SOCKET_URL);
 
