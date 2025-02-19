@@ -6,7 +6,7 @@ import chatSelectors from '../../store/selectors/chatSelectors';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
-import { sendMessage, getSocket } from '../../services/socketService';
+import { sendMessage, getSocket, updateEvent } from '../../services/socketService';
 import { setMessages, addMessage } from '../../store/slice/chatSlice';
 import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
 import ProfileAvatar from '../shared/ProfileAvatar';
@@ -17,6 +17,8 @@ import { createSelector } from '@reduxjs/toolkit';
 import { groupActions } from '../../store/slice/groupSlice';
 import GroupInvite from '../groups/GroupInvite';
 import { addGroupInvite, removeGroupInvite } from '../../store/slice/inviteSlice';
+import AddEventButton from '../events/AddEventButton';
+import EventDetailsView from '../events/EventDetailsView';
 
 interface ChatViewProps {
   chat: {
@@ -53,10 +55,33 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const selectGroupData = useMemo(
     () => createSelector(
       [(state: RootState) => state.groups.groups, () => chat.id],
-      (groups, chatId) => chat.isGroup ? groups[chatId] : null
+      (groups, chatId) => {
+        const rawGroup = groups[chatId];
+        console.log('Raw Redux state:', groups);
+        console.log('Group from Redux:', rawGroup);
+        console.log('Group ID being looked up:', chatId);
+
+        if (!chat.isGroup || !rawGroup) return null;
+
+        const result = {
+          ...rawGroup,
+          currentEvent: rawGroup.currentEvent ? {
+            id: rawGroup.currentEvent.id,
+            name: rawGroup.currentEvent.name,
+            date: rawGroup.currentEvent.date,
+            description: rawGroup.currentEvent.description,
+            expenses: rawGroup.currentEvent.expenses || []
+          } : null
+        };
+        console.log('Selector result:', result);
+        return result;
+      }
     ),
     [chat.id, chat.isGroup]
   );
+
+  // Remove fullState selector and just use groupData
+  const groupData = useSelector(selectGroupData);
 
   // Memoize all selectors
   const selectGroupMessages = useMemo(
@@ -82,7 +107,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   
   // Use group messages for group chats, direct messages otherwise
   const messages = (chat.isGroup ? groupMessages : directMessages) as Message[];
-  const groupData = useSelector(selectGroupData);
+
+  // Debug logs
+  console.log('Chat prop:', chat);
+  console.log('Group Data from selector:', groupData);
+  console.log('Current Event:', groupData?.currentEvent);
+
+  // Add this debug log
+  const groupsState = useSelector((state: RootState) => state.groups.groups);
+  console.log('Groups state:', groupsState[chat.id]);
 
   const dispatch = useDispatch();
 
@@ -218,6 +251,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const groupInvites = useSelector(selectGroupInvites);
 
+  const [showEventDetails, setShowEventDetails] = useState(false);
+  const currentEvent = groupData?.currentEvent;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -328,16 +364,50 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     <div className="flex w-full h-full">
       <div className={chatContainer}>
         <div className={chatHeader}>
-          <ProfileAvatar
-            username={chat.name}
-            imageUrl={friend?.profilePicture}
-            size="md"
-          />
-          <span className="text-black text-2xl font-bold ml-4">{chat.name}</span>
+          <div className="flex items-center gap-4">
+            <ProfileAvatar
+              username={chat.name}
+              imageUrl={friend?.profilePicture}
+              size="md"
+            />
+            <span className="text-black text-2xl font-bold">{chat.name}</span>
+          </div>
+          
           {chat.isGroup && (
-            <button className={inviteButton} onClick={() => setShowInviteModal(true)}>
-              <UserPlus className="w-6 h-6 text-[#57E3DC]" />
-            </button>
+            <div className="flex items-center gap-4">
+              {currentEvent ? (
+                <button 
+                  onClick={() => setShowEventDetails(true)}
+                  className="px-4 py-2 bg-[#57E3DC] rounded-lg text-white"
+                >
+                  {currentEvent.name}
+                </button>
+              ) : (
+                <AddEventButton 
+                  onConfirm={(eventName: string, eventDate: string, description: string) => {
+                    const newEvent = {
+                      id: Date.now().toString(),
+                      name: eventName,
+                      date: eventDate,
+                      description,
+                      expenses: []
+                    };
+                    
+                    // Use socket to update event
+                    updateEvent(chat.id, newEvent);
+
+                    // Update local state immediately
+                    dispatch(groupActions.setGroupEvent({
+                      groupId: chat.id,
+                      event: newEvent
+                    }));
+                  }}
+                />
+              )}
+              <button className={inviteButton} onClick={() => setShowInviteModal(true)}>
+                <UserPlus className="w-6 h-6 text-[#57E3DC]" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -427,6 +497,29 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           groupId={chat.id}
           groupName={chat.name}
         />
+      )}
+      {showEventDetails && currentEvent && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+          <div className="bg-white rounded-xl w-[800px] h-[600px] overflow-hidden">
+            <EventDetailsView
+              eventName={currentEvent.name}
+              eventDate={currentEvent.date}
+              description={currentEvent.description}
+              expenses={currentEvent.expenses}
+              participants={groupData?.users || []}
+              currentUser={currentUser}
+              onClose={() => setShowEventDetails(false)}
+              onCancel={() => {
+                dispatch(groupActions.setGroupEvent({
+                  groupId: chat.id,
+                  event: undefined
+                }));
+                setShowEventDetails(false);
+              }}
+              groupId={chat.id}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

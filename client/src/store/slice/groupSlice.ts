@@ -18,6 +18,22 @@ export interface Group {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  currentEvent?: {
+    id: string;
+    name: string;
+    date: string;
+    description: string;
+    expenses: Array<{
+      item: string;
+      amount: number;
+      paidBy: string;
+      splitBetween: string[];
+    }>;
+    updatedAt?: {
+      _seconds: number;
+      _nanoseconds: number;
+    };
+  } | null;
 }
 
 interface GroupState {
@@ -44,7 +60,10 @@ const groupSlice = createSlice({
     setGroups: (state, action: PayloadAction<Group[]>) => {
       const newGroups: { [key: string]: Group } = {};
       action.payload.forEach(group => {
-        newGroups[group.id] = group;
+        newGroups[group.id] = {
+          ...group,
+          currentEvent: group.currentEvent || null
+        };
       });
       state.groups = newGroups;
     },
@@ -92,6 +111,25 @@ const groupSlice = createSlice({
       const { groupId, users } = action.payload;
       if (state.groups[groupId]) {
         state.groups[groupId].users = users;
+      }
+    },
+    setGroupEvent: (state, action: PayloadAction<{ groupId: string; event: Group['currentEvent'] }>) => {
+      if (state.groups[action.payload.groupId]) {
+        state.groups[action.payload.groupId].currentEvent = action.payload.event;
+      }
+    },
+    addExpense: (state, action: PayloadAction<{ 
+      groupId: string; 
+      expense: {
+        item: string;
+        amount: number;
+        paidBy: string;
+        splitBetween: string[];
+      }
+    }>) => {
+      const group = state.groups[action.payload.groupId];
+      if (group?.currentEvent) {
+        group.currentEvent.expenses = [...(group.currentEvent.expenses || []), action.payload.expense];
       }
     }
   }

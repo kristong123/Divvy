@@ -29,6 +29,25 @@ interface GroupInviteAcceptedData {
   };
 }
 
+interface Expense {
+    id: string;
+    item: string;
+    amount: number;
+    paidBy: string;
+    splitBetween: string[];
+    createdAt: string;
+    status: 'pending' | 'paid';
+}
+
+interface Event {
+    id: string;
+    name: string;
+    date: string;
+    description: string;
+    expenses: Expense[];
+    updatedAt: string;
+}
+
 export const initializeSocket = (username: string) => {
     socket.emit('join', username);
     console.log('Joining socket room:', username);
@@ -178,6 +197,27 @@ export const initializeSocket = (username: string) => {
         }
     });
 
+    // Add event-related socket events
+    socket.on('event-updated', (data: { groupId: string; event: Event }) => {
+        store.dispatch(groupActions.setGroupEvent({
+            groupId: data.groupId,
+            event: data.event
+        }));
+        toast.success('Event updated successfully');
+    });
+
+    socket.on('expense-added', (data: { 
+        groupId: string; 
+        expense: Expense;
+        currentEvent: Event;
+    }) => {
+        store.dispatch(groupActions.setGroupEvent({
+            groupId: data.groupId,
+            event: data.currentEvent
+        }));
+        toast.success(`New expense added: ${data.expense.item}`);
+    });
+
     return () => {
         socket.off('new-message');
         socket.off('new-group-message');
@@ -189,6 +229,8 @@ export const initializeSocket = (username: string) => {
         socket.off('user-status-changed');
         socket.off('group-member-joined');
         socket.off('group-invite-accepted');
+        socket.off('event-updated');
+        socket.off('expense-added');
         socket.emit('leave', username);
     };
 };
@@ -245,6 +287,15 @@ export const sendGroupInvite = (data: { groupId: string; username: string; invit
         return;
     }
     socket.emit('group-invite', data);
+};
+
+// Add helper functions for emitting event updates
+export const updateEvent = (groupId: string, event: Omit<Event, 'updatedAt'>) => {
+    socket.emit('event-update', { groupId, event });
+};
+
+export const addExpense = (groupId: string, expense: Omit<Expense, 'id' | 'createdAt' | 'status'>) => {
+    socket.emit('expense-added', { groupId, expense });
 };
 
 export const getSocket = () => socket; 

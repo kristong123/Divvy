@@ -10,7 +10,8 @@ exports.createGroup = async (req, res) => {
             users: [createdBy],
             admin: createdBy,
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            currentEvent: null
         };
 
         const groupRef = await db.collection('groupChats').add(newGroup);
@@ -29,7 +30,8 @@ exports.createGroup = async (req, res) => {
             }],
             createdBy: createdBy,
             createdAt: newGroup.createdAt,
-            updatedAt: newGroup.updatedAt
+            updatedAt: newGroup.updatedAt,
+            currentEvent: null
         });
     } catch (error) {
         res.status(500).json({ message: 'Failed to create group' });
@@ -46,6 +48,7 @@ exports.getUserGroups = async (req, res) => {
         const groups = [];
         for (const doc of groupsSnapshot.docs) {
             const groupData = doc.data();
+            console.log('Raw Firebase data for', doc.id, ':', groupData);
 
             // Fetch user details for each member
             const userPromises = groupData.users.map(async (username) => {
@@ -60,17 +63,18 @@ exports.getUserGroups = async (req, res) => {
 
             const users = await Promise.all(userPromises);
 
-            groups.push({
+            // Include all fields from groupData
+            const groupResponse = {
                 id: doc.id,
-                name: groupData.name,
-                admin: groupData.admin,
-                users: users,
-                createdBy: groupData.createdBy,
-                createdAt: groupData.createdAt,
-                updatedAt: groupData.updatedAt
-            });
+                ...groupData,
+                users,
+                currentEvent: groupData.currentEvent || null
+            };
+            console.log('Group response:', groupResponse);
+            groups.push(groupResponse);
         }
 
+        console.log('Final groups array:', groups);
         res.status(200).json(groups);
     } catch (error) {
         console.error('Error fetching groups:', error);

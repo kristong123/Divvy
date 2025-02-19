@@ -11,7 +11,8 @@ const {
     pinGroupMessage,
     createGroup,
     sendGroupInvite,
-    joinGroup
+    joinGroup,
+    setGroupEvent
 } = require("../controllers/groupMessages");
 const { getUserGroups } = require('../controllers/groups');
 
@@ -37,5 +38,8 @@ router.put("/:groupId/pin-message", pinGroupMessage);
 // Invites
 router.post("/invite", sendGroupInvite);
 router.post("/join", joinGroup);
+
+// Add event routes
+router.put('/:groupId/event', setGroupEvent);
 
 module.exports = router;

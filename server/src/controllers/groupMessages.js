@@ -556,6 +556,24 @@ const joinGroup = async (req, res) => {
     }
 };
 
+// Add event-related functions
+const setGroupEvent = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const eventData = req.body;
+
+        const groupRef = db.collection('groupChats').doc(groupId);
+        await groupRef.update({
+            currentEvent: eventData
+        });
+
+        res.status(200).json({ message: 'Event updated successfully' });
+    } catch (error) {
+        console.error('Error updating event:', error);
+        res.status(500).json({ message: 'Failed to update event' });
+    }
+};
+
 module.exports = {
     // Group creation and management
     createGroup,
@@ -576,5 +594,8 @@ module.exports = {
     // Group info
     getGroupDetails,
     sendGroupInvite,
-    joinGroup
+    joinGroup,
+
+    // Event-related functions
+    setGroupEvent
 };

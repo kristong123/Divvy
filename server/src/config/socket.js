@@ -399,6 +399,98 @@ const initializeSocket = (server) => {
             }
         });
 
+        socket.on('event-update', async (data) => {
+            try {
+                const { groupId, event } = data;
+
+                // Save event to database
+                const groupRef = db.collection('groupChats').doc(groupId);
+                await groupRef.update({
+                    currentEvent: {
+                        ...event,
+                        updatedAt: new Date()
+                    }
+                });
+
+                // Get group data for broadcasting
+                const groupDoc = await groupRef.get();
+                const groupData = groupDoc.data();
+
+                // Broadcast to all group members
+                groupData.users.forEach(member => {
+                    io.to(member).emit('event-updated', {
+                        groupId,
+                        event: {
+                            ...event,
+                            updatedAt: new Date().toISOString()
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('Error updating event:', error);
+                socket.emit('error', { message: 'Failed to update event' });
+            }
+        });
+
+        socket.on('expense-added', async (data) => {
+            try {
+                const { groupId, expense } = data;
+
+                // Get current event data
+                const groupRef = db.collection('groupChats').doc(groupId);
+                const groupDoc = await groupRef.get();
+                const groupData = groupDoc.data();
+
+                if (!groupData.currentEvent) {
+                    throw new Error('No active event found');
+                }
+
+                // Add expense with metadata
+                const updatedExpense = {
+                    ...expense,
+                    id: Date.now().toString(),
+                    createdAt: new Date(),
+                    status: 'pending' // Can be used for payment tracking
+                };
+
+                // Update event with new expense
+                const updatedEvent = {
+                    ...groupData.currentEvent,
+                    expenses: [...(groupData.currentEvent.expenses || []), updatedExpense],
+                    updatedAt: new Date()
+                };
+
+                // Save to database
+                await groupRef.update({
+                    currentEvent: updatedEvent
+                });
+
+                // Create subcollection for expense details
+                await groupRef.collection('expenses').add({
+                    ...updatedExpense,
+                    eventId: groupData.currentEvent.id
+                });
+
+                // Broadcast to all group members
+                groupData.users.forEach(member => {
+                    io.to(member).emit('expense-added', {
+                        groupId,
+                        expense: {
+                            ...updatedExpense,
+                            createdAt: updatedExpense.createdAt.toISOString()
+                        },
+                        currentEvent: {
+                            ...updatedEvent,
+                            updatedAt: updatedEvent.updatedAt.toISOString()
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('Error adding expense:', error);
+                socket.emit('error', { message: 'Failed to add expense' });
+            }
+        });
+
         socket.on('disconnect', () => {
             console.log('Client disconnected:', socket.id);
         });

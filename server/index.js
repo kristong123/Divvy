@@ -56,8 +56,44 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Start server
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 3004;
+let serverInstance = null;
+
+// Add graceful shutdown
+const shutdown = () => {
+  if (serverInstance) {
+    // Close all socket connections first
+    const io = require('./src/config/socket').getIO();
+    io.close(() => {
+      console.log('Socket.IO connections closed');
+
+      // Then close the HTTP server
+      serverInstance.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+  } else {
+    process.exit(0);
+  }
+};
+
+// Handle process signals
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+process.on('SIGUSR2', shutdown); // Added for nodemon restart
+
+// Start server with better error handling
+serverInstance = server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please:
+    1. Kill the process using this port, or
+    2. Change the PORT environment variable`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+    process.exit(1);
+  }
 });
