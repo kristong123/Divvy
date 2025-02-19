@@ -99,11 +99,16 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
 
   useEffect(() => {
     if (currentUser) {
-      dispatch(setupFriendsListeners(currentUser)).then(cleanup => {
-        return () => {
-          if (cleanup) cleanup();
-        };
-      });
+      let cleanup: (() => void) | undefined;
+      
+      dispatch(setupFriendsListeners(currentUser))
+        .then(cleanupFn => {
+          cleanup = cleanupFn;
+        });
+      
+      return () => {
+          cleanup?.();
+      };
     }
   }, [dispatch, currentUser]);
 

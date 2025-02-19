@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
 import { PayloadAction } from '@reduxjs/toolkit';
+import { AppDispatch } from '../store';
 
 interface PendingRequest {
   id: string;
@@ -148,7 +149,7 @@ const friendsSlice = createSlice({
 export const { setFriends, setPendingRequests, setSentRequests, clearRequests } = friendsSlice.actions;
 
 // Socket.IO event handlers
-export const setupFriendsListeners = (username: string) => async (dispatch: any) => {
+export const setupFriendsListeners = (username: string) => async (dispatch: AppDispatch): Promise<() => void> => {
   const fetchInitialData = async () => {
     try {
       const [friendsRes, pendingRes, sentRes] = await Promise.all([
@@ -166,6 +167,11 @@ export const setupFriendsListeners = (username: string) => async (dispatch: any)
   };
 
   await fetchInitialData();
+
+  // Return the cleanup function
+  return () => {
+    // cleanup logic
+  };
 };
 
 export default friendsSlice.reducer;
