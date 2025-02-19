@@ -73,14 +73,8 @@ const Main: React.FC = () => {
         try {
           const response = await axios.get(`${BASE_URL}/api/groups/user/${username}`);
           const formattedGroups = response.data.map((group: any) => ({
-            id: group.id,
-            name: group.name,
-            isGroup: true,
-            users: group.users,
-            admin: group.admin,
-            createdBy: group.createdBy,
-            createdAt: group.createdAt,
-            updatedAt: group.updatedAt
+            ...group,  // Keep all original data including currentEvent
+            isGroup: true
           }));
           dispatch(groupActions.setGroups(formattedGroups));
         } catch (error) {

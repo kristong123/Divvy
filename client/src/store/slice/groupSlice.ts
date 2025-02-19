@@ -7,6 +7,23 @@ interface GroupMember {
   isAdmin: boolean;
 }
 
+export interface Event {
+  id: string;
+  name: string;
+  date: string;
+  description: string;
+  expenses: Array<{
+    item: string;
+    amount: number;
+    paidBy: string;
+    splitBetween: string[];
+  }>;
+  updatedAt?: {
+    _seconds: number;
+    _nanoseconds: number;
+  };
+}
+
 export interface Group {
   id: string;
   name: string;
@@ -18,22 +35,7 @@ export interface Group {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
-  currentEvent?: {
-    id: string;
-    name: string;
-    date: string;
-    description: string;
-    expenses: Array<{
-      item: string;
-      amount: number;
-      paidBy: string;
-      splitBetween: string[];
-    }>;
-    updatedAt?: {
-      _seconds: number;
-      _nanoseconds: number;
-    };
-  } | null;
+  currentEvent?: Event | null;
 }
 
 interface GroupState {

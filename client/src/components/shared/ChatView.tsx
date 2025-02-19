@@ -10,11 +10,11 @@ import { sendMessage, getSocket, updateEvent } from '../../services/socketServic
 import { setMessages, addMessage } from '../../store/slice/chatSlice';
 import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
 import ProfileAvatar from '../shared/ProfileAvatar';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, ArrowLeft } from 'lucide-react';
 import GroupMembers from '../groups/GroupMembers';
 import InviteModal from '../groups/InviteModal';
 import { createSelector } from '@reduxjs/toolkit';
-import { groupActions } from '../../store/slice/groupSlice';
+import { groupActions, Event } from '../../store/slice/groupSlice';
 import GroupInvite from '../groups/GroupInvite';
 import { addGroupInvite, removeGroupInvite } from '../../store/slice/inviteSlice';
 import AddEventButton from '../events/AddEventButton';
@@ -252,7 +252,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const groupInvites = useSelector(selectGroupInvites);
 
   const [showEventDetails, setShowEventDetails] = useState(false);
-  const currentEvent = groupData?.currentEvent;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -315,14 +314,32 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       toast.success(`You've been invited to join ${invite.groupName}`);
     };
 
+    const handleEventUpdate = (data: { groupId: string; event: Event | null }) => {
+      if (data.groupId === chat.id) {
+        dispatch(groupActions.setGroupEvent({
+          groupId: data.groupId,
+          event: data.event
+        }));
+      }
+    };
+
+    socket.on('event-updated', handleEventUpdate);
     socket.on('new-message', handleNewMessage);
     socket.on('group-invite', handleGroupInvite);
 
     return () => {
+      socket.off('event-updated', handleEventUpdate);
       socket.off('new-message', handleNewMessage);
       socket.off('group-invite', handleGroupInvite);
     };
   }, [currentUser, chat.name, chat.id, chat.isGroup, dispatch]);
+
+  // Add this useEffect to automatically close event view when event is cleared
+  useEffect(() => {
+    if (!groupData?.currentEvent) {
+      setShowEventDetails(false);
+    }
+  }, [groupData?.currentEvent]);
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || !currentUser) return;
@@ -360,130 +377,187 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }));
   };
 
+  // Update the event cancellation handler
+  const handleCancelEvent = () => {
+    dispatch(groupActions.setGroupEvent({
+      groupId: chat.id,
+      event: null
+    }));
+    
+    // Send explicit null to server
+    updateEvent(chat.id, null);
+    
+    // Force immediate UI update
+    setShowEventDetails(false);
+    
+    // Clear any residual event data
+    dispatch(groupActions.setGroupEvent({
+      groupId: chat.id,
+      event: {
+        id: '',
+        name: '',
+        date: '',
+        description: '',
+        expenses: []
+      }
+    }));
+  };
+
   return (
     <div className="flex w-full h-full">
-      <div className={chatContainer}>
-        <div className={chatHeader}>
-          <div className="flex items-center gap-4">
-            <ProfileAvatar
-              username={chat.name}
-              imageUrl={friend?.profilePicture}
-              size="md"
-            />
-            <span className="text-black text-2xl font-bold">{chat.name}</span>
-          </div>
-          
-          {chat.isGroup && (
+      {showEventDetails && groupData?.currentEvent ? (
+        <div className={chatContainer}>
+          <div className={chatHeader}>
             <div className="flex items-center gap-4">
-              {currentEvent ? (
-                <button 
-                  onClick={() => setShowEventDetails(true)}
-                  className="px-4 py-2 bg-[#57E3DC] rounded-lg text-white"
-                >
-                  {currentEvent.name}
-                </button>
-              ) : (
-                <AddEventButton 
-                  onConfirm={(eventName: string, eventDate: string, description: string) => {
-                    const newEvent = {
-                      id: Date.now().toString(),
-                      name: eventName,
-                      date: eventDate,
-                      description,
-                      expenses: []
-                    };
-                    
-                    // Use socket to update event
-                    updateEvent(chat.id, newEvent);
-
-                    // Update local state immediately
-                    dispatch(groupActions.setGroupEvent({
-                      groupId: chat.id,
-                      event: newEvent
-                    }));
-                  }}
-                />
-              )}
-              <button className={inviteButton} onClick={() => setShowInviteModal(true)}>
-                <UserPlus className="w-6 h-6 text-[#57E3DC]" />
+              <button 
+                onClick={handleCancelEvent}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <ArrowLeft className="w-6 h-6 text-black" />
               </button>
+              <div className="flex flex-col">
+                <span className="text-black text-2xl font-bold">
+                  {groupData.currentEvent.name}
+                </span>
+                <span className="text-gray-500 text-sm">
+                  {new Date(groupData.currentEvent.date).toLocaleDateString()}
+                </span>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        <div className={messagesContainer}>
-          {groupInvites.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {groupInvites.map((invite) => (
-                <GroupInvite
-                  key={invite.id}
-                  groupId={invite.groupId}
-                  groupName={invite.groupName}
-                  invitedBy={invite.invitedBy}
-                  messageId={invite.id}
-                  onAccept={() => handleAcceptInvite(invite.id)}
-                />
-              ))}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <EventDetailsView
+              description={groupData.currentEvent.description}
+              expenses={groupData.currentEvent.expenses}
+              participants={groupData.users}
+              currentUser={currentUser}
+              onClose={handleCancelEvent}
+              onCancel={handleCancelEvent}
+              groupId={chat.id}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className={chatContainer}>
+          <div className={chatHeader}>
+            <div className="flex items-center gap-4">
+              <ProfileAvatar
+                username={chat.name}
+                imageUrl={friend?.profilePicture}
+                size="md"
+              />
+              <span className="text-black text-2xl font-bold">{chat.name}</span>
             </div>
-          )}
-          {messages.map((message, index) => {
-            const isOwnMessage = message.senderId === currentUser;
             
-            // Handle group invite messages
-            if (message.type === 'group-invite') {
-              return (
-                <GroupInvite
-                  key={`${message.id}-${index}`}
-                  groupId={message.groupId || ''}
-                  groupName={message.groupName || ''}
-                  invitedBy={message.invitedBy || ''}
-                  messageId={message.id || ''}
-                  onAccept={() => handleAcceptInvite(message.id || '')}
-                />
-              );
-            }
-            
-            return (
-              <div key={`${message.id}-${index}`} className={messageContainer(isOwnMessage)}>
-                {!isOwnMessage && message.type !== 'system' && (
-                  <ProfileAvatar
-                    username={message.senderName}
-                    imageUrl={message.senderProfile}
-                    size="sm"
+            {chat.isGroup && (
+              <div className="flex items-center gap-4">
+                {groupData?.currentEvent ? (
+                  <button 
+                    onClick={() => setShowEventDetails(true)}
+                    className="px-4 py-2 bg-[#57E3DC] rounded-lg text-white"
+                  >
+                    {groupData.currentEvent.name}
+                  </button>
+                ) : (
+                  <AddEventButton 
+                    onConfirm={(eventName: string, eventDate: string, description: string) => {
+                      const newEvent = {
+                        id: Date.now().toString(),
+                        name: eventName,
+                        date: eventDate,
+                        description,
+                        expenses: []
+                      };
+                      updateEvent(chat.id, newEvent);
+                      dispatch(groupActions.setGroupEvent({
+                        groupId: chat.id,
+                        event: newEvent
+                      }));
+                    }}
                   />
                 )}
-                <div className={messageContent(isOwnMessage)}>
-                  {!isOwnMessage && message.type !== 'system' && (
-                    <span className={senderName}>{message.senderName}</span>
-                  )}
-                  {message.type === 'system' ? (
-                    <span className="text-gray-500 text-sm italic text-center">
-                      {message.content}
-                    </span>
-                  ) : (
-                    <div className={messageStyle(isOwnMessage)}>
-                      {message.content}
-                    </div>
-                  )}
-                </div>
+                <button className={inviteButton} onClick={() => setShowInviteModal(true)}>
+                  <UserPlus className="w-6 h-6 text-[#57E3DC]" />
+                </button>
               </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
+            )}
+          </div>
 
-        <div className={inputSection}>
-          <button className={plusButton}>+</button>
-          <input 
-            type="text" 
-            placeholder="Type a message..." 
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyPress}
-            className={input}
-          />
+          <div className={messagesContainer}>
+            {groupInvites.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {groupInvites.map((invite) => (
+                  <GroupInvite
+                    key={invite.id}
+                    groupId={invite.groupId}
+                    groupName={invite.groupName}
+                    invitedBy={invite.invitedBy}
+                    messageId={invite.id}
+                    onAccept={() => handleAcceptInvite(invite.id)}
+                  />
+                ))}
+              </div>
+            )}
+            {messages.map((message, index) => {
+              const isOwnMessage = message.senderId === currentUser;
+              
+              // Handle group invite messages
+              if (message.type === 'group-invite') {
+                return (
+                  <GroupInvite
+                    key={`${message.id}-${index}`}
+                    groupId={message.groupId || ''}
+                    groupName={message.groupName || ''}
+                    invitedBy={message.invitedBy || ''}
+                    messageId={message.id || ''}
+                    onAccept={() => handleAcceptInvite(message.id || '')}
+                  />
+                );
+              }
+              
+              return (
+                <div key={`${message.id}-${index}`} className={messageContainer(isOwnMessage)}>
+                  {!isOwnMessage && message.type !== 'system' && (
+                    <ProfileAvatar
+                      username={message.senderName}
+                      imageUrl={message.senderProfile}
+                      size="sm"
+                    />
+                  )}
+                  <div className={messageContent(isOwnMessage)}>
+                    {!isOwnMessage && message.type !== 'system' && (
+                      <span className={senderName}>{message.senderName}</span>
+                    )}
+                    {message.type === 'system' ? (
+                      <span className="text-gray-500 text-sm italic text-center">
+                        {message.content}
+                      </span>
+                    ) : (
+                      <div className={messageStyle(isOwnMessage)}>
+                        {message.content}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className={inputSection}>
+            <button className={plusButton}>+</button>
+            <input 
+              type="text" 
+              placeholder="Type a message..." 
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyPress}
+              className={input}
+            />
+          </div>
         </div>
-      </div>
+      )}
       {chat.isGroup && groupData && (
         <GroupMembers 
           members={groupData.users || []} 
@@ -497,29 +571,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           groupId={chat.id}
           groupName={chat.name}
         />
-      )}
-      {showEventDetails && currentEvent && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-xl w-[800px] h-[600px] overflow-hidden">
-            <EventDetailsView
-              eventName={currentEvent.name}
-              eventDate={currentEvent.date}
-              description={currentEvent.description}
-              expenses={currentEvent.expenses}
-              participants={groupData?.users || []}
-              currentUser={currentUser}
-              onClose={() => setShowEventDetails(false)}
-              onCancel={() => {
-                dispatch(groupActions.setGroupEvent({
-                  groupId: chat.id,
-                  event: undefined
-                }));
-                setShowEventDetails(false);
-              }}
-              groupId={chat.id}
-            />
-          </div>
-        </div>
       )}
     </div>
   );

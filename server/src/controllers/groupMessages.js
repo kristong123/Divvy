@@ -563,9 +563,21 @@ const setGroupEvent = async (req, res) => {
         const eventData = req.body;
 
         const groupRef = db.collection('groupChats').doc(groupId);
-        await groupRef.update({
-            currentEvent: eventData
-        });
+
+        if (eventData) {
+            // If there's event data, update with new event
+            await groupRef.update({
+                currentEvent: {
+                    ...eventData,
+                    updatedAt: new Date()
+                }
+            });
+        } else {
+            // If no event data (null), remove the entire currentEvent field
+            await groupRef.update({
+                currentEvent: null
+            });
+        }
 
         res.status(200).json({ message: 'Event updated successfully' });
     } catch (error) {

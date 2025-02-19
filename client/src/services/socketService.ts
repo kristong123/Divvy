@@ -8,6 +8,7 @@ import { MessageData, SocketMessageEvent, SocketErrorEvent, UserStatusEvent, Fri
 import { groupActions } from '../store/slice/groupSlice';
 import axios from 'axios';
 import { BASE_URL } from '../config/api';
+import { Event } from '../store/slice/groupSlice';
 
 const socket = io(SOCKET_URL);
 
@@ -37,15 +38,6 @@ interface Expense {
     splitBetween: string[];
     createdAt: string;
     status: 'pending' | 'paid';
-}
-
-interface Event {
-    id: string;
-    name: string;
-    date: string;
-    description: string;
-    expenses: Expense[];
-    updatedAt: string;
 }
 
 export const initializeSocket = (username: string) => {
@@ -290,8 +282,15 @@ export const sendGroupInvite = (data: { groupId: string; username: string; invit
 };
 
 // Add helper functions for emitting event updates
-export const updateEvent = (groupId: string, event: Omit<Event, 'updatedAt'>) => {
-    socket.emit('event-update', { groupId, event });
+export const updateEvent = (groupId: string, event: Omit<Event, 'updatedAt'> | null) => {
+    socket.emit('event-update', { 
+        groupId,
+        event: event ? {
+            ...event,
+            id: event.id || Date.now().toString(),
+            expenses: event.expenses || []
+        } : null 
+    });
 };
 
 export const addExpense = (groupId: string, expense: Omit<Expense, 'id' | 'createdAt' | 'status'>) => {

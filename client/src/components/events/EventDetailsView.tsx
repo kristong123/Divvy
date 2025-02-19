@@ -4,22 +4,17 @@ import ProfileAvatar from '../shared/ProfileAvatar';
 import AddExpenseWindow from './AddExpenseWindow';
 import { addExpense } from '../../services/socketService';
 
-interface Expense {
-  item: string;
-  amount: number;
-  paidBy: string;
-  splitBetween: string[];
-}
-
 interface EventDetailsProps {
-  eventName: string;
-  eventDate: string;
   description: string;
-  expenses: Expense[];
+  expenses: Array<{
+    item: string;
+    amount: number;
+    paidBy: string;
+    splitBetween: string[];
+  }>;
   participants: Array<{
     username: string;
-    profilePicture?: string | null;
-    isAdmin?: boolean;
+    profilePicture: string | null;
   }>;
   currentUser: string | null;
   onClose: () => void;
@@ -28,8 +23,6 @@ interface EventDetailsProps {
 }
 
 const EventDetailsView: React.FC<EventDetailsProps> = ({
-  eventName,
-  eventDate,
   description,
   expenses,
   participants,
@@ -40,46 +33,10 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
 }) => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
-  const container = clsx(
-    'flex flex-col w-full h-full',
-    'bg-white'
-  );
-
-  const header = clsx(
-    'flex items-center justify-between',
-    'p-6 border-b'
-  );
-
-  const title = clsx(
-    'text-2xl font-bold',
-    'text-black'
-  );
-
-  const descriptionBox = clsx(
-    'p-6',
-    'bg-[#F8F9FA]',
-    'border-b'
-  );
-
-  const expensesSection = clsx(
-    'flex-1',
-    'p-6'
-  );
-
   const expenseCard = clsx(
     'bg-[#E7FCFB]',
     'rounded-xl p-4 mb-4',
     'shadow-sm'
-  );
-
-  const addExpenseButton = clsx(
-    'w-full p-4',
-    'bg-[#57E3DC] bg-opacity-20',
-    'rounded-xl',
-    'flex items-center justify-center',
-    'cursor-pointer',
-    'hover:bg-opacity-30',
-    'transition-colors'
   );
 
   // Calculate what current user owes to others
@@ -99,61 +56,44 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   }, [expenses, currentUser]);
 
   const handleVenmoPayment = (recipient: string, amount: number) => {
-    const venmoUrl = `https://venmo.com/?txn=pay&audience=private&recipients=${recipient}&amount=${amount.toFixed(2)}`;
+    const venmoUrl = `https://account.venmo.com/pay?audience=private&amount=${amount.toFixed(2)}&note=&recipients=${recipient}%&txn=pay`;
     window.open(venmoUrl, '_blank');
   };
 
   return (
-    <div className={container}>
-      <div className={header}>
-        <div>
-          <h1 className={title}>{eventName}</h1>
-          <p className="text-gray-600">{new Date(eventDate).toLocaleDateString()}</p>
+    <div className="max-w-3xl mx-auto">
+      <div className="bg-white rounded-xl p-6 shadow-sm">
+        <div className="mb-6">
+          <p className="text-gray-600 whitespace-pre-wrap">{description}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {participants.map(participant => (
-            <ProfileAvatar
-              key={participant.username}
-              username={participant.username}
-              imageUrl={participant.profilePicture}
-              size="sm"
-            />
+
+        <h3 className="text-lg font-semibold mb-4">Expenses</h3>
+        <div className="space-y-4">
+          {expenses.map((expense, index) => (
+            <div key={index} className={expenseCard}>
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                  <ProfileAvatar
+                    username={expense.paidBy}
+                    size="sm"
+                  />
+                  <span className="font-medium">{expense.item}</span>
+                </div>
+                <span className="text-[#57E3DC] font-bold">
+                  ${expense.amount.toFixed(2)}
+                </span>
+              </div>
+              <div className="text-sm text-gray-600">
+                Split between: {expense.splitBetween.join(', ')}
+              </div>
+            </div>
           ))}
         </div>
-      </div>
-
-      <div className={descriptionBox}>
-        <p className="text-gray-700 whitespace-pre-wrap">{description}</p>
-      </div>
-
-      <div className={expensesSection}>
-        <h2 className="text-xl font-semibold mb-4">Expenses</h2>
-        
-        {expenses.map((expense, index) => (
-          <div key={index} className={expenseCard}>
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-2">
-                <ProfileAvatar
-                  username={expense.paidBy}
-                  size="sm"
-                />
-                <span className="font-medium">{expense.item}</span>
-              </div>
-              <span className="text-[#57E3DC] font-bold">
-                ${expense.amount.toFixed(2)}
-              </span>
-            </div>
-            <div className="text-sm text-gray-600">
-              Split between: {expense.splitBetween.join(', ')}
-            </div>
-          </div>
-        ))}
 
         <button 
-          className={addExpenseButton}
+          className="mt-6 w-full py-2 bg-[#57E3DC] text-white rounded-lg hover:bg-[#4DC8C2]"
           onClick={() => setIsExpenseModalOpen(true)}
         >
-          <span className="text-[#57E3DC] text-xl mr-2">+</span>
           Add Expense
         </button>
       </div>
