@@ -7,16 +7,17 @@ interface GroupMember {
   isAdmin: boolean;
 }
 
-interface Group {
+export interface Group {
   id: string;
   name: string;
-  admin: string;
+  imageUrl?: string;
+  amount?: string;
+  isGroup: true;
   users: GroupMember[];
+  admin: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
-  lastMessage?: string;
-  lastMessageTime?: string;
 }
 
 interface GroupState {
@@ -78,6 +79,19 @@ const groupSlice = createSlice({
         if (!group.users.some(user => user.username === member.username)) {
           group.users.push(member);
         }
+      }
+    },
+    updateGroupUsers: (state, action: PayloadAction<{
+      groupId: string;
+      users: Array<{
+        username: string;
+        profilePicture: string | null;
+        isAdmin: boolean;
+      }>;
+    }>) => {
+      const { groupId, users } = action.payload;
+      if (state.groups[groupId]) {
+        state.groups[groupId].users = users;
       }
     }
   }

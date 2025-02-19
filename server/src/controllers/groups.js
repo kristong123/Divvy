@@ -38,14 +38,13 @@ exports.createGroup = async (req, res) => {
 
 exports.getUserGroups = async (req, res) => {
     try {
-        const { username } = req.params;
-
-        const groupsRef = await db.collection('groupChats')
+        const username = req.params.username;
+        const groupsSnapshot = await db.collection('groupChats')
             .where('users', 'array-contains', username)
             .get();
 
         const groups = [];
-        for (const doc of groupsRef.docs) {
+        for (const doc of groupsSnapshot.docs) {
             const groupData = doc.data();
 
             // Fetch user details for each member
@@ -64,9 +63,8 @@ exports.getUserGroups = async (req, res) => {
             groups.push({
                 id: doc.id,
                 name: groupData.name,
-                isGroup: true,
                 admin: groupData.admin,
-                users: users,  // Include full user data
+                users: users,
                 createdBy: groupData.createdBy,
                 createdAt: groupData.createdAt,
                 updatedAt: groupData.updatedAt
@@ -75,6 +73,7 @@ exports.getUserGroups = async (req, res) => {
 
         res.status(200).json(groups);
     } catch (error) {
+        console.error('Error fetching groups:', error);
         res.status(500).json({ message: 'Failed to fetch groups' });
     }
 }; 

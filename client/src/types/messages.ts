@@ -41,7 +41,7 @@ export interface Message {
   content: string;
   timestamp: string;
   status: string;
-  type?: 'group-invite';
+  type?: 'group-invite' | 'system';
   groupId?: string;
   groupName?: string;
   invitedBy?: string;

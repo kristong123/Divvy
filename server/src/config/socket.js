@@ -70,6 +70,37 @@ const initializeSocket = (server) => {
             try {
                 const { sender, recipient } = data;
 
+                // Prevent sending friend request to yourself
+                if (sender === recipient) {
+                    socket.emit('error', { message: 'Cannot send friend request to yourself' });
+                    return;
+                }
+
+                // Check if they're already friends
+                const friendshipId = [sender, recipient].sort().join('_');
+                const existingFriendship = await db.collection('friends').doc(friendshipId).get();
+                if (existingFriendship.exists) {
+                    socket.emit('error', { message: 'You are already friends with this user' });
+                    return;
+                }
+
+                // Check for any existing requests in either direction
+                const existingRequests = await db.collection('friendRequests')
+                    .where('status', '==', 'pending')
+                    .where('sender', 'in', [sender, recipient])
+                    .get();
+
+                const hasExistingRequest = existingRequests.docs.some(doc => {
+                    const request = doc.data();
+                    return (request.sender === sender && request.recipient === recipient) ||
+                        (request.sender === recipient && request.recipient === sender);
+                });
+
+                if (hasExistingRequest) {
+                    socket.emit('error', { message: 'A friend request already exists between you and this user' });
+                    return;
+                }
+
                 // Get both users' profile data
                 const [senderDoc, recipientDoc] = await Promise.all([
                     db.collection('users').doc(sender).get(),
@@ -80,17 +111,6 @@ const initializeSocket = (server) => {
 
                 if (!recipientDoc.exists) {
                     socket.emit('error', { message: 'User not found' });
-                    return;
-                }
-
-                // Check if request already exists
-                const existingRequest = await db.collection('friendRequests')
-                    .where('sender', '==', sender)
-                    .where('recipient', '==', recipient)
-                    .get();
-
-                if (!existingRequest.empty) {
-                    console.log('Request already exists');
                     return;
                 }
 
@@ -150,15 +170,6 @@ const initializeSocket = (server) => {
                 await friendshipRef.set({
                     users: [sender, recipient],
                     createdAt: new Date()
-                });
-
-                // Add initial system message to messages subcollection
-                await friendshipRef.collection('messages').add({
-                    content: 'You are now connected',
-                    senderId: 'system',
-                    timestamp: new Date(),
-                    status: 'sent',
-                    system: true
                 });
 
                 // Get user profiles for response

@@ -99,11 +99,34 @@ const getGroupMessages = async (req, res) => {
             .orderBy("timestamp", "asc")
             .get();
 
-        const messages = messagesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp.toDate().toISOString()
-        }));
+        const messages = messagesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            let timestamp;
+            try {
+                if (data.timestamp && data.timestamp.toDate) {
+                    // Handle Firestore Timestamp
+                    timestamp = data.timestamp.toDate().toISOString();
+                } else if (data.timestamp instanceof Date) {
+                    // Handle JavaScript Date
+                    timestamp = data.timestamp.toISOString();
+                } else if (typeof data.timestamp === 'string') {
+                    // Handle ISO string
+                    timestamp = data.timestamp;
+                } else {
+                    // Fallback to current time
+                    timestamp = new Date().toISOString();
+                }
+            } catch (error) {
+                console.error('Error processing timestamp:', error);
+                timestamp = new Date().toISOString();
+            }
+
+            return {
+                ...data,
+                timestamp,
+                id: doc.id
+            };
+        });
 
         res.status(200).json(messages);
     } catch (error) {
@@ -376,14 +399,6 @@ const createGroup = async (req, res) => {
             lastMessageTime: null
         });
 
-        // Create messages subcollection
-        await groupRef.collection("messages").add({
-            system: true,
-            content: "Group created",
-            timestamp: new Date(),
-            senderId: "system"
-        });
-
         // Get user data for response only
         const userDoc = await db.collection("users").doc(createdBy).get();
         const userData = userDoc.data();
@@ -424,6 +439,11 @@ const sendGroupInvite = async (req, res) => {
 
         const groupData = groupDoc.data();
 
+        // Check if inviter is the admin
+        if (username === groupData.admin) {
+            return res.status(400).json({ message: 'Cannot invite yourself to the group' });
+        }
+
         // Check if user is already in group
         if (groupData.users.includes(username)) {
             return res.status(400).json({ message: 'User is already in the group' });
@@ -434,7 +454,7 @@ const sendGroupInvite = async (req, res) => {
 
         // Emit socket event
         io.to(username).emit('group-invite', {
-            id: groupId, // Using groupId as invite id for simplicity
+            id: groupId,
             groupId,
             groupName: groupData.name,
             invitedBy: groupData.admin
@@ -449,8 +469,7 @@ const sendGroupInvite = async (req, res) => {
 
 const joinGroup = async (req, res) => {
     try {
-        const { groupId, userId } = req.body;
-
+        const { groupId, username } = req.body;
         const groupRef = db.collection('groupChats').doc(groupId);
         const groupDoc = await groupRef.get();
 
@@ -460,37 +479,77 @@ const joinGroup = async (req, res) => {
 
         const groupData = groupDoc.data();
 
+        // Check if user is the admin/creator of the group
+        if (username === groupData.admin) {
+            return res.status(400).json({
+                message: 'Cannot accept your own invite'
+            });
+        }
+
         // Check if user is already in group
-        if (groupData.users.includes(userId)) {
-            return res.status(400).json({ message: 'User is already in the group' });
+        if (groupData.users.includes(username)) {
+            return res.status(400).json({
+                message: 'You are already a member of this group'
+            });
         }
 
         // Add user to group
         await groupRef.update({
-            users: [...groupData.users, userId],
-            updatedAt: new Date()
+            users: [...groupData.users, username]
         });
 
-        // Add system message
+        // Add system message for user joining
         await groupRef.collection('messages').add({
-            content: `${userId} joined the group`,
+            content: `${username} joined the group`,
             senderId: 'system',
+            senderName: 'System',
             timestamp: new Date(),
-            system: true
+            type: 'system'
         });
+
+        // Get updated group data
+        const updatedGroupDoc = await groupRef.get();
+        const updatedData = updatedGroupDoc.data();
+
+        // Fetch user details for response
+        const userPromises = updatedData.users.map(async (username) => {
+            const userDoc = await db.collection("users").doc(username).get();
+            const userData = userDoc.data();
+            return {
+                username,
+                profilePicture: userData?.profilePicture || null,
+                isAdmin: username === updatedData.admin
+            };
+        });
+
+        const users = await Promise.all(userPromises);
+
+        const groupResponse = {
+            id: groupId,
+            name: updatedData.name,
+            admin: updatedData.admin,
+            users: users,
+            createdBy: updatedData.createdBy,
+            createdAt: updatedData.createdAt,
+            updatedAt: updatedData.updatedAt
+        };
 
         // Get socket instance
         const io = getIO();
 
-        // Notify all group members
-        groupData.users.forEach(member => {
-            io.to(member).emit('group-member-joined', {
+        // Notify all group members including the new member
+        [...updatedData.users].forEach(member => {
+            io.to(member).emit('group-invite-accepted', {
                 groupId,
-                username: userId
+                username,
+                group: groupResponse
             });
         });
 
-        res.status(200).json({ message: 'Joined group successfully' });
+        res.status(200).json({
+            message: 'Successfully joined group',
+            group: groupResponse
+        });
     } catch (error) {
         console.error('Error joining group:', error);
         res.status(500).json({ message: 'Failed to join group' });

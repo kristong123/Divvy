@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import clsx from 'clsx';
 import Sidebar from './Sidebar';
 import AddGroupButton from './groups/AddGroupButton';
@@ -39,8 +39,13 @@ interface DirectChat {
 
 const Main: React.FC = () => {
   const username = useSelector((state: RootState) => state.user.username);
+  const groups = useSelector((state: RootState) => state.groups.groups);
+  
+  const groupsList = useMemo(() => 
+    Object.values(groups) as Group[],
+    [groups]
+  );
   const dispatch = useDispatch();
-  const [groups, setGroups] = useState<Group[]>([]);
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<{
     type: 'group' | 'direct';
@@ -77,7 +82,6 @@ const Main: React.FC = () => {
             createdAt: group.createdAt,
             updatedAt: group.updatedAt
           }));
-          setGroups(formattedGroups);
           dispatch(groupActions.setGroups(formattedGroups));
         } catch (error) {
           toast.error('Failed to fetch groups');
@@ -110,7 +114,6 @@ const Main: React.FC = () => {
         updatedAt: response.data.updatedAt
       };
 
-      setGroups([...groups, newGroup]);
       dispatch(groupActions.addGroup(newGroup));
     } catch (error) {
       toast.error('Failed to create group');
@@ -158,7 +161,7 @@ const Main: React.FC = () => {
           <>
             <h1 className={titleLink}>Divvy</h1>
             <div className={groupsContainer}>
-              {groups.map(group => (
+              {groupsList.map(group => (
                 <GroupCard
                   key={group.id}
                   name={group.name}

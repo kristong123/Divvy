@@ -1,20 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
+import { getSocket } from '../../services/socketService';
+import { useDispatch } from 'react-redux';
+import { groupActions } from '../../store/slice/groupSlice';
+import { useNavigate } from 'react-router-dom';
 
 interface GroupInviteProps {
   groupId: string;
   groupName: string;
   invitedBy: string;
+  messageId: string;
   onAccept: () => void;
 }
 
-const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy, onAccept }) => {
+const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy, messageId, onAccept }) => {
   const username = useSelector((state: RootState) => state.user.username);
+  const [isAccepted, setIsAccepted] = useState(() => {
+    // Check if this invite was previously accepted
+    const acceptedInvites = JSON.parse(localStorage.getItem('acceptedInvites') || '[]');
+    return acceptedInvites.includes(messageId);
+  });
+  // Check if current user is the one who sent the invite
+  const isSender = username === invitedBy;
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const container = clsx(
     // Layout
@@ -41,25 +55,64 @@ const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy
     // Layout
     'mt-3 px-4 py-2',
     // Appearance
-    'bg-[#57E3DC] rounded-lg',
+    'rounded-lg',
     // Typography
     'text-white text-sm font-medium',
     // Interactive
-    'hover:bg-[#4DC8C2] cursor-pointer',
+    isSender || isAccepted
+      ? 'bg-gray-300 cursor-not-allowed select-none opacity-50' 
+      : 'bg-[#57E3DC] hover:bg-[#4DC8C2] cursor-pointer',
     // Transitions
     'transition-colors duration-200'
   );
 
-  const handleAcceptInvite = async () => {
+  const handleAcceptInvite = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Early return with no action if sender tries to click
+    if (isSender || isAccepted) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     try {
-      await axios.post(`${BASE_URL}/api/groups/join`, {
+      const response = await axios.post(`${BASE_URL}/api/groups/join`, {
         groupId,
-        userId: username
+        username: username
       });
-      toast.success(`Joined ${groupName}!`);
+      
+      if (response.data.group) {
+        getSocket().emit('group-invite-accepted', {
+          groupId,
+          username: username,
+          group: response.data.group
+        });
+        
+        dispatch(groupActions.addGroup(response.data.group));
+        
+        // Save accepted invite to localStorage using messageId instead of groupId
+        const acceptedInvites = JSON.parse(localStorage.getItem('acceptedInvites') || '[]');
+        acceptedInvites.push(messageId);
+        localStorage.setItem('acceptedInvites', JSON.stringify(acceptedInvites));
+
+        // Fetch initial messages for the group
+        try {
+          const messagesResponse = await axios.get(`${BASE_URL}/api/groups/${groupId}/messages`);
+          dispatch(groupActions.setGroupMessages({
+            groupId,
+            messages: messagesResponse.data
+          }));
+        } catch (error) {
+          console.error('Error fetching messages:', error);
+        }
+
+        // Navigate to the group chat
+        navigate('/dashboard');
+      }
+      
+      setIsAccepted(true);
       onAccept();
+      toast.success(`Joined ${groupName}!`);
     } catch (error) {
-      console.error('Join group error:', error);
+      console.error('Error accepting invite:', error);
       toast.error('Failed to join group');
     }
   };
@@ -67,9 +120,15 @@ const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy
   return (
     <div className={container}>
       <span className={title}>Group Invite: {groupName}</span>
-      <p className={description}>Invited by {invitedBy}</p>
-      <button className={button} onClick={handleAcceptInvite}>
-        Join Group
+      <p className={description}>
+        {isSender ? 'You invited this user' : `Invited by ${invitedBy}`}
+      </p>
+      <button 
+        className={button} 
+        onClick={handleAcceptInvite}
+        disabled={isSender || isAccepted}
+      >
+        {isSender ? 'Waiting for Response' : isAccepted ? 'Joined' : 'Join Group'}
       </button>
     </div>
   );

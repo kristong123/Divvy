@@ -41,6 +41,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const currentUser = useSelector((state: RootState) => state.user.username);
+  const userProfile = useSelector((state: RootState) => state.user.profilePicture);
   
   // Memoize the chatId calculation
   const chatId = useMemo(() => 
@@ -87,7 +88,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const chatContainer = clsx(
     // Layout
-    'flex flex-col flex-1 h-screen',
+    'flex flex-col flex-1',
     // Appearance
     'bg-white',
     // Overflow
@@ -107,11 +108,11 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const messagesContainer = clsx(
     // Layout
-    'flex-1 flex flex-col',
+    'flex flex-col h-full',
     // Spacing
     'gap-4 p-5',
     // Overflow
-    'overflow-y-auto min-h-0 max-h-full',
+    'overflow-y-auto',
     // Scrollbar
     'scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent'
   );
@@ -156,13 +157,40 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     'placeholder:text-gray-600'
   );
 
+  const messageContainer = (isOwnMessage: boolean) => clsx(
+    // Layout
+    'flex w-full',
+    // Alignment
+    isOwnMessage ? 'flex-row-reverse' : 'flex-row'
+  );
+
   const messageContent = (isOwnMessage: boolean) => clsx(
     // Layout
     'flex flex-col',
     // Spacing
-    'max-w-[70%]',
+    'w-fit min-w-0',
     // Alignment
     isOwnMessage ? 'items-end' : 'items-start'
+  );
+
+  const senderName = clsx(
+    // Typography
+    'text-xs text-gray-600',
+    // Spacing
+    'mb-1 ml-2'
+  );
+
+  const messageStyle = (isOwnMessage: boolean) => clsx(
+    // Layout
+    'w-fit max-w-full',
+    // Spacing
+    'px-3 py-2',
+    // Appearance
+    'bg-gray-100 rounded-xl',
+    // Typography
+    'text-black break-all',
+    // Alignment
+    isOwnMessage ? 'bg-light1' : 'bg-gray-100'
   );
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -235,37 +263,28 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     if (!currentUser) return;
 
     const socket = getSocket();
-    socket.emit('join', currentUser);
 
-    socket.on('new-message', (data: SocketMessageEvent) => {
+    const handleNewMessage = (data: SocketMessageEvent) => {
       if (data.chatId === [currentUser, chat.name].sort().join('_')) {
         dispatch(addMessage({ chatId: data.chatId, message: data.message }));
       }
-    });
+    };
 
-    socket.on('new-group-message', (data: SocketMessageEvent) => {
-      if (chat.isGroup && data.groupId === chat.id) {
-        dispatch(groupActions.addGroupMessage({
-          groupId: chat.id,
-          message: data.message
-        }));
-      }
-    });
-
-    socket.on('group-invite', (invite: GroupInviteData) => {
+    const handleGroupInvite = (invite: GroupInviteData) => {
       console.log('Received group invite:', invite);
       dispatch(addGroupInvite({ 
         username: invite.invitedBy,
         invite 
       }));
       toast.success(`You've been invited to join ${invite.groupName}`);
-    });
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('group-invite', handleGroupInvite);
 
     return () => {
-      socket.off('new-message');
-      socket.off('new-group-message');
-      socket.off('group-invite');
-      socket.emit('leave', currentUser);
+      socket.off('new-message', handleNewMessage);
+      socket.off('group-invite', handleGroupInvite);
     };
   }, [currentUser, chat.name, chat.id, chat.isGroup, dispatch]);
 
@@ -280,7 +299,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       timestamp: new Date().toISOString(),
       status: 'sent',
       senderName: currentUser,
-      senderProfile: useSelector((state: RootState) => state.user.profilePicture)
+      senderProfile: userProfile
     };
 
     try {
@@ -305,37 +324,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }));
   };
 
-  const messageContainer = (isOwnMessage: boolean) => clsx(
-    // Layout
-    'flex items-start gap-2',
-    // Spacing
-    'mb-4',
-    // Alignment
-    isOwnMessage ? 'flex-row-reverse' : 'flex-row'
-  );
-
-  const senderName = clsx(
-    // Typography
-    'text-xs text-gray-600',
-    // Spacing
-    'mb-1'
-  );
-
-  const messageStyle = (isOwnMessage: boolean) => clsx(
-    // Layout
-    'max-w-[70%]',
-    // Spacing
-    'px-3 py-2',
-    // Appearance
-    'bg-gray-100 rounded-xl',
-    // Typography
-    'text-black',
-    // Alignment
-    isOwnMessage ? 'bg-[#57E3DC]' : 'bg-gray-100'
-  );
-
   return (
-    <div className="flex w-full h-screen">
+    <div className="flex w-full h-full">
       <div className={chatContainer}>
         <div className={chatHeader}>
           <ProfileAvatar
@@ -360,17 +350,32 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   groupId={invite.groupId}
                   groupName={invite.groupName}
                   invitedBy={invite.invitedBy}
+                  messageId={invite.id}
                   onAccept={() => handleAcceptInvite(invite.id)}
                 />
               ))}
             </div>
           )}
-          {messages.map((message) => {
+          {messages.map((message, index) => {
             const isOwnMessage = message.senderId === currentUser;
             
+            // Handle group invite messages
+            if (message.type === 'group-invite') {
+              return (
+                <GroupInvite
+                  key={`${message.id}-${index}`}
+                  groupId={message.groupId || ''}
+                  groupName={message.groupName || ''}
+                  invitedBy={message.invitedBy || ''}
+                  messageId={message.id || ''}
+                  onAccept={() => handleAcceptInvite(message.id || '')}
+                />
+              );
+            }
+            
             return (
-              <div key={message.id} className={messageContainer(isOwnMessage)}>
-                {!isOwnMessage && (
+              <div key={`${message.id}-${index}`} className={messageContainer(isOwnMessage)}>
+                {!isOwnMessage && message.type !== 'system' && (
                   <ProfileAvatar
                     username={message.senderName}
                     imageUrl={message.senderProfile}
@@ -378,12 +383,18 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   />
                 )}
                 <div className={messageContent(isOwnMessage)}>
-                  {!isOwnMessage && (
+                  {!isOwnMessage && message.type !== 'system' && (
                     <span className={senderName}>{message.senderName}</span>
                   )}
-                  <div className={messageStyle(isOwnMessage)}>
-                    {message.content}
-                  </div>
+                  {message.type === 'system' ? (
+                    <span className="text-gray-500 text-sm italic text-center">
+                      {message.content}
+                    </span>
+                  ) : (
+                    <div className={messageStyle(isOwnMessage)}>
+                      {message.content}
+                    </div>
+                  )}
                 </div>
               </div>
             );

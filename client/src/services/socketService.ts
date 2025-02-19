@@ -6,6 +6,8 @@ import { addMessage } from '../store/slice/chatSlice';
 import { toast } from 'react-hot-toast';
 import { MessageData, SocketMessageEvent, SocketErrorEvent, UserStatusEvent, FriendRequestEvent } from '../types/messages';
 import { groupActions } from '../store/slice/groupSlice';
+import axios from 'axios';
+import { BASE_URL } from '../config/api';
 
 const socket = io(SOCKET_URL);
 
@@ -125,19 +127,37 @@ export const initializeSocket = (username: string) => {
     });
 
     // Add group invite accepted listener
-    socket.on('group-invite-accepted', (data: { 
-        groupId: string, 
-        username: string,
-        profilePicture: string | null 
-    }) => {
-        store.dispatch(groupActions.addGroupMember({
-            groupId: data.groupId,
-            member: {
-                username: data.username,
-                profilePicture: data.profilePicture || null,
-                isAdmin: false
-            }
+    socket.on('group-invite-accepted', (data) => {
+        const currentUser = store.getState().user.username;
+        
+        // Add group directly since server sends correctly formatted data
+        store.dispatch(groupActions.addGroup({
+            ...data.group,
+            isGroup: true
         }));
+        
+        // Fetch messages for the group
+        if (data.username === currentUser) {
+            axios.get(`${BASE_URL}/api/groups/${data.groupId}/messages`)
+                .then(response => {
+                    store.dispatch(groupActions.setGroupMessages({
+                        groupId: data.groupId,
+                        messages: response.data
+                    }));
+                    // Force a re-render of the groups list
+                    store.dispatch(groupActions.setGroups(
+                        Object.values(store.getState().groups.groups)
+                    ));
+                })
+                .catch(error => {
+                    console.error('Error fetching messages:', error);
+                });
+        }
+        
+        // Show toast notification
+        if (data.username !== currentUser) {
+            toast.success(`${data.username} joined the group`);
+        }
     });
 
     return () => {
