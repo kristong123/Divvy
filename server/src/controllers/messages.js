@@ -12,49 +12,39 @@ const areUsersFriends = async (user1, user2) => {
 // Send a message (either direct chat or request)
 const sendMessage = async (req, res) => {
     try {
-        const { chatId, senderId, receiverId, content } = req.body;
+        const { chatId, content, senderId, receiverId } = req.body;
 
-        // Create message document
-        const messageRef = await db.collection('chats')
+        // Add message to friends collection
+        const messageRef = await db.collection('friends')
             .doc(chatId)
             .collection('messages')
             .add({
-                senderId,
                 content,
+                senderId,
+                receiverId,
                 timestamp: new Date(),
                 status: 'sent'
             });
 
-        // Update or create chat document
-        await db.collection('chats').doc(chatId).set({
-            users: [senderId, receiverId],
-            lastMessage: content,
-            lastMessageTime: new Date(),
-            updatedAt: new Date()
-        }, { merge: true });
-
-        const messageData = {
+        const message = {
             id: messageRef.id,
+            content,
             senderId,
             receiverId,
-            content,
             timestamp: new Date().toISOString(),
             status: 'sent'
         };
 
-        // Emit socket event
+        // Emit to both users
         const io = getIO();
         io.to(receiverId).to(senderId).emit('new-message', {
             chatId,
-            message: messageData
+            message
         });
 
-        res.status(200).json({
-            messageId: messageRef.id,
-            message: 'Message sent successfully'
-        });
+        res.status(200).json(message);
     } catch (error) {
-        console.error('Send message error:', error);
+        console.error('Error sending message:', error);
         res.status(500).json({ message: 'Failed to send message' });
     }
 };
@@ -64,13 +54,13 @@ const getMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
 
-        const messagesRef = await db.collection('chats')
+        const messagesSnapshot = await db.collection('friends')
             .doc(chatId)
             .collection('messages')
             .orderBy('timestamp', 'asc')
             .get();
 
-        const messages = messagesRef.docs.map(doc => ({
+        const messages = messagesSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             timestamp: doc.data().timestamp.toDate().toISOString()
@@ -78,8 +68,8 @@ const getMessages = async (req, res) => {
 
         res.status(200).json(messages);
     } catch (error) {
-        console.error('Get messages error:', error);
-        res.status(500).json({ message: 'Failed to fetch messages' });
+        console.error('Error getting messages:', error);
+        res.status(500).json({ message: 'Failed to get messages' });
     }
 };
 
@@ -93,7 +83,7 @@ const markMessagesAsRead = async (req, res) => {
             return res.status(400).json({ message: "User ID is required" });
         }
 
-        const messagesSnapshot = await db.collection("chats")
+        const messagesSnapshot = await db.collection("friends")
             .doc(chatId)
             .collection("messages")
             .where("status", "==", "sent")
@@ -127,7 +117,7 @@ const deleteMessage = async (req, res) => {
     try {
         const { chatId, messageId, userId } = req.body;
 
-        const messageRef = db.collection("chats").doc(chatId).collection("messages").doc(messageId);
+        const messageRef = db.collection("friends").doc(chatId).collection("messages").doc(messageId);
         const messageDoc = await messageRef.get();
 
         if (!messageDoc.exists) {
@@ -164,12 +154,12 @@ const acceptMessageRequest = async (req, res) => {
         // Move messages to direct chat
         const batch = db.batch();
         messagesSnapshot.forEach((doc) => {
-            batch.set(db.collection("chats").doc(requestChatId).collection("messages").doc(doc.id), doc.data());
+            batch.set(db.collection("friends").doc(requestChatId).collection("messages").doc(doc.id), doc.data());
             batch.delete(doc.ref); // Delete from messageRequests
         });
 
         // Set up chat metadata
-        batch.set(db.collection("chats").doc(requestChatId), {
+        batch.set(db.collection("friends").doc(requestChatId), {
             users: [senderId, receiverId],
             lastMessage: "Accepted message request",
             updatedAt: new Date(),

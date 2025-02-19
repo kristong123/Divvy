@@ -1,19 +1,19 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
-import io from 'socket.io-client';
-import { BASE_URL, SOCKET_URL } from '../../config/api';
-
-const socket = io(SOCKET_URL);
+import { BASE_URL } from '../../config/api';
+import { PayloadAction } from '@reduxjs/toolkit';
 
 interface PendingRequest {
+  id: string;
   sender: string;
-  createdAt: string;
+  timestamp: string;
   profilePicture?: string | null;
 }
 
 interface SentRequest {
+  id: string;
   recipient: string;
-  createdAt: string;
+  timestamp: string;
   status: string;
   profilePicture?: string | null;
 }
@@ -52,6 +52,7 @@ export const fetchPendingRequests = createAsyncThunk(
   'friends/fetchPendingRequests',
   async (username: string) => {
     const response = await axios.get(`${BASE_URL}/api/friends/requests/${username}`);
+    console.log('Pending requests response:', response.data);
     return response.data;
   }
 );
@@ -60,6 +61,7 @@ export const fetchSentRequests = createAsyncThunk(
   'friends/fetchSentRequests',
   async (username: string) => {
     const response = await axios.get(`${BASE_URL}/api/friends/sent/${username}`);
+    console.log('Sent requests response:', response.data);
     return response.data;
   }
 );
@@ -72,37 +74,12 @@ export const sendFriendRequest = createAsyncThunk(
       user2,
     });
     return { 
+      id: response.data.id,
       recipient: user2, 
       status: 'pending', 
       message: response.data.message,
       profilePicture: response.data.profilePicture
     };
-  }
-);
-
-export const acceptFriendRequest = createAsyncThunk(
-  'friends/acceptRequest',
-  async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.post(`${BASE_URL}/api/friends/accept`, {
-      user1,
-      user2,
-    });
-    return { 
-      sender: user1, 
-      message: response.data.message,
-      profilePicture: response.data.profilePicture 
-    };
-  }
-);
-
-export const declineFriendRequest = createAsyncThunk(
-  'friends/declineRequest',
-  async ({ user1, user2 }: { user1: string; user2: string }) => {
-    const response = await axios.post(`${BASE_URL}/api/friends/decline`, {
-      user1,
-      user2,
-    });
-    return { sender: user1, message: response.data.message };
   }
 );
 
@@ -113,12 +90,24 @@ const friendsSlice = createSlice({
     setFriends: (state, action) => {
       state.friends = action.payload;
     },
-    setPendingRequests: (state, action) => {
-      state.pendingRequests = action.payload;
+    setPendingRequests: (state, action: PayloadAction<PendingRequest[]>) => {
+      // Check for duplicates before adding
+      const newRequests = action.payload.filter(newReq => 
+        !state.pendingRequests.some(existingReq => existingReq.id === newReq.id)
+      );
+      state.pendingRequests = [...state.pendingRequests, ...newRequests];
     },
-    setSentRequests: (state, action) => {
-      state.sentRequests = action.payload;
+    setSentRequests: (state, action: PayloadAction<SentRequest[]>) => {
+      // Check for duplicates before adding
+      const newRequests = action.payload.filter(newReq => 
+        !state.sentRequests.some(existingReq => existingReq.id === newReq.id)
+      );
+      state.sentRequests = [...state.sentRequests, ...newRequests];
     },
+    clearRequests: (state) => {
+      state.pendingRequests = [];
+      state.sentRequests = [];
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -146,32 +135,17 @@ const friendsSlice = createSlice({
       // Send Friend Request
       .addCase(sendFriendRequest.fulfilled, (state, action) => {
         state.sentRequests.push({
+          id: action.payload.id || Date.now().toString(),
           recipient: action.payload.recipient,
           status: action.payload.status,
-          createdAt: new Date().toISOString(),
+          timestamp: new Date().toISOString(),
           profilePicture: action.payload.profilePicture
         });
-      })
-      // Accept Friend Request
-      .addCase(acceptFriendRequest.fulfilled, (state, action) => {
-        state.pendingRequests = state.pendingRequests.filter(
-          (request) => request.sender !== action.payload.sender
-        );
-        state.friends.push({
-          username: action.payload.sender,
-          profilePicture: action.payload.profilePicture
-        });
-      })
-      // Decline Friend Request
-      .addCase(declineFriendRequest.fulfilled, (state, action) => {
-        state.pendingRequests = state.pendingRequests.filter(
-          (request) => request.sender !== action.payload.sender
-        );
       });
   },
 });
 
-export const { setFriends, setPendingRequests, setSentRequests } = friendsSlice.actions;
+export const { setFriends, setPendingRequests, setSentRequests, clearRequests } = friendsSlice.actions;
 
 // Socket.IO event handlers
 export const setupFriendsListeners = (username: string) => async (dispatch: any) => {
@@ -191,33 +165,7 @@ export const setupFriendsListeners = (username: string) => async (dispatch: any)
     }
   };
 
-  // Join user's room
-  socket.emit('join', username);
   await fetchInitialData();
-
-  // Set up real-time listeners
-  socket.on('friends-update', async () => {
-    const res = await axios.get(`${BASE_URL}/api/friends/${username}`);
-    dispatch(setFriends(res.data));
-  });
-
-  socket.on('pending-requests-update', async () => {
-    const res = await axios.get(`${BASE_URL}/api/friends/requests/${username}`);
-    dispatch(setPendingRequests(res.data.pendingRequests));
-  });
-
-  socket.on('sent-requests-update', async () => {
-    const res = await axios.get(`${BASE_URL}/api/friends/sent/${username}`);
-    dispatch(setSentRequests(res.data));
-  });
-
-  // Cleanup function
-  return () => {
-    socket.off('friends-update');
-    socket.off('pending-requests-update');
-    socket.off('sent-requests-update');
-    socket.emit('leave', username);
-  };
 };
 
-export default friendsSlice.reducer; 
+export default friendsSlice.reducer;

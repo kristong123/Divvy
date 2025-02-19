@@ -7,12 +7,10 @@ import { AppDispatch } from '../../store/store';
 import {
   fetchPendingRequests,
   fetchSentRequests,
-  sendFriendRequest,
-  acceptFriendRequest,
-  declineFriendRequest,
 } from '../../store/slice/friendsSlice';
 import { toast } from 'react-hot-toast';
 import ProfileAvatar from '../shared/ProfileAvatar';
+import { sendFriendRequest as sendFriendRequestSocket, acceptFriendRequest as acceptFriendRequestSocket, declineFriendRequest as declineFriendRequestSocket } from '../../services/socketService';
 
 const Requests: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -113,10 +111,10 @@ const Requests: React.FC = () => {
     e.preventDefault();
     if (username && friendUsername) {
       try {
-        const resultAction = await dispatch(
-          sendFriendRequest({ user1: username, user2: friendUsername })
-        ).unwrap();
-        toast.success(resultAction.message);
+        sendFriendRequestSocket({ 
+          sender: username, 
+          recipient: friendUsername 
+        });
         setFriendUsername('');
       } catch (error) {
         toast.error('Failed to send friend request');
@@ -127,10 +125,10 @@ const Requests: React.FC = () => {
   const handleAcceptRequest = async (senderUsername: string) => {
     if (username) {
       try {
-        const resultAction = await dispatch(
-          acceptFriendRequest({ user1: senderUsername, user2: username })
-        ).unwrap();
-        toast.success(resultAction.message);
+        acceptFriendRequestSocket({ 
+          sender: senderUsername, 
+          recipient: username 
+        });
       } catch (error) {
         toast.error('Failed to accept friend request');
       }
@@ -140,10 +138,10 @@ const Requests: React.FC = () => {
   const handleDeclineRequest = async (senderUsername: string) => {
     if (username) {
       try {
-        const resultAction = await dispatch(
-          declineFriendRequest({ user1: senderUsername, user2: username })
-        ).unwrap();
-        toast.success(resultAction.message);
+        declineFriendRequestSocket({ 
+          sender: senderUsername, 
+          recipient: username 
+        });
       } catch (error) {
         toast.error('Failed to decline friend request');
       }
@@ -166,7 +164,10 @@ const Requests: React.FC = () => {
       <p className="mt-4 text-sm font-bold text-black">Friend Requests</p>
       <div className="mt-2">
         {pendingRequests.map((request) => (
-          <div key={request.sender} className={requestItem}>
+          <div 
+            key={request.id || `pending-${request.sender}-${Date.now()}`} 
+            className={requestItem}
+          >
             <div className={userInfo}>
               <ProfileAvatar
                 username={request.sender}
@@ -195,7 +196,10 @@ const Requests: React.FC = () => {
       <p className="mt-4 text-sm font-bold text-black">Sent Requests</p>
       <div className="mt-2">
         {sentRequests.map((request) => (
-          <div key={request.recipient} className={requestItem}>
+          <div 
+            key={request.id || `sent-${request.recipient}-${Date.now()}`} 
+            className={requestItem}
+          >
             <div className={userInfo}>
               <ProfileAvatar
                 username={request.recipient}

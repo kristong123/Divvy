@@ -409,48 +409,41 @@ const sendGroupInvite = async (req, res) => {
         const { groupId, username } = req.body;
 
         // Verify group exists
-        const groupRef = db.collection("groupChats").doc(groupId);
+        const groupRef = db.collection('groupChats').doc(groupId);
         const groupDoc = await groupRef.get();
 
         if (!groupDoc.exists) {
-            return res.status(404).json({ message: "Group not found" });
+            return res.status(404).json({ message: 'Group not found' });
         }
 
         // Check if user exists
-        const userDoc = await db.collection("users").doc(username).get();
+        const userDoc = await db.collection('users').doc(username).get();
         if (!userDoc.exists) {
-            return res.status(404).json({ message: "User not found" });
+            return res.status(404).json({ message: 'User not found' });
         }
+
+        const groupData = groupDoc.data();
 
         // Check if user is already in group
-        const groupData = groupDoc.data();
         if (groupData.users.includes(username)) {
-            return res.status(400).json({ message: "User is already in the group" });
+            return res.status(400).json({ message: 'User is already in the group' });
         }
 
-        // Create invite
-        const inviteRef = await db.collection("groupInvites").add({
-            groupId,
-            groupName: groupData.name,
-            invitedUser: username,
-            invitedBy: groupData.admin,
-            status: 'pending',
-            createdAt: new Date()
-        });
-
-        // Emit socket event to invited user
+        // Get socket instance
         const io = getIO();
+
+        // Emit socket event
         io.to(username).emit('group-invite', {
-            id: inviteRef.id,
+            id: groupId, // Using groupId as invite id for simplicity
             groupId,
             groupName: groupData.name,
             invitedBy: groupData.admin
         });
 
-        res.status(200).json({ message: "Invite sent successfully" });
+        res.status(200).json({ message: 'Invite sent successfully' });
     } catch (error) {
-        console.error("Error sending group invite:", error);
-        res.status(500).json({ message: "Failed to send invite" });
+        console.error('Error sending group invite:', error);
+        res.status(500).json({ message: 'Failed to send invite' });
     }
 };
 
@@ -458,31 +451,38 @@ const joinGroup = async (req, res) => {
     try {
         const { groupId, userId } = req.body;
 
-        const groupRef = db.collection("groupChats").doc(groupId);
+        const groupRef = db.collection('groupChats').doc(groupId);
         const groupDoc = await groupRef.get();
 
         if (!groupDoc.exists) {
-            return res.status(404).json({ message: "Group not found" });
+            return res.status(404).json({ message: 'Group not found' });
         }
 
         const groupData = groupDoc.data();
 
-        // Add just the username to group
+        // Check if user is already in group
+        if (groupData.users.includes(userId)) {
+            return res.status(400).json({ message: 'User is already in the group' });
+        }
+
+        // Add user to group
         await groupRef.update({
-            users: [...groupData.users, userId], // Just store username
+            users: [...groupData.users, userId],
             updatedAt: new Date()
         });
 
         // Add system message
-        await groupRef.collection("messages").add({
-            system: true,
+        await groupRef.collection('messages').add({
             content: `${userId} joined the group`,
+            senderId: 'system',
             timestamp: new Date(),
-            senderId: "system"
+            system: true
         });
 
-        // Notify members
+        // Get socket instance
         const io = getIO();
+
+        // Notify all group members
         groupData.users.forEach(member => {
             io.to(member).emit('group-member-joined', {
                 groupId,
@@ -490,10 +490,10 @@ const joinGroup = async (req, res) => {
             });
         });
 
-        res.status(200).json({ message: "Joined group successfully" });
+        res.status(200).json({ message: 'Joined group successfully' });
     } catch (error) {
-        console.error("Error joining group:", error);
-        res.status(500).json({ message: "Failed to join group" });
+        console.error('Error joining group:', error);
+        res.status(500).json({ message: 'Failed to join group' });
     }
 };
 

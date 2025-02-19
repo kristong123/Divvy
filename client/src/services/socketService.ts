@@ -1,22 +1,96 @@
 import io from 'socket.io-client';
 import { SOCKET_URL } from '../config/api';
 import { store } from '../store/store';
-import { setFriends, setPendingRequests, setSentRequests } from '../store/slice/friendsSlice';
+import { setFriends, setPendingRequests, setSentRequests, clearRequests } from '../store/slice/friendsSlice';
 import { addMessage } from '../store/slice/chatSlice';
 import { toast } from 'react-hot-toast';
 import { MessageData, SocketMessageEvent, SocketErrorEvent, UserStatusEvent, FriendRequestEvent } from '../types/messages';
-import axios from 'axios';
-import { BASE_URL } from '../config/api';
+import { groupActions } from '../store/slice/groupSlice';
 
 const socket = io(SOCKET_URL);
 
 export const initializeSocket = (username: string) => {
-    // Join user's room
     socket.emit('join', username);
-    socket.emit('user-online', username);
+    console.log('Joining socket room:', username);
+
+    // Friend request events with real-time updates
+    socket.on('new-friend-request', (data: FriendRequestEvent) => {
+        console.log('Received friend request:', data);
+        if (!data.id) return; // Skip if no ID
+        
+        store.dispatch(setPendingRequests([{
+            id: data.id,
+            sender: data.sender,
+            timestamp: data.timestamp,
+            profilePicture: data.profilePicture
+        }]));
+        toast.success(`New friend request from ${data.sender}`);
+    });
+
+    socket.on('friend-request-sent-success', (data: FriendRequestEvent) => {
+        console.log('Friend request sent:', data);
+        if (!data.id) return;
+        
+        store.dispatch(setSentRequests([{
+            id: data.id,
+            recipient: data.recipient,
+            status: 'pending',
+            timestamp: data.timestamp,
+            profilePicture: data.profilePicture
+        }]));
+        toast.success(`Friend request sent to ${data.recipient}`);
+    });
+
+    socket.on('friend-request-accepted', (data: FriendRequestEvent) => {
+        console.log('Friend request accepted:', data);
+        // Clear all requests first
+        store.dispatch(clearRequests());
+        
+        // Get current friends list
+        const currentFriends = store.getState().friends.friends;
+        
+        if (store.getState().user.username === data.sender) {
+            // For the sender: add new friend to existing list
+            store.dispatch(setFriends([
+                ...currentFriends,
+                {
+                    username: data.recipient,
+                    profilePicture: data.recipientProfile
+                }
+            ]));
+            toast.success(`${data.recipient} accepted your friend request`);
+        } else {
+            // For the recipient: add new friend to existing list
+            store.dispatch(setFriends([
+                ...currentFriends,
+                {
+                    username: data.sender,
+                    profilePicture: data.senderProfile
+                }
+            ]));
+            toast.success(`You are now friends with ${data.sender}`);
+        }
+    });
+
+    socket.on('friend-added', (data: any) => {
+        store.dispatch(setFriends(data));
+        toast.success('New friend added!');
+    });
+
+    socket.on('request-declined', (data: FriendRequestEvent) => {
+        store.dispatch(setSentRequests([{
+            id: data.id || Date.now().toString(),
+            recipient: data.recipient,
+            status: 'declined',
+            timestamp: data.timestamp,
+            profilePicture: data.profilePicture
+        }]));
+        toast.error(`${data.recipient} declined your friend request`);
+    });
 
     // Listen for direct messages
     socket.on('new-message', (data: SocketMessageEvent) => {
+        if (!data.chatId) return; // Skip if no chatId
         store.dispatch(addMessage({
             chatId: data.chatId,
             message: data.message
@@ -25,26 +99,10 @@ export const initializeSocket = (username: string) => {
 
     // Listen for group messages
     socket.on('new-group-message', (data: SocketMessageEvent) => {
-        store.dispatch(addMessage({
-            chatId: `group_${data.groupId}`,
+        store.dispatch(groupActions.addGroupMessage({
+            groupId: data.groupId,
             message: data.message
         }));
-    });
-
-    // Listen for friend requests
-    socket.on('new-friend-request', (data: FriendRequestEvent) => {
-        store.dispatch(setPendingRequests(data));
-        toast.success(`New friend request from ${data.sender}`);
-    });
-
-    socket.on('friend-request-accepted', (data: FriendRequestEvent) => {
-        store.dispatch(setFriends(data));
-        toast.success(`${data.recipient} accepted your friend request`);
-    });
-
-    socket.on('friend-request-declined', (data: FriendRequestEvent) => {
-        store.dispatch(setSentRequests(data));
-        toast.error(`${data.recipient} declined your friend request`);
     });
 
     // Listen for user status changes
@@ -53,54 +111,85 @@ export const initializeSocket = (username: string) => {
         console.log(`User ${data.username} is now ${data.status}`);
     });
 
+    // Add new group member joined listener
+    socket.on('group-member-joined', (data: { groupId: string, username: string }) => {
+        // Update group members in Redux store
+        store.dispatch(groupActions.addGroupMember({
+            groupId: data.groupId,
+            member: {
+                username: data.username,
+                profilePicture: null,
+                isAdmin: false
+            }
+        }));
+    });
+
+    // Add group invite accepted listener
+    socket.on('group-invite-accepted', (data: { 
+        groupId: string, 
+        username: string,
+        profilePicture: string | null 
+    }) => {
+        store.dispatch(groupActions.addGroupMember({
+            groupId: data.groupId,
+            member: {
+                username: data.username,
+                profilePicture: data.profilePicture || null,
+                isAdmin: false
+            }
+        }));
+    });
+
     return () => {
         socket.off('new-message');
         socket.off('new-group-message');
         socket.off('new-friend-request');
-        socket.off('friend-request-accepted');
-        socket.off('friend-request-declined');
+        socket.off('friend-request-sent-success');
+        socket.off('friend-added');
+        socket.off('request-accepted');
+        socket.off('request-declined');
         socket.off('user-status-changed');
+        socket.off('group-member-joined');
+        socket.off('group-invite-accepted');
         socket.emit('leave', username);
     };
 };
 
-export const sendMessage = async (data: MessageData) => {
-    if (data.chatId.startsWith('group_')) {
-        const groupId = data.chatId.replace('group_', '');
-        
-        // Emit socket event immediately for instant UI update
-        socket.emit('group-message', {
-            groupId,
-            message: {
-                ...data,
-                timestamp: new Date().toISOString()
-            }
-        });
-
-        // Save to database in background
-        try {
-            await axios.post(`${BASE_URL}/api/groups/${groupId}/messages`, {
-                content: data.content,
-                senderId: data.senderId
+export const sendMessage = async (messageData: MessageData) => {
+    try {
+        // Emit through socket only - remove HTTP call
+        const socket = getSocket();
+        if (messageData.chatId.startsWith('group_')) {
+            socket.emit('group-message', {
+                groupId: messageData.chatId.replace('group_', ''),
+                message: messageData
             });
-        } catch (error) {
-            toast.error('Failed to save message');
+        } else {
+            socket.emit('private-message', {
+                chatId: messageData.chatId,
+                message: messageData
+            });
         }
-    } else {
-        // Direct messages remain the same
-        socket.emit('private-message', data);
+        
+        return messageData; // Return the message data directly
+    } catch (error) {
+        console.error('Error sending message:', error);
+        throw error;
     }
 };
 
-export const sendFriendRequest = (data: any) => {
-    socket.emit('friend-request', data);
+// Helper function for sending friend requests
+export const sendFriendRequest = (data: { sender: string; recipient: string }) => {
+    console.log('Sending friend request:', data);
+    socket.emit('friend-request-sent', data);
 };
 
-export const acceptFriendRequest = (data: any) => {
+export const acceptFriendRequest = (data: { sender: string; recipient: string }) => {
+    console.log('Accepting friend request:', data);
     socket.emit('friend-request-accepted', data);
 };
 
-export const declineFriendRequest = (data: any) => {
+export const declineFriendRequest = (data: { sender: string; recipient: string }) => {
     socket.emit('friend-request-declined', data);
 };
 
@@ -110,4 +199,14 @@ socket.on('message-error', (error: SocketErrorEvent) => {
     toast.error('Failed to send message');
 });
 
-export default socket; 
+// Add a helper function to send group invites
+export const sendGroupInvite = (data: { groupId: string; username: string; invitedBy: string }) => {
+    console.log('Sending group invite:', data);
+    if (!data.invitedBy) {
+        console.error('No invitedBy provided for group invite');
+        return;
+    }
+    socket.emit('group-invite', data);
+};
+
+export const getSocket = () => socket; 

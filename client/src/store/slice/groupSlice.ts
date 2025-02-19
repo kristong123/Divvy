@@ -63,6 +63,22 @@ const groupSlice = createSlice({
           ...action.payload
         };
       }
+    },
+    addGroupMember: (state, action: PayloadAction<{
+      groupId: string;
+      member: {
+        username: string;
+        profilePicture: string | null;
+        isAdmin: boolean;
+      };
+    }>) => {
+      const { groupId, member } = action.payload;
+      const group = state.groups[groupId];
+      if (group) {
+        if (!group.users.some(user => user.username === member.username)) {
+          group.users.push(member);
+        }
+      }
     }
   }
 });

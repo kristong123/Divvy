@@ -4,6 +4,9 @@ import { X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
+import { sendGroupInvite } from '../../services/socketService';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
 
 interface InviteModalProps {
   isOpen: boolean;
@@ -14,6 +17,7 @@ interface InviteModalProps {
 
 const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, groupId, groupName }) => {
   const [username, setUsername] = useState('');
+  const currentUser = useSelector((state: RootState) => state.user.username);
 
   if (!isOpen) return null;
 
@@ -46,7 +50,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, groupId, gro
 
   const title = clsx(
     // Typography
-    'text-xl font-bold'
+    'text-xl font-bold text-black'
   );
 
   const closeButton = clsx(
@@ -66,7 +70,9 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, groupId, gro
     // Focus
     'focus:outline-none focus:border-[#57E3DC]',
     // Transitions
-    'transition-colors duration-200'
+    'transition-colors duration-200',
+    // Appearance
+    'text-black'
   );
 
   const submitButton = clsx(
@@ -84,10 +90,19 @@ const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, groupId, gro
 
   const handleInvite = async () => {
     try {
+      // Send socket event first
+      sendGroupInvite({
+        groupId,
+        username,
+        invitedBy: currentUser || ''
+      });
+
+      // Then make HTTP request
       await axios.post(`${BASE_URL}/api/groups/invite`, {
         groupId,
         username
       });
+      
       toast.success(`Invite sent to ${username}`);
       onClose();
     } catch (error) {

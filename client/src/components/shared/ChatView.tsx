@@ -6,17 +6,17 @@ import chatSelectors from '../../store/selectors/chatSelectors';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
-import io from 'socket.io-client';
-import { SOCKET_URL } from '../../config/api';
-import { sendMessage } from '../../services/socketService';
+import { sendMessage, getSocket } from '../../services/socketService';
 import { setMessages, addMessage } from '../../store/slice/chatSlice';
-import { SocketMessageEvent, MessageData } from '../../types/messages';
+import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import { UserPlus } from 'lucide-react';
 import GroupMembers from '../groups/GroupMembers';
 import InviteModal from '../groups/InviteModal';
 import { createSelector } from '@reduxjs/toolkit';
 import { groupActions } from '../../store/slice/groupSlice';
+import GroupInvite from '../groups/GroupInvite';
+import { addGroupInvite, removeGroupInvite } from '../../store/slice/inviteSlice';
 
 interface ChatViewProps {
   chat: {
@@ -29,7 +29,12 @@ interface ChatViewProps {
   };
 }
 
-const socket = io(SOCKET_URL);
+interface GroupInviteData {
+  id: string;
+  groupId: string;
+  groupName: string;
+  invitedBy: string;
+}
 
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const [inputText, setInputText] = useState('');
@@ -75,7 +80,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const directMessages = useSelector(selectDirectMessages);
   
   // Use group messages for group chats, direct messages otherwise
-  const messages = chat.isGroup ? groupMessages : directMessages;
+  const messages = (chat.isGroup ? groupMessages : directMessages) as Message[];
   const groupData = useSelector(selectGroupData);
 
   const dispatch = useDispatch();
@@ -151,29 +156,13 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     'placeholder:text-gray-600'
   );
 
-  const messageBubble = clsx(
+  const messageContent = (isOwnMessage: boolean) => clsx(
     // Layout
-    'flex gap-2 items-start',
+    'flex flex-col',
     // Spacing
-    'my-2'
-  );
-
-  const messageContent = clsx(
-    // Layout
     'max-w-[70%]',
-    // Spacing
-    'px-3 py-2',
-    // Appearance
-    'bg-gray-100 rounded-xl',
-    // Typography
-    'text-black'
-  );
-
-  const messageTime = clsx(
-    // Typography
-    'text-xs text-gray-600',
-    // Spacing
-    'ml-2'
+    // Alignment
+    isOwnMessage ? 'items-end' : 'items-start'
   );
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -190,6 +179,16 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Transitions
     'transition-colors duration-200'
   );
+
+  const selectGroupInvites = useMemo(
+    () => createSelector(
+      [(state: RootState) => state.invites.groupInvites, (state: RootState) => state.user.username],
+      (groupInvites, username) => groupInvites[username || ''] || []
+    ),
+    []
+  );
+
+  const groupInvites = useSelector(selectGroupInvites);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -235,6 +234,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   useEffect(() => {
     if (!currentUser) return;
 
+    const socket = getSocket();
     socket.emit('join', currentUser);
 
     socket.on('new-message', (data: SocketMessageEvent) => {
@@ -252,9 +252,19 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       }
     });
 
+    socket.on('group-invite', (invite: GroupInviteData) => {
+      console.log('Received group invite:', invite);
+      dispatch(addGroupInvite({ 
+        username: invite.invitedBy,
+        invite 
+      }));
+      toast.success(`You've been invited to join ${invite.groupName}`);
+    });
+
     return () => {
       socket.off('new-message');
       socket.off('new-group-message');
+      socket.off('group-invite');
       socket.emit('leave', currentUser);
     };
   }, [currentUser, chat.name, chat.id, chat.isGroup, dispatch]);
@@ -263,19 +273,21 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     if (!inputText.trim() || !currentUser) return;
 
     const messageData: MessageData = {
-        chatId: chat.isGroup ? `group_${chat.id}` : chatId,  // Add 'group_' prefix for groups
-        senderId: currentUser,
-        receiverId: chat.isGroup ? 'group' : chat.name,
-        content: inputText,
-        timestamp: new Date().toISOString(),
-        status: 'sent'
+      chatId: chat.isGroup ? `group_${chat.id}` : chatId,
+      senderId: currentUser,
+      receiverId: chat.isGroup ? 'group' : chat.name,
+      content: inputText,
+      timestamp: new Date().toISOString(),
+      status: 'sent',
+      senderName: currentUser,
+      senderProfile: useSelector((state: RootState) => state.user.profilePicture)
     };
 
     try {
-        await sendMessage(messageData);
-        setInputText('');
+      await sendMessage(messageData);
+      setInputText('');
     } catch (error) {
-        toast.error('Failed to send message');
+      toast.error('Failed to send message');
     }
   };
 
@@ -285,6 +297,42 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       handleSendMessage();
     }
   };
+
+  const handleAcceptInvite = (inviteId: string) => {
+    dispatch(removeGroupInvite({ 
+      username: chat.name,
+      inviteId 
+    }));
+  };
+
+  const messageContainer = (isOwnMessage: boolean) => clsx(
+    // Layout
+    'flex items-start gap-2',
+    // Spacing
+    'mb-4',
+    // Alignment
+    isOwnMessage ? 'flex-row-reverse' : 'flex-row'
+  );
+
+  const senderName = clsx(
+    // Typography
+    'text-xs text-gray-600',
+    // Spacing
+    'mb-1'
+  );
+
+  const messageStyle = (isOwnMessage: boolean) => clsx(
+    // Layout
+    'max-w-[70%]',
+    // Spacing
+    'px-3 py-2',
+    // Appearance
+    'bg-gray-100 rounded-xl',
+    // Typography
+    'text-black',
+    // Alignment
+    isOwnMessage ? 'bg-[#57E3DC]' : 'bg-gray-100'
+  );
 
   return (
     <div className="flex w-full h-screen">
@@ -304,31 +352,42 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
         </div>
 
         <div className={messagesContainer}>
-          {messages?.map((message) => (
-            <div 
-              key={`${message.id}-${message.timestamp}`}
-              className={clsx(
-                messageBubble,
-                message.senderId === currentUser ? 'justify-end' : 'justify-start'
-              )}
-            >
-              <div className={clsx(
-                messageContent,
-                message.senderId === currentUser ? 'bg-[#57E3DC]' : 'bg-gray-100'
-              )}>
-                {!chat.isGroup && message.senderId !== currentUser && (
-                  <span className="text-xs text-gray-500">{message.senderId}</span>
-                )}
-                {message.content}
-                <span className={messageTime}>
-                  {new Date(message.timestamp).toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </span>
-              </div>
+          {groupInvites.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {groupInvites.map((invite) => (
+                <GroupInvite
+                  key={invite.id}
+                  groupId={invite.groupId}
+                  groupName={invite.groupName}
+                  invitedBy={invite.invitedBy}
+                  onAccept={() => handleAcceptInvite(invite.id)}
+                />
+              ))}
             </div>
-          ))}
+          )}
+          {messages.map((message) => {
+            const isOwnMessage = message.senderId === currentUser;
+            
+            return (
+              <div key={message.id} className={messageContainer(isOwnMessage)}>
+                {!isOwnMessage && (
+                  <ProfileAvatar
+                    username={message.senderName}
+                    imageUrl={message.senderProfile}
+                    size="sm"
+                  />
+                )}
+                <div className={messageContent(isOwnMessage)}>
+                  {!isOwnMessage && (
+                    <span className={senderName}>{message.senderName}</span>
+                  )}
+                  <div className={messageStyle(isOwnMessage)}>
+                    {message.content}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
 

@@ -3,14 +3,19 @@ import clsx from 'clsx';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
 
 interface GroupInviteProps {
   groupId: string;
   groupName: string;
   invitedBy: string;
+  onAccept: () => void;
 }
 
-const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy }) => {
+const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy, onAccept }) => {
+  const username = useSelector((state: RootState) => state.user.username);
+
   const container = clsx(
     // Layout
     'flex flex-col',
@@ -49,9 +54,10 @@ const GroupInvite: React.FC<GroupInviteProps> = ({ groupId, groupName, invitedBy
     try {
       await axios.post(`${BASE_URL}/api/groups/join`, {
         groupId,
-        userId: invitedBy
+        userId: username
       });
       toast.success(`Joined ${groupName}!`);
+      onAccept();
     } catch (error) {
       console.error('Join group error:', error);
       toast.error('Failed to join group');
