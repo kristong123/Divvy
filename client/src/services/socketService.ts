@@ -11,6 +11,24 @@ import { BASE_URL } from '../config/api';
 
 const socket = io(SOCKET_URL);
 
+interface GroupInviteAcceptedData {
+  groupId: string;
+  username: string;
+  group: {
+    id: string;
+    name: string;
+    admin: string;
+    users: Array<{
+      username: string;
+      profilePicture: string | null;
+      isAdmin: boolean;
+    }>;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
 export const initializeSocket = (username: string) => {
     socket.emit('join', username);
     console.log('Joining socket room:', username);
@@ -127,7 +145,7 @@ export const initializeSocket = (username: string) => {
     });
 
     // Add group invite accepted listener
-    socket.on('group-invite-accepted', (data) => {
+    socket.on('group-invite-accepted', (data: GroupInviteAcceptedData) => {
         const currentUser = store.getState().user.username;
         
         // Add group directly since server sends correctly formatted data
