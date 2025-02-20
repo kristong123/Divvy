@@ -253,14 +253,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const [showEventDetails, setShowEventDetails] = useState(false);
 
-  // Add debug logs
-  console.log('Current Event Data:', groupData?.currentEvent);
-
-  // Modify the check for current event
+  // Update the check for current event
   const hasCurrentEvent = !!(groupData?.currentEvent?.id && groupData?.currentEvent?.name);
 
   // Debug the condition
   console.log('Has Current Event:', hasCurrentEvent);
+  console.log('Current Event Data:', groupData?.currentEvent);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -325,9 +323,24 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
     const handleEventUpdate = (data: { groupId: string; event: Event | null }) => {
       if (data.groupId === chat.id) {
-        dispatch(groupActions.setGroupEvent({
-          groupId: data.groupId,
-          event: data.event
+        const currentEvent = groupData?.currentEvent;
+        const newEvent = data.event;
+        
+        if (JSON.stringify(currentEvent) !== JSON.stringify(newEvent)) {
+          dispatch(groupActions.setGroupEvent({
+            groupId: data.groupId,
+            event: data.event
+          }));
+        }
+      }
+    };
+
+    const handleGroupJoin = (data: { groupId: string; group: any }) => {
+      if (data.groupId === chat.id) {
+        dispatch(groupActions.updateGroup({
+          id: data.groupId,
+          ...data.group,
+          currentEvent: data.group.currentEvent || groupData?.currentEvent
         }));
       }
     };
@@ -335,13 +348,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     socket.on('event-updated', handleEventUpdate);
     socket.on('new-message', handleNewMessage);
     socket.on('group-invite', handleGroupInvite);
+    socket.on('group-invite-accepted', handleGroupJoin);
 
     return () => {
       socket.off('event-updated', handleEventUpdate);
       socket.off('new-message', handleNewMessage);
       socket.off('group-invite', handleGroupInvite);
+      socket.off('group-invite-accepted', handleGroupJoin);
     };
-  }, [currentUser, chat.name, chat.id, chat.isGroup, dispatch]);
+  }, [currentUser, chat.name, chat.id, chat.isGroup, dispatch, groupData?.currentEvent]);
 
   // Add this useEffect to automatically close event view when event is cleared
   useEffect(() => {
@@ -349,6 +364,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       setShowEventDetails(false);
     }
   }, [groupData?.currentEvent]);
+
+  // Also add more detailed debug logging
+  useEffect(() => {
+    console.log('Group Data Changed:', {
+      hasEvent: !!groupData?.currentEvent,
+      eventDetails: groupData?.currentEvent,
+      groupId: chat.id
+    });
+  }, [groupData, chat.id]);
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || !currentUser) return;
