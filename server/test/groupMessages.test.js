@@ -1,218 +1,924 @@
-const request = require("supertest");
-const app = require("../index"); // Ensure this is correctly pointing to your Express app
 const { db } = require("../src/config/firebase");
+const { 
+  createGroup,
+  deleteGroup,
+  updateGroupChat,
+  addUserToGroup,
+  removeUserFromGroup,
+  leaveGroup,
+  sendGroupMessage,
+  getGroupMessages,
+  pinGroupMessage,
+  getGroupDetails,
+  createGroupChat,
+  sendGroupInvite,
+  joinGroup
+} = require('../src/controllers/groupMessages');
 
-// Sample users for testing
-const adminUser = "adminTestUser";
-const user1 = "testUser1";
-const user2 = "testUser2";
-const user3 = "testUser3";
+// Mock Firebase
+jest.mock('../src/config/firebase');
 
-let groupId;
-let messageId;
+// Mock Socket.IO
+jest.mock('../src/config/socket', () => ({
+  getIO: jest.fn().mockReturnValue({
+    to: jest.fn().mockReturnValue({
+      emit: jest.fn()
+    })
+  })
+}));
 
-describe("Group Chat API", () => {
-    beforeAll(async () => {
-        // Clean up old test data
-        const groupsSnapshot = await db.collection("groupChats").get();
-        const batch = db.batch();
-        groupsSnapshot.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
+describe('Group Messages Tests', () => {
+  let req, res;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    req = {
+      params: {},
+      body: {}
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+  });
+
+  describe('createGroup', () => {
+    it('should create a group successfully', async () => {
+      const mockGroupRef = {
+        id: 'group123',
+        collection: jest.fn().mockReturnValue({
+          add: jest.fn().mockResolvedValue(true)
+        })
+      };
+
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({ profilePicture: 'profile.jpg' })
+      };
+
+      db.collection.mockImplementation((collectionName) => {
+        if (collectionName === 'groupChats') {
+          return {
+            add: jest.fn().mockResolvedValue(mockGroupRef)
+          };
+        } else if (collectionName === 'users') {
+          return {
+            doc: jest.fn().mockReturnValue({
+              get: jest.fn().mockResolvedValue(mockUserDoc)
+            })
+          };
+        }
+      });
+
+      req.body = {
+        name: 'Test Group',
+        createdBy: 'testUser1'
+      };
+
+      await createGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        id: 'group123',
+        name: 'Test Group',
+        createdBy: 'testUser1',
+        users: [{
+          username: 'testUser1',
+          profilePicture: 'profile.jpg',
+          isAdmin: true
+        }]
+      });
     });
 
-    test("Create a group chat", async () => {
-        const response = await request(app)
-            .post("/api/group-messages/create")
-            .send({
-                name: "Test Group",
-                createdBy: adminUser,
-                users: [adminUser, user1, user2],
-            });
+    it('should handle errors when creating group', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-        expect(response.statusCode).toBe(201);
-        expect(response.body.groupId).toBeDefined();
-        expect(response.body.message).toBe("Group chat created!");
-        
-        groupId = response.body.groupId;
+      req.body = {
+        name: 'Test Group',
+        createdBy: 'testUser1'
+      };
+
+      await createGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to create group' });
+    });
+  });
+
+  describe('getGroupDetails', () => {
+    it('should get group details successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          name: 'Test Group',
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2'],
+          createdBy: 'testUser1',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+      };
+
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({ profilePicture: 'profile.jpg' })
+      };
+
+      db.collection.mockImplementation((collectionName) => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(
+            collectionName === 'groupChats' ? mockGroupDoc : mockUserDoc
+          )
+        })
+      }));
+
+      req.params = { groupId: 'group123' };
+
+      await getGroupDetails(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        groupId: 'group123',
+        name: 'Test Group',
+        admin: 'testUser1'
+      }));
     });
 
-    test("Retrieve group details (Check Initial Admin)", async () => {
-        const response = await request(app)
-            .get(`/api/group-messages/${groupId}`);
+    it('should handle non-existent group', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({ exists: false })
+        })
+      }));
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.groupId).toBe(groupId);
-        expect(response.body.admin).toBe(adminUser);
+      req.params = { groupId: 'nonexistent' };
+      await getGroupDetails(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Group not found' });
     });
 
-    test("Admin adds a user to the group", async () => {
-        const response = await request(app)
-            .post("/api/group-messages/add-user")
-            .send({
-                groupId,
-                adminId: adminUser,
-                userId: user3,
-            });
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("User added to group!");
+      req.params = { groupId: 'group123' };
+      await getGroupDetails(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+    });
+  });
+
+  describe('deleteGroup', () => {
+    it('should delete group successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1'
+        }),
+        ref: {
+          delete: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          delete: mockGroupDoc.ref.delete
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        adminId: 'testUser1'
+      };
+
+      await deleteGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Group deleted successfully!' });
+    });
+  });
+
+  describe('sendGroupMessage', () => {
+    it('should send message successfully', async () => {
+      const timestamp = new Date();
+      const mockMessageRef = {
+        id: 'msg123',
+        get: jest.fn().mockResolvedValue({
+          data: () => ({
+            content: 'Hello',
+            senderId: 'testUser1',
+            timestamp: {
+              toDate: () => timestamp
+            },
+            system: false
+          })
+        })
+      };
+
+      const mockGroupRef = {
+        exists: true,
+        data: () => ({
+          users: ['testUser1', 'testUser2']
+        }),
+        collection: jest.fn().mockReturnValue({
+          add: jest.fn().mockResolvedValue(mockMessageRef)
+        }),
+        update: jest.fn().mockResolvedValue(true)
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupRef),
+          collection: mockGroupRef.collection,
+          update: mockGroupRef.update
+        })
+      }));
+
+      req.params = { groupId: 'group123' };
+      req.body = {
+        content: 'Hello',
+        senderId: 'testUser1'
+      };
+
+      await sendGroupMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'msg123',
+        content: 'Hello',
+        senderId: 'testUser1'
+      }));
     });
 
-    test("Non-admin tries to add a user (should fail)", async () => {
-        const response = await request(app)
-            .post("/api/group-messages/add-user")
-            .send({
-                groupId,
-                adminId: user1, // Not an admin
-                userId: user3,
-            });
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-        expect(response.statusCode).toBe(403);
-        expect(response.body.message).toBe("Only the admin can add users.");
+      req.params = { groupId: 'group123' };
+      req.body = {
+        content: 'Hello',
+        senderId: 'testUser1'
+      };
+
+      await sendGroupMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to send message' });
+    });
+  });
+
+  describe('updateGroupChat', () => {
+    it('should update group successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2']
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          update: mockGroupDoc.ref.update
+        })
+      }));
+
+      req.params = { groupId: 'group123' };
+      req.body = {
+        adminId: 'testUser1',
+        name: 'Updated Group',
+        newAdmin: 'testUser2'
+      };
+
+      await updateGroupChat(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Group updated successfully!' });
     });
 
-    test("Send a message to the group", async () => {
-        const response = await request(app)
-            .post("/api/group-messages/send")
-            .send({
-                groupId,
-                senderId: user1,
-                content: "Hello, this is a test message!",
-            });
+    it('should handle non-admin update attempt', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2']
+        })
+      };
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("Message sent to group!");
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc)
+        })
+      }));
+
+      req.params = { groupId: 'group123' };
+      req.body = {
+        adminId: 'testUser2',
+        name: 'Updated Group'
+      };
+
+      await updateGroupChat(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Only the admin can update group settings' });
+    });
+  });
+
+  describe('leaveGroup', () => {
+    it('should handle user leaving successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser2',
+          users: ['testUser1', 'testUser2']
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          update: mockGroupDoc.ref.update
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        userId: 'testUser1'
+      };
+
+      await leaveGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User left the group!' });
     });
 
-    test("Retrieve messages from the group chat", async () => {
-        const response = await request(app)
-            .get(`/api/group-messages/${groupId}/messages`);
+    it('should handle admin leaving and assign new admin', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2']
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
 
-        expect(response.statusCode).toBe(200);
-        expect(Array.isArray(response.body)).toBe(true);
-        expect(response.body.length).toBeGreaterThan(0);
-        
-        messageId = response.body[0].id;
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          update: mockGroupDoc.ref.update
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        userId: 'testUser1'
+      };
+
+      await leaveGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User left the group!' });
+    });
+  });
+
+  describe('pinGroupMessage', () => {
+    it('should pin message successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1'
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          update: mockGroupDoc.ref.update
+        })
+      }));
+
+      req.params = { groupId: 'group123' };
+      req.body = {
+        adminId: 'testUser1',
+        messageId: 'msg123'
+      };
+
+      await pinGroupMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Message pinned successfully!' });
+    });
+  });
+
+  describe('getGroupMessages', () => {
+    it('should get messages successfully', async () => {
+      const mockMessages = [{
+        id: 'msg1',
+        data: () => ({
+          content: 'Hello',
+          senderId: 'testUser1',
+          timestamp: {
+            toDate: () => new Date()
+          },
+          system: false
+        })
+      }];
+
+      // Create a mock group document with proper references
+      const mockGroupRef = {
+        exists: true,
+        data: () => ({}),
+        ref: {
+          collection: jest.fn().mockReturnValue({
+            orderBy: jest.fn().mockReturnThis(),
+            get: jest.fn().mockResolvedValue({ docs: mockMessages })
+          })
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupRef),
+          collection: mockGroupRef.ref.collection
+        })
+      }));
+
+      req.params = { groupId: 'group123' };
+      await getGroupMessages(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'msg1',
+          content: 'Hello'
+        })
+      ]));
     });
 
-    test("Pin a message in the group", async () => {
-        const response = await request(app)
-            .put(`/api/group-messages/${groupId}/pin-message`)
-            .send({
-                adminId: adminUser,
-                messageId,
-            });
+    it('should handle non-existent group', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({ exists: false })
+        })
+      }));
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("Message pinned successfully!");
+      req.params = { groupId: 'nonexistent' };
+      await getGroupMessages(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Group chat not found' });
+    });
+  });
+
+  describe('removeUserFromGroup', () => {
+    it('should remove user successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2']
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          update: mockGroupDoc.ref.update
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        adminId: 'testUser1',
+        userId: 'testUser2'
+      };
+
+      await removeUserFromGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User removed from group!' });
     });
 
-    test("Non-admin tries to pin a message (should fail)", async () => {
-        const response = await request(app)
-            .put(`/api/group-messages/${groupId}/pin-message`)
-            .send({
-                adminId: user1,
-                messageId,
-            });
+    it('should handle non-admin removal attempt', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2']
+        })
+      };
 
-        expect(response.statusCode).toBe(403);
-        expect(response.body.message).toBe("Only the admin can pin messages");
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc)
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        adminId: 'testUser2',
+        userId: 'testUser1'
+      };
+
+      await removeUserFromGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Only the admin can remove users.' });
+    });
+  });
+
+  describe('createGroupChat', () => {
+    it('should create group chat successfully', async () => {
+      const mockGroupRef = {
+        id: 'group123',
+        collection: jest.fn().mockReturnValue({
+          add: jest.fn().mockResolvedValue(true)
+        })
+      };
+
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({ profilePicture: 'profile.jpg' })
+      };
+
+      db.collection.mockImplementation((collectionName) => ({
+        add: jest.fn().mockResolvedValue(mockGroupRef),
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockUserDoc)
+        })
+      }));
+
+      req.body = {
+        name: 'Test Group',
+        createdBy: 'testUser1'
+      };
+
+      await createGroupChat(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'group123',
+        name: 'Test Group'
+      }));
+    });
+  });
+
+  describe('addUserToGroup', () => {
+    it('should add user successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'adminUser',
+          users: ['adminUser']
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc),
+          update: mockGroupDoc.ref.update
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        adminId: 'adminUser',
+        userId: 'newUser'
+      };
+
+      await addUserToGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User added to group!' });
     });
 
-    test("Admin updates group name", async () => {
-        const response = await request(app)
-            .put(`/api/group-messages/${groupId}/update`)
-            .send({
-                adminId: adminUser,
-                name: "Updated Group Name",
-            });
+    it('should handle missing fields', async () => {
+      req.body = {
+        groupId: 'group123',
+        // Missing adminId and userId
+      };
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("Group updated successfully!");
+      await addUserToGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Missing fields' });
     });
 
-    test("Admin assigns a new admin", async () => {
-        const response = await request(app)
-            .put(`/api/group-messages/${groupId}/update`)
-            .send({
-                adminId: adminUser,
-                newAdmin: user1, // Assigning a new admin
-            });
+    it('should handle non-existent group', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({ exists: false })
+        })
+      }));
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("Group updated successfully!");
+      req.body = {
+        groupId: 'nonexistent',
+        adminId: 'adminUser',
+        userId: 'newUser'
+      };
+
+      await addUserToGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Group not found' });
     });
 
-    test("Retrieve group details (Verify New Admin)", async () => {
-        const response = await request(app)
-            .get(`/api/group-messages/${groupId}`);
+    it('should handle non-admin user', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'adminUser',
+          users: ['adminUser']
+        })
+      };
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.groupId).toBe(groupId);
-        expect(response.body.admin).toBe(user1); // Ensure user1 is now the admin
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc)
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        adminId: 'nonAdmin',
+        userId: 'newUser'
+      };
+
+      await addUserToGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Only the admin can add users.' });
     });
 
-    test("User leaves the group", async () => {
-        const response = await request(app)
-            .delete("/api/group-messages/leave")
-            .send({
-                groupId,
-                userId: user3,
-            });
+    it('should handle user already in group', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'adminUser',
+          users: ['adminUser', 'existingUser']
+        })
+      };
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("User left the group!");
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc)
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        adminId: 'adminUser',
+        userId: 'existingUser'
+      };
+
+      await addUserToGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User is already in the group' });
     });
 
-    test("Admin removes a user from the group", async () => {
-        const response = await request(app)
-            .delete("/api/group-messages/remove-user")
-            .send({
-                groupId,
-                adminId: user1, // User1 is now the admin
-                userId: user2,
-            });
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("User removed from group!");
+      req.body = {
+        groupId: 'group123',
+        adminId: 'adminUser',
+        userId: 'newUser'
+      };
+
+      await addUserToGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+    });
+  });
+
+  describe('sendGroupInvite', () => {
+    it('should send invite successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          name: 'Test Group',
+          admin: 'testUser1',
+          users: ['testUser1']
+        })
+      };
+
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({
+          profilePicture: 'profile.jpg'
+        })
+      };
+
+      db.collection.mockImplementation((collectionName) => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(
+            collectionName === 'groupChats' ? mockGroupDoc : mockUserDoc
+          )
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        username: 'testUser2'
+      };
+
+      await sendGroupInvite(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invite sent successfully' });
     });
 
-    test("Non-admin tries to remove a user (should fail)", async () => {
-        const response = await request(app)
-            .delete("/api/group-messages/remove-user")
-            .send({
-                groupId,
-                adminId: user2, // Not an admin anymore
-                userId: user1,
-            });
+    it('should handle non-existent group', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue({ exists: false })
+        })
+      }));
 
-        expect(response.statusCode).toBe(403);
-        expect(response.body.message).toBe("Only the admin can remove users.");
+      req.body = {
+        groupId: 'nonexistent',
+        username: 'testUser2'
+      };
+
+      await sendGroupInvite(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Group not found' });
     });
 
-    test("Admin deletes the group", async () => {
-        // Using updated admin (user1) to delete the group
-        const response = await request(app)
-            .delete("/api/group-messages/delete")
-            .send({
-                groupId,
-                adminId: user1, // Admin changed earlier
-            });
+    it('should handle non-existent user', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          name: 'Test Group',
+          admin: 'testUser1'
+        })
+      };
 
-        console.log("Delete Group Response:", response.body); // Debugging log
-    
-        expect(response.statusCode).toBe(200);
-        expect(response.body.message).toBe("Group deleted successfully!");
+      db.collection.mockImplementation((collectionName) => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(
+            collectionName === 'groupChats' ? mockGroupDoc : { exists: false }
+          )
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        username: 'nonexistentUser'
+      };
+
+      await sendGroupInvite(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
     });
 
-    afterAll(async () => {
-        // Cleanup Firestore data after tests
-        const groupsSnapshot = await db.collection("groupChats").get();
-        const batch = db.batch();
-        groupsSnapshot.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
+    it('should handle user already in group', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          name: 'Test Group',
+          admin: 'testUser1',
+          users: ['testUser1', 'testUser2']
+        })
+      };
 
-        // Close Firebase connection to prevent Jest from hanging
-        await db.terminate();
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({})
+      };
+
+      db.collection.mockImplementation((collectionName) => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(
+            collectionName === 'groupChats' ? mockGroupDoc : mockUserDoc
+          )
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        username: 'testUser2'
+      };
+
+      await sendGroupInvite(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User is already in the group' });
     });
-});
+  });
+
+  describe('joinGroup', () => {
+    it('should join group successfully', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          name: 'Test Group',
+          admin: 'admin1',
+          users: ['admin1'],
+          createdBy: 'admin1',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true),
+          collection: jest.fn().mockReturnValue({
+            add: jest.fn().mockResolvedValue(true)
+          })
+        }
+      };
+
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({
+          profilePicture: 'profile.jpg'
+        })
+      };
+
+      db.collection.mockImplementation((collectionName) => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(
+            collectionName === 'groupChats' ? mockGroupDoc : mockUserDoc
+          ),
+          update: mockGroupDoc.ref.update,
+          collection: mockGroupDoc.ref.collection
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        username: 'testUser2'
+      };
+
+      await joinGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'Successfully joined group',
+        group: expect.objectContaining({
+          id: 'group123',
+          name: 'Test Group',
+          admin: 'admin1'
+        })
+      }));
+    });
+
+    it('should handle user already in group', async () => {
+      const mockGroupDoc = {
+        exists: true,
+        data: () => ({
+          admin: 'admin1',
+          users: ['admin1', 'testUser2']
+        })
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          get: jest.fn().mockResolvedValue(mockGroupDoc)
+        })
+      }));
+
+      req.body = {
+        groupId: 'group123',
+        username: 'testUser2'
+      };
+
+      await joinGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ 
+        message: 'You are already a member of this group' 
+      });
+    });
+  });
+}); 

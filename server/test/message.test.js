@@ -1,173 +1,469 @@
-const request = require("supertest");
-const app = require("../index"); // Ensure this is correctly pointing to your Express app
 const { db } = require("../src/config/firebase");
+const { 
+  sendMessage, 
+  getMessages, 
+  markMessagesAsRead, 
+  deleteMessage,
+  acceptMessageRequest,
+  rejectMessageRequest
+} = require('../src/controllers/messages');
 
-// Sample users and test message
-const user1 = "testUser1";
-const user2 = "testUser2";
-const nonFriend = "testUser3"; // A user who is NOT friends with user1
-let chatId;
-let messageId;
-let requestChatId;
+// Mock Firebase
+jest.mock('../src/config/firebase');
 
-describe("Messages API", () => {
-  beforeAll(async () => {
-    chatId = [user1, user2].sort().join("_"); // Standard chat ID for friends
-    requestChatId = [user1, nonFriend].sort().join("_"); // Chat ID for message request
+// Mock Socket.IO
+jest.mock('../src/config/socket', () => ({
+  getIO: jest.fn().mockReturnValue({
+    to: jest.fn().mockReturnThis(),
+    emit: jest.fn()
+  })
+}));
 
-    // Cleanup previous test data
-    const batch = db.batch();
+describe('Messages Tests', () => {
+  let req, res;
 
-    // Clear messages in direct chats
-    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
-    messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
-
-    // Clear messages in message requests
-    const requestMessagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
-    requestMessagesSnapshot.forEach((doc) => batch.delete(doc.ref));
-
-    // Clear chat metadata
-    batch.delete(db.collection("chats").doc(chatId));
-    batch.delete(db.collection("messageRequests").doc(requestChatId));
-
-    await batch.commit();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    req = {
+      params: {},
+      body: {}
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
   });
 
-  test("Send a direct message (users are friends)", async () => {
-    const response = await request(app)
-      .post("/api/messages/send")
-      .send({
-        senderId: user1,
-        receiverId: user2,
-        content: "Hello, this is a test message.",
+  describe('sendMessage', () => {
+    it('should send message successfully', async () => {
+      const mockMessageRef = {
+        id: 'msg123'
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            add: jest.fn().mockResolvedValue(mockMessageRef)
+          })
+        })
+      }));
+
+      req.body = {
+        chatId: 'chat123',
+        content: 'Hello',
+        senderId: 'user1',
+        receiverId: 'user2'
+      };
+
+      await sendMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'msg123',
+        content: 'Hello',
+        senderId: 'user1',
+        receiverId: 'user2'
+      }));
+    });
+
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
       });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.body.message).toBe("Message sent!");
+      req.body = {
+        chatId: 'chat123',
+        content: 'Hello',
+        senderId: 'user1',
+        receiverId: 'user2'
+      };
 
-    // Fetch the message to get its ID for later tests
-    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
-    messageId = messagesSnapshot.docs[0].id;
-  });
+      await sendMessage(req, res);
 
-  test("Get messages from a conversation", async () => {
-    const response = await request(app).get(`/api/messages/${chatId}`);
-
-    expect(response.statusCode).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-    expect(response.body.length).toBeGreaterThan(0);
-    expect(response.body[0]).toHaveProperty("content", "Hello, this is a test message.");
-  });
-
-  test("Mark messages as read", async () => {
-    const response = await request(app)
-      .put(`/api/messages/${chatId}/mark-read`)
-      .send({ userId: user2 });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.body.message).toBe("Messages marked as read!");
-
-    // Verify in Firestore
-    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
-    messagesSnapshot.forEach((doc) => {
-      expect(doc.data().readBy.includes(user2)).toBe(true);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to send message' });
     });
   });
 
-  test("Soft delete a message", async () => {
-    const response = await request(app)
-      .delete(`/api/messages/${chatId}/delete-message`)
-      .send({
-        chatId,
-        messageId,
-        userId: user1,
-      });
+  describe('getMessages', () => {
+    it('should get messages successfully', async () => {
+      const mockMessages = [{
+        id: 'msg1',
+        data: () => ({
+          content: 'Hello',
+          senderId: 'user1',
+          receiverId: 'user2',
+          timestamp: {
+            toDate: () => new Date()
+          },
+          status: 'sent'
+        })
+      }];
 
-    expect(response.statusCode).toBe(200);
-    expect(response.body.message).toBe("Message deleted!");
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            orderBy: jest.fn().mockReturnThis(),
+            get: jest.fn().mockResolvedValue({ docs: mockMessages })
+          })
+        })
+      }));
 
-    // Verify the message is soft deleted
-    const deletedMessage = await db.collection("chats").doc(chatId).collection("messages").doc(messageId).get();
-    expect(deletedMessage.data().content).toBe("This message has been deleted.");
-    expect(deletedMessage.data().deleted).toBe(true);
-  });
+      req.params = { chatId: 'chat123' };
+      await getMessages(req, res);
 
-  /*** MESSAGE REQUEST TESTS ***/
-  test("Send a message request (users are NOT friends)", async () => {
-    const response = await request(app)
-      .post("/api/messages/send")
-      .send({
-        senderId: user1,
-        receiverId: nonFriend,
-        content: "Hello, this is a message request.",
-      });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.body.message).toBe("Message request sent!");
-
-    // Verify message is stored in "messageRequests"
-    const messagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
-    expect(messagesSnapshot.empty).toBe(false);
-  });
-
-  test("Accept a message request (move to direct chat)", async () => {
-    const response = await request(app)
-        .post("/api/messages/accept-request")
-        .send({
-            senderId: user1,
-            receiverId: nonFriend,
-        });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.body.message).toBe("Message request accepted! You can now chat directly.");
-
-    // Ensure messages were moved to "chats"
-    const directChatSnapshot = await db.collection("chats").doc(requestChatId).collection("messages").get();
-    expect(directChatSnapshot.empty).toBe(false);
-
-    // Ensure "messageRequests" no longer exists
-    const requestChatSnapshot = await db.collection("messageRequests").doc(requestChatId).get();
-    expect(requestChatSnapshot.exists).toBe(false);  // This should now pass ✅
-});
-
-test("Reject a message request", async () => {
-    // Send another request to be rejected
-    await db.collection("messageRequests").doc(requestChatId).collection("messages").add({
-        senderId: user1,
-        receiverId: nonFriend,
-        content: "This should be rejected",
-        timestamp: new Date(),
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'msg1',
+          content: 'Hello'
+        })
+      ]));
     });
 
-    const response = await request(app)
-        .delete("/api/messages/reject-request")
-        .send({
-            senderId: user1,
-            receiverId: nonFriend,
-        });
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.body.message).toBe("Message request rejected!");
+      req.params = { chatId: 'chat123' };
+      await getMessages(req, res);
 
-    // Ensure the request is completely deleted
-    const requestMessagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
-    expect(requestMessagesSnapshot.empty).toBe(true);  // This should now pass ✅
-});
-
-  afterAll(async () => {
-    // Cleanup test data after tests
-    const batch = db.batch();
-
-    const messagesSnapshot = await db.collection("chats").doc(chatId).collection("messages").get();
-    messagesSnapshot.forEach((doc) => batch.delete(doc.ref));
-
-    const requestMessagesSnapshot = await db.collection("messageRequests").doc(requestChatId).collection("messages").get();
-    requestMessagesSnapshot.forEach((doc) => batch.delete(doc.ref));
-
-    batch.delete(db.collection("chats").doc(chatId));
-    batch.delete(db.collection("messageRequests").doc(requestChatId));
-
-    await batch.commit();
-    await db.terminate(); // Close Firebase connection to prevent Jest from hanging
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to get messages' });
+    });
   });
-});
+
+  describe('markMessagesAsRead', () => {
+    it('should mark messages as read successfully', async () => {
+      const mockMessages = [{
+        data: () => ({
+          status: 'sent',
+          readBy: []
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      }];
+
+      const mockBatch = {
+        update: jest.fn(),
+        commit: jest.fn().mockResolvedValue(true)
+      };
+
+      db.batch.mockReturnValue(mockBatch);
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            where: jest.fn().mockReturnThis(),
+            get: jest.fn().mockResolvedValue({
+              empty: false,
+              forEach: (callback) => mockMessages.forEach(callback),
+              docs: mockMessages
+            })
+          })
+        })
+      }));
+
+      req.params = { chatId: 'chat123' };
+      req.body = { userId: 'user1' };
+
+      await markMessagesAsRead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Messages marked as read!' });
+    });
+
+    it('should handle missing userId', async () => {
+      req.params = { chatId: 'chat123' };
+      req.body = {}; // Missing userId
+
+      await markMessagesAsRead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User ID is required' });
+    });
+
+    it('should handle no unread messages', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            where: jest.fn().mockReturnThis(),
+            get: jest.fn().mockResolvedValue({
+              empty: true
+            })
+          })
+        })
+      }));
+
+      req.params = { chatId: 'chat123' };
+      req.body = { userId: 'user1' };
+
+      await markMessagesAsRead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'No unread messages found' });
+    });
+
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
+
+      req.params = { chatId: 'chat123' };
+      req.body = { userId: 'user1' };
+
+      await markMessagesAsRead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('should delete message successfully', async () => {
+      const mockMessageDoc = {
+        exists: true,
+        data: () => ({
+          senderId: 'user1'
+        }),
+        ref: {
+          update: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            doc: jest.fn().mockReturnValue({
+              get: jest.fn().mockResolvedValue(mockMessageDoc),
+              update: mockMessageDoc.ref.update
+            })
+          })
+        })
+      }));
+
+      req.body = {
+        chatId: 'chat123',
+        messageId: 'msg123',
+        userId: 'user1'
+      };
+
+      await deleteMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Message deleted!' });
+    });
+
+    it('should handle unauthorized deletion', async () => {
+      const mockMessageDoc = {
+        exists: true,
+        data: () => ({
+          senderId: 'user1'
+        })
+      };
+
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            doc: jest.fn().mockReturnValue({
+              get: jest.fn().mockResolvedValue(mockMessageDoc)
+            })
+          })
+        })
+      }));
+
+      req.body = {
+        chatId: 'chat123',
+        messageId: 'msg123',
+        userId: 'user2' // Different user
+      };
+
+      await deleteMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: 'You can only delete your own messages' });
+    });
+
+    it('should handle non-existent message', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            doc: jest.fn().mockReturnValue({
+              get: jest.fn().mockResolvedValue({ exists: false })
+            })
+          })
+        })
+      }));
+
+      req.body = {
+        chatId: 'chat123',
+        messageId: 'nonexistent',
+        userId: 'user1'
+      };
+
+      await deleteMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Message not found' });
+    });
+
+    it('should handle database errors', async () => {
+      db.collection.mockImplementation(() => {
+        throw new Error('Database error');
+      });
+
+      req.body = {
+        chatId: 'chat123',
+        messageId: 'msg123',
+        userId: 'user1'
+      };
+
+      await deleteMessage(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+    });
+  });
+
+  describe('acceptMessageRequest', () => {
+    it('should accept message request successfully', async () => {
+      const mockMessages = [{
+        id: 'msg1',
+        data: () => ({
+          content: 'Hello',
+          senderId: 'user1',
+          timestamp: new Date()
+        }),
+        ref: {
+          delete: jest.fn().mockResolvedValue(true)
+        }
+      }];
+
+      const mockBatch = {
+        set: jest.fn(),
+        delete: jest.fn(),
+        commit: jest.fn().mockResolvedValue(true)
+      };
+
+      const mockDocRef = {
+        collection: jest.fn().mockReturnValue({
+          doc: jest.fn().mockReturnThis(),
+          get: jest.fn().mockResolvedValue({
+            empty: false,
+            docs: mockMessages,
+            forEach: (callback) => mockMessages.forEach(callback)
+          })
+        }),
+        delete: jest.fn().mockResolvedValue(true)
+      };
+
+      db.batch.mockReturnValue(mockBatch);
+      db.collection.mockImplementation((collectionName) => ({
+        doc: jest.fn().mockReturnValue(
+          collectionName === 'messageRequests' ? mockDocRef : {
+            collection: jest.fn().mockReturnValue({
+              doc: jest.fn().mockReturnThis()
+            })
+          }
+        )
+      }));
+
+      req.body = {
+        senderId: 'user1',
+        receiverId: 'user2'
+      };
+
+      await acceptMessageRequest(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ 
+        message: 'Message request accepted! You can now chat directly.' 
+      });
+    });
+
+    it('should handle no message request found', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+              empty: true,
+              docs: []
+            })
+          })
+        })
+      }));
+
+      req.body = {
+        senderId: 'user1',
+        receiverId: 'user2'
+      };
+
+      await acceptMessageRequest(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'No message request found.' });
+    });
+  });
+
+  describe('rejectMessageRequest', () => {
+    it('should reject message request successfully', async () => {
+      const mockMessages = [{
+        id: 'msg1',
+        ref: { delete: jest.fn() }
+      }];
+
+      const mockBatch = {
+        delete: jest.fn(),
+        commit: jest.fn().mockResolvedValue(true)
+      };
+
+      db.batch.mockReturnValue(mockBatch);
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+              empty: false,
+              docs: mockMessages,
+              forEach: (callback) => mockMessages.forEach(callback)
+            })
+          }),
+          delete: jest.fn().mockResolvedValue(true)
+        })
+      }));
+
+      req.body = {
+        senderId: 'user1',
+        receiverId: 'user2'
+      };
+
+      await rejectMessageRequest(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Message request rejected!' });
+    });
+
+    it('should handle no message request found', async () => {
+      db.collection.mockImplementation(() => ({
+        doc: jest.fn().mockReturnValue({
+          collection: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+              empty: true,
+              docs: []
+            })
+          })
+        })
+      }));
+
+      req.body = {
+        senderId: 'user1',
+        receiverId: 'user2'
+      };
+
+      await rejectMessageRequest(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'No message request found.' });
+    });
+  });
+}); 

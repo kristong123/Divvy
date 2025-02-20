@@ -1,7 +1,7 @@
 const { db } = require("../config/firebase");
 
 // Helper function to get friend document
-const getFriendDoc = async (user1, user2) => {
+exports.getFriendDoc = async (user1, user2) => {
   const snapshot = await db.collection("friends")
     .where('users', 'array-contains', user1)
     .where('status', '==', 'accepted')
