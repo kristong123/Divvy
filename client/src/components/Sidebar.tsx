@@ -8,6 +8,7 @@ import Friends from './sidebar/Friends';
 import Requests from './sidebar/Requests';
 import { setupFriendsListeners } from '../store/slice/friendsSlice';
 import ProfilePicture from './sidebar/ProfilePicture';
+import VenmoUsernameEditor from './sidebar/VenmoUsernameEditor';
 
 interface SidebarProps {
   onChatSelect: (chatId: string) => void;
@@ -38,16 +39,23 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
 
   const userInfo = clsx(
     // Layout
-    'flex flex-row',
+    'flex flex-col',
     // Spacing
     'p-4',
     // Border
     'border-b'
   );
 
+  const userInfoRow = clsx(
+    // Layout
+    'flex flex-row',
+    // Spacing
+    'mb-1'
+  );
+
   const usernameStyle = clsx(
     // Layout
-    'ml-4 my-auto',
+    'ml-4',
     // Typography
     'text-2xl font-bold text-black'
   );
@@ -117,10 +125,15 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
       <div className={sidebar}>
         <div className={profileSection}>
           <div className={userInfo}>
-            <ProfilePicture />
-            <p className={usernameStyle}>
-              {currentUser || 'Guest'}
-            </p> 
+            <div className={userInfoRow}>
+              <ProfilePicture />
+              <div className="flex flex-col my-auto">
+                <p className={usernameStyle}>
+                  {currentUser || 'Guest'}
+                </p>
+                <VenmoUsernameEditor />
+              </div>
+            </div>
           </div>
           <div className={navigationButtons}>
             <button 

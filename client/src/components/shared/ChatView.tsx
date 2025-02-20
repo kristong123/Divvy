@@ -253,6 +253,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const [showEventDetails, setShowEventDetails] = useState(false);
 
+  // Add debug logs
+  console.log('Current Event Data:', groupData?.currentEvent);
+
+  // Modify the check for current event
+  const hasCurrentEvent = !!(groupData?.currentEvent?.id && groupData?.currentEvent?.name);
+
+  // Debug the condition
+  console.log('Has Current Event:', hasCurrentEvent);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -410,7 +419,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           <div className={chatHeader}>
             <div className="flex items-center gap-4">
               <button 
-                onClick={handleCancelEvent}
+                onClick={() => setShowEventDetails(false)}
                 className="p-2 hover:bg-gray-100 rounded-full"
               >
                 <ArrowLeft className="w-6 h-6 text-black" />
@@ -432,7 +441,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
               expenses={groupData.currentEvent.expenses}
               participants={groupData.users}
               currentUser={currentUser}
-              onClose={handleCancelEvent}
               onCancel={handleCancelEvent}
               groupId={chat.id}
             />
@@ -441,7 +449,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       ) : (
         <div className={chatContainer}>
           <div className={chatHeader}>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mr-auto">
               <ProfileAvatar
                 username={chat.name}
                 imageUrl={friend?.profilePicture}
@@ -452,12 +460,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
             
             {chat.isGroup && (
               <div className="flex items-center gap-4">
-                {groupData?.currentEvent ? (
+                {hasCurrentEvent ? (
                   <button 
                     onClick={() => setShowEventDetails(true)}
                     className="px-4 py-2 bg-[#57E3DC] rounded-lg text-white"
                   >
-                    {groupData.currentEvent.name}
+                    {groupData?.currentEvent?.name}
                   </button>
                 ) : (
                   <AddEventButton 

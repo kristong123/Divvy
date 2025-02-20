@@ -32,12 +32,14 @@ const friendsRoutes = require('./src/routes/friendsRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const groupRoutes = require('./src/routes/groupRoutes');
 const messagesRoutes = require('./src/routes/messagesRoutes');
+const usersRoutes = require('./src/routes/usersRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/users', usersRoutes);
 
 // Basic test route
 app.get('/test', (req, res) => {
@@ -56,7 +58,7 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-const PORT = process.env.PORT || 3004;
+const PORT = process.env.PORT || 3002;
 let serverInstance = null;
 
 // Add graceful shutdown

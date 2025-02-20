@@ -57,7 +57,7 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
         />
 
         <div className="mb-4">
-          <div className="text-sm font-medium mb-2">Split between:</div>
+          <div className="text-sm font-medium mb-2 text-black">Split between:</div>
           <div className="flex flex-wrap gap-2">
             {participants.map(participant => (
               <button
@@ -81,7 +81,7 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
                   imageUrl={participant.profilePicture}
                   size="sm"
                 />
-                <span className="text-sm">{participant.username}</span>
+                <span className="text-sm text-black">{participant.username}</span>
               </button>
             ))}
           </div>
