@@ -5,6 +5,7 @@ interface GroupMember {
   username: string;
   profilePicture: string | null;
   isAdmin: boolean;
+  venmoUsername?: string;
 }
 
 export interface Event {
@@ -132,6 +133,22 @@ const groupSlice = createSlice({
       const group = state.groups[action.payload.groupId];
       if (group?.currentEvent) {
         group.currentEvent.expenses = [...(group.currentEvent.expenses || []), action.payload.expense];
+      }
+    },
+    updateGroupUser: (state, action: PayloadAction<{
+      groupId: string;
+      user: {
+        username: string;
+        profilePicture: string | null;
+        isAdmin: boolean;
+        venmoUsername?: string;
+      };
+    }>) => {
+      const { groupId, user } = action.payload;
+      if (state.groups[groupId]) {
+        state.groups[groupId].users = state.groups[groupId].users.map(u => 
+          u.username === user.username ? { ...u, ...user } : u
+        );
       }
     }
   }

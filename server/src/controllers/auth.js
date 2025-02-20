@@ -13,13 +13,17 @@ exports.login = async (req, res) => {
     }
 
     const userData = userDoc.data();
+    console.log('User data from DB:', userData); // Debug log
 
     if (userData.password === password) {
-      res.status(200).json({
+      const responseData = {
         username: username,
         profilePicture: userData?.profilePicture || null,
+        venmoUsername: userData?.venmoUsername || null,
         message: 'Login successful'
-      });
+      };
+      console.log('Sending response:', responseData); // Debug log
+      res.status(200).json(responseData);
     } else {
       res.status(401).json({ message: 'Invalid username or password' });
     }

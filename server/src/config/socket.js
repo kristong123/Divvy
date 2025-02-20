@@ -405,12 +405,21 @@ const initializeSocket = (server) => {
 
                 // Save event to database
                 const groupRef = db.collection('groupChats').doc(groupId);
-                await groupRef.update({
-                    currentEvent: {
-                        ...event,
-                        updatedAt: new Date()
-                    }
-                });
+
+                if (event === null) {
+                    // If event is null, remove the currentEvent field entirely
+                    await groupRef.update({
+                        currentEvent: null
+                    });
+                } else {
+                    // Otherwise update with the new event
+                    await groupRef.update({
+                        currentEvent: {
+                            ...event,
+                            updatedAt: new Date()
+                        }
+                    });
+                }
 
                 // Get group data for broadcasting
                 const groupDoc = await groupRef.get();
@@ -420,7 +429,7 @@ const initializeSocket = (server) => {
                 groupData.users.forEach(member => {
                     io.to(member).emit('event-updated', {
                         groupId,
-                        event: {
+                        event: event === null ? null : {
                             ...event,
                             updatedAt: new Date().toISOString()
                         }
@@ -488,6 +497,27 @@ const initializeSocket = (server) => {
             } catch (error) {
                 console.error('Error adding expense:', error);
                 socket.emit('error', { message: 'Failed to add expense' });
+            }
+        });
+
+        socket.on('update_venmo_username', async (data) => {
+            try {
+                const { username, venmoUsername } = data;
+
+                // Update in database
+                await db.collection('users').doc(username).update({
+                    venmoUsername,
+                    updatedAt: new Date()
+                });
+
+                // Broadcast to ALL connected clients (not just the sender's room)
+                socket.broadcast.emit('venmo_username_updated', {
+                    username,
+                    venmoUsername
+                });
+            } catch (error) {
+                console.error('Error handling venmo username update:', error);
+                socket.emit('error', { message: 'Failed to update Venmo username' });
             }
         });
 

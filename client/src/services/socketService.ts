@@ -9,6 +9,7 @@ import { groupActions } from '../store/slice/groupSlice';
 import axios from 'axios';
 import { BASE_URL } from '../config/api';
 import { Event } from '../store/slice/groupSlice';
+import { setVenmoUsername } from '../store/slice/userSlice';
 
 const socket = io(SOCKET_URL);
 
@@ -23,6 +24,7 @@ interface GroupInviteAcceptedData {
       username: string;
       profilePicture: string | null;
       isAdmin: boolean;
+      venmoUsername?: string;
     }>;
     createdBy: string;
     createdAt: string;
@@ -210,6 +212,28 @@ export const initializeSocket = (username: string) => {
         toast.success(`New expense added: ${data.expense.item}`);
     });
 
+    // Inside initializeSocket function, update the venmo_username_updated listener
+    socket.on('venmo_username_updated', (data: { username: string; venmoUsername: string }) => {
+        console.log('Received venmo username update:', data);
+        
+        // Update the user in all relevant groups
+        const state = store.getState();
+        Object.keys(state.groups.groups).forEach(groupId => {
+            const group = state.groups.groups[groupId];
+            if (group.users.some(u => u.username === data.username)) {
+                store.dispatch(groupActions.updateGroupUser({
+                    groupId,
+                    user: {
+                        username: data.username,
+                        profilePicture: group.users.find(u => u.username === data.username)?.profilePicture || null,
+                        isAdmin: group.users.find(u => u.username === data.username)?.isAdmin || false,
+                        venmoUsername: data.venmoUsername
+                    }
+                }));
+            }
+        });
+    });
+
     return () => {
         socket.off('new-message');
         socket.off('new-group-message');
@@ -223,6 +247,7 @@ export const initializeSocket = (username: string) => {
         socket.off('group-invite-accepted');
         socket.off('event-updated');
         socket.off('expense-added');
+        socket.off('venmo_username_updated');
         socket.emit('leave', username);
     };
 };
@@ -297,4 +322,25 @@ export const addExpense = (groupId: string, expense: Omit<Expense, 'id' | 'creat
     socket.emit('expense-added', { groupId, expense });
 };
 
-export const getSocket = () => socket; 
+export const getSocket = () => socket;
+
+// Update the updateVenmoUsername function
+export const updateVenmoUsername = async (username: string, venmoUsername: string) => {
+    try {
+        // First make the API call
+        await axios.put(`${BASE_URL}/api/users/${username}`, {
+            venmoUsername
+        });
+
+        // Then emit the socket event to all connected clients
+        socket.emit('update_venmo_username', { username, venmoUsername });
+
+        // Update local Redux store
+        store.dispatch(setVenmoUsername(venmoUsername));
+
+        return true;
+    } catch (error) {
+        console.error('Error updating Venmo username:', error);
+        throw error;
+    }
+}; 

@@ -61,16 +61,23 @@ export const login = async (username: string, password: string, dispatch: AppDis
             username,
             password
         });
-
-        // Store token and user data
+        
+        // Store token and user data with venmoUsername
         localStorage.setItem('token', response.data.token);
-        dispatch(setUser(response.data));
+        
+        // Dispatch user data including venmoUsername from login response
+        dispatch(setUser({
+            username: response.data.username,
+            profilePicture: response.data.profilePicture,
+            venmoUsername: response.data.venmoUsername  // Use venmoUsername directly from login response
+        }));
 
         // Load additional user data
         await loadUserData(username, dispatch);
 
         return response.data;
     } catch (error) {
+        console.error('Login error:', error);
         throw error;
     }
 };

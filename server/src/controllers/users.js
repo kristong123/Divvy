@@ -24,16 +24,23 @@ const getUserProfile = async (req, res) => {
 // Update user profile
 const updateUserProfile = async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { venmoUsername } = req.body;
     const userRef = db.collection('users').doc(req.params.userId);
+    const doc = await userRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
     await userRef.update({
-      name,
-      email,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      venmoUsername,
+      updatedAt: new Date()
     });
 
-    res.status(200).json({ message: 'Profile updated successfully' });
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      venmoUsername
+    });
   } catch (error) {
     console.error('Update user error:', error);
     res.status(500).json({ message: 'Internal server error' });
