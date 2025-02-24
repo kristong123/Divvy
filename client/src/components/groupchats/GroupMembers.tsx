@@ -87,4 +87,4 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
   );
 };
 
-export default React.memo(GroupMembers); 
+export default React.memo(GroupMembers);

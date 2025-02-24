@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import CreateGroupWindow from './CreateGroupWindow';
+import CreateGroupWindow from '../modals/CreateGroupModal';
 import clsx from 'clsx';
 
 interface AddGroupButtonProps {

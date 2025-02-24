@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import ProfileAvatar from '../shared/ProfileAvatar';
-import AddExpenseWindow from './AddExpenseWindow';
-import { addExpense, updateEvent } from '../../services/socketService';
+import ProfileAvatar from '../../shared/ProfileAvatar';
+import AddExpenseWindow from '../../modals/AddExpenseModal';
+import { addExpense, updateEvent } from '../../../services/socketService';
 import { toast } from 'react-hot-toast';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../store/store';
-import PaymentConfirmationWindow from './PaymentConfirmationWindow';
+import { RootState } from '../../../store/store';
+import PaymentConfirmationWindow from '../../modals/PaymentConfirmationModal';
 
 interface EventDetailsProps {
   description: string;

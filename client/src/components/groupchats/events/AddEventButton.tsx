@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import CreateEventWindow from './CreateEventWindow';
+import CreateEventWindow from '../../modals/CreateEventModal';
 import clsx from 'clsx';
 
 interface AddEventButtonProps {

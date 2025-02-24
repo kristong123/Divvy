@@ -4,7 +4,7 @@ import { store } from '../store/store';
 import { setFriends, setPendingRequests, setSentRequests, clearRequests } from '../store/slice/friendsSlice';
 import { addMessage } from '../store/slice/chatSlice';
 import { toast } from 'react-hot-toast';
-import { MessageData, SocketMessageEvent, SocketErrorEvent, UserStatusEvent, FriendRequestEvent } from '../types/messages';
+import { MessageData, SocketMessageEvent, SocketErrorEvent, FriendRequestEvent } from '../types/messages';
 import { groupActions } from '../store/slice/groupSlice';
 import axios from 'axios';
 import { BASE_URL } from '../config/api';

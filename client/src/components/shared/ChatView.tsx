@@ -11,14 +11,14 @@ import { setMessages, addMessage } from '../../store/slice/chatSlice';
 import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import { UserPlus, ArrowLeft } from 'lucide-react';
-import GroupMembers from '../groups/GroupMembers';
-import InviteModal from '../groups/InviteModal';
+import GroupMembers from '../groupchats/GroupMembers';
+import InviteModal from '../modals/InviteModal';
 import { createSelector } from '@reduxjs/toolkit';
 import { groupActions, Event } from '../../store/slice/groupSlice';
-import GroupInvite from '../groups/GroupInvite';
+import GroupInvite from '../groupchats/GroupInvite';
 import { addGroupInvite, removeGroupInvite } from '../../store/slice/inviteSlice';
-import AddEventButton from '../events/AddEventButton';
-import EventDetailsView from '../events/EventDetailsView';
+import AddEventButton from '../groupchats/events/AddEventButton';
+import EventDetailsView from '../groupchats/events/EventDetailsView';
 
 interface ChatViewProps {
   chat: {
@@ -574,6 +574,17 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           onClose={() => setShowInviteModal(false)}
           groupId={chat.id}
           groupName={chat.name}
+          onInvite={async (username) => {
+            try {
+              await axios.post(`${BASE_URL}/api/groups/invite`, {
+                groupId: chat.id,
+                username
+              });
+              toast.success(`Invite sent to ${username}`);
+            } catch (error) {
+              toast.error('Failed to send invite');
+            }
+          }}
         />
       )}
     </div>

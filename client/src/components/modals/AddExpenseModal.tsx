@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
+import Modal from '../shared/Modal';
 import ProfileAvatar from '../shared/ProfileAvatar';
 
-interface AddExpenseWindowProps {
+interface AddExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (item: string, amount: number, splitBetween: string[]) => void;
@@ -13,7 +14,7 @@ interface AddExpenseWindowProps {
   }>;
 }
 
-const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
+const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
@@ -22,8 +23,6 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
   const [item, setItem] = useState('');
   const [amount, setAmount] = useState('');
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
-
-  if (!isOpen) return null;
 
   const handleSubmit = () => {
     if (item.trim() && amount && selectedParticipants.length > 0) {
@@ -35,16 +34,24 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[1000]">
-      <div className="w-[400px] p-6 bg-white rounded-2xl shadow-lg" onClick={e => e.stopPropagation()}>
-        <h2 className="text-xl font-medium text-black mb-4">Add Expense</h2>
-        
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add Expense"
+      actionButton={{
+        text: "Add Expense",
+        onClick: handleSubmit,
+        disabled: !item.trim() || !amount || selectedParticipants.length === 0,
+        color: "primary"
+      }}
+    >
+      <div className="space-y-4">
         <input
           type="text"
           placeholder="What was it for?"
           value={item}
           onChange={(e) => setItem(e.target.value)}
-          className="w-full px-3 py-3 mb-4 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:border-[#57E3DC]"
+          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           autoFocus
         />
 
@@ -53,10 +60,10 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
           placeholder="Amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-full px-3 py-3 mb-4 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:border-[#57E3DC]"
+          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        <div className="mb-4">
+        <div>
           <div className="text-sm font-medium mb-2 text-black">Split between:</div>
           <div className="flex flex-wrap gap-2">
             {participants.map(participant => (
@@ -72,7 +79,7 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
                   'px-3 py-2 rounded-full',
                   'border transition-colors',
                   selectedParticipants.includes(participant.username)
-                    ? 'border-[#57E3DC] bg-[#E7FCFB]'
+                    ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 bg-white'
                 )}
               >
@@ -86,24 +93,9 @@ const AddExpenseWindow: React.FC<AddExpenseWindowProps> = ({
             ))}
           </div>
         </div>
-
-        <div className="flex justify-end gap-3">
-          <button 
-            className="px-4 py-2 text-sm rounded-lg border-none cursor-pointer bg-gray-100 text-gray-700 hover:bg-gray-200"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button 
-            className="px-4 py-2 text-sm rounded-lg border-none cursor-pointer bg-[#57E3DC] text-white hover:bg-[#4DC8C2]"
-            onClick={handleSubmit}
-          >
-            Add Expense
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
-export default AddExpenseWindow; 
+export default AddExpenseModal; 

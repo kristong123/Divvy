@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import clsx from 'clsx';
 import Sidebar from './Sidebar';
-import AddGroupButton from './groups/AddGroupButton';
-import GroupCard from './groups/GroupCard';
+import AddGroupButton from './groupchats/AddGroupButton';
+import GroupCard from './groupchats/GroupCard';
 import ChatView from './shared/ChatView';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
