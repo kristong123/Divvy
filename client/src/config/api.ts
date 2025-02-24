@@ -1,5 +1,5 @@
 // Explicitly set development mode for local development
-const isDevelopment = true;  // Change this to false for production
+const isDevelopment = false;  // Change this to false for production
 
 // Base URLs for different environments
 export const BASE_URL = isDevelopment 
