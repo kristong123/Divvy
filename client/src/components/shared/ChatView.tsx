@@ -57,9 +57,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       [(state: RootState) => state.groups.groups, () => chat.id],
       (groups, chatId) => {
         const rawGroup = groups[chatId];
-        console.log('Raw Redux state:', groups);
-        console.log('Group from Redux:', rawGroup);
-        console.log('Group ID being looked up:', chatId);
 
         if (!chat.isGroup || !rawGroup) return null;
 
@@ -73,7 +70,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
             expenses: rawGroup.currentEvent.expenses || []
           } : null
         };
-        console.log('Selector result:', result);
         return result;
       }
     ),
@@ -107,16 +103,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   
   // Use group messages for group chats, direct messages otherwise
   const messages = (chat.isGroup ? groupMessages : directMessages) as Message[];
-
-  // Debug logs
-  console.log('Chat prop:', chat);
-  console.log('Group Data from selector:', groupData);
-  console.log('Current Event:', groupData?.currentEvent);
-
-  // Add this debug log
-  const groupsState = useSelector((state: RootState) => state.groups.groups);
-  console.log('Groups state:', groupsState[chat.id]);
-
   const dispatch = useDispatch();
 
   const chatContainer = clsx(
@@ -256,10 +242,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   // Update the check for current event
   const hasCurrentEvent = !!(groupData?.currentEvent?.id && groupData?.currentEvent?.name);
 
-  // Debug the condition
-  console.log('Has Current Event:', hasCurrentEvent);
-  console.log('Current Event Data:', groupData?.currentEvent);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -313,7 +295,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     };
 
     const handleGroupInvite = (invite: GroupInviteData) => {
-      console.log('Received group invite:', invite);
       dispatch(addGroupInvite({ 
         username: invite.invitedBy,
         invite 
@@ -364,15 +345,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       setShowEventDetails(false);
     }
   }, [groupData?.currentEvent]);
-
-  // Also add more detailed debug logging
-  useEffect(() => {
-    console.log('Group Data Changed:', {
-      hasEvent: !!groupData?.currentEvent,
-      eventDetails: groupData?.currentEvent,
-      groupId: chat.id
-    });
-  }, [groupData, chat.id]);
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || !currentUser) return;

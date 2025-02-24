@@ -9,10 +9,7 @@ import { store } from '../store/store';
 const loadUserData = async (username: string, dispatch: AppDispatch) => {
     try {
         const groupsResponse = await axios.get(`${BASE_URL}/api/groups/user/${username}`);
-        console.log('Raw server response:', JSON.stringify(groupsResponse.data, null, 2));
-
         const groupsArray = groupsResponse.data.map((group: any) => {
-            console.log('Processing group:', group.id, JSON.stringify(group.currentEvent, null, 2));
             const transformed = {
                 ...group,
                 isGroup: true,
@@ -24,15 +21,10 @@ const loadUserData = async (username: string, dispatch: AppDispatch) => {
                     new Date(group.updatedAt._seconds * 1000).toISOString() : 
                     group.updatedAt
             };
-            console.log('Transformed group:', JSON.stringify(transformed, null, 2));
             return transformed;
         });
 
-        console.log('Dispatching groups:', JSON.stringify(groupsArray, null, 2));
         dispatch(groupActions.setGroups(groupsArray));
-
-        const stateAfterDispatch = store.getState().groups.groups;
-        console.log('State after dispatch:', JSON.stringify(stateAfterDispatch, null, 2));
         
         // Fetch messages for each group
         const messagePromises = groupsArray.map(async (group: any) => {

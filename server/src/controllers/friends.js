@@ -24,7 +24,6 @@ exports.getFriendDoc = async (user1, user2) => {
 exports.getFriends = async (req, res) => {
   try {
     const { username } = req.params;
-    console.log('Fetching friends for:', username);
 
     // Get from friends collection (this is correct as is)
     const friendsRef = await db.collection('friends')

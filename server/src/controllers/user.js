@@ -13,12 +13,6 @@ try {
         api_key: process.env.CLOUDINARY_API_KEY,
         api_secret: process.env.CLOUDINARY_API_SECRET
     });
-    // Test the configuration
-    console.log('Cloudinary config:', {
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        hasApiKey: !!process.env.CLOUDINARY_API_KEY,
-        hasSecret: !!process.env.CLOUDINARY_API_SECRET
-    });
 } catch (error) {
     console.error('Cloudinary configuration error:', error);
 }
@@ -50,13 +44,6 @@ const updateProfilePicture = async (req, res) => {
             }
 
             try {
-                console.log('Starting upload to Cloudinary...');
-                console.log('File details:', {
-                    mimetype: file.mimetype,
-                    size: file.size,
-                    hasBuffer: !!file.buffer
-                });
-
                 const uploadResponse = await cloudinary.uploader.upload(
                     `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
                     {
@@ -67,8 +54,6 @@ const updateProfilePicture = async (req, res) => {
                     console.error('Cloudinary upload error details:', err);
                     throw err;
                 });
-
-                console.log('Upload successful:', uploadResponse.public_id);
 
                 // Check if user exists in users collection
                 const userDoc = await db.collection('users').doc(username).get();

@@ -53,7 +53,6 @@ export const fetchPendingRequests = createAsyncThunk(
   'friends/fetchPendingRequests',
   async (username: string) => {
     const response = await axios.get(`${BASE_URL}/api/friends/requests/${username}`);
-    console.log('Pending requests response:', response.data);
     return response.data;
   }
 );
@@ -62,7 +61,6 @@ export const fetchSentRequests = createAsyncThunk(
   'friends/fetchSentRequests',
   async (username: string) => {
     const response = await axios.get(`${BASE_URL}/api/friends/sent/${username}`);
-    console.log('Sent requests response:', response.data);
     return response.data;
   }
 );

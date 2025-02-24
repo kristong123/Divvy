@@ -22,7 +22,6 @@ app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log('Request:', req.url);
   next();
 });
 
@@ -54,7 +53,6 @@ app.use((err, req, res, next) => {
 
 // 404 handler should be very last
 app.use((req, res) => {
-  console.log('404 Not Found:', req.method, req.url);
   res.status(404).json({ message: 'Route not found' });
 });
 
@@ -67,11 +65,9 @@ const shutdown = () => {
     // Close all socket connections first
     const io = require('./src/config/socket').getIO();
     io.close(() => {
-      console.log('Socket.IO connections closed');
 
       // Then close the HTTP server
       serverInstance.close(() => {
-        console.log('Server closed');
         process.exit(0);
       });
     });

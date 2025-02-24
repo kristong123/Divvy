@@ -187,8 +187,6 @@ const removeUserFromGroup = async (req, res) => {
 
         const groupData = groupDoc.data();
 
-        console.log(`Admin in DB: ${groupData.admin}, Admin in Request: ${adminId}`);
-
         if (groupData.admin !== adminId) {
             return res.status(403).json({ message: "Only the admin can remove users." });
         }
@@ -259,8 +257,6 @@ const deleteGroup = async (req, res) => {
         }
 
         const groupData = groupDoc.data();
-
-        console.log(`Admin in DB: ${groupData.admin}, Admin in Request: ${adminId}`);
 
         if (groupData.admin !== adminId) {
             return res.status(403).json({ message: "Only the admin can delete the group." });

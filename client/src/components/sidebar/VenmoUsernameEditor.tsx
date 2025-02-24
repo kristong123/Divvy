@@ -23,8 +23,6 @@ const VenmoUsernameEditor: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [newVenmoUsername, setNewVenmoUsername] = useState('');
 
-  console.log('Current user state:', { username, venmoUsername, isLoggedIn });
-
   useEffect(() => {
     if (venmoUsername) {
       setNewVenmoUsername(venmoUsername);

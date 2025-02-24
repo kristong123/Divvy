@@ -303,7 +303,6 @@ const initializeSocket = (server) => {
                 }
 
                 const groupData = groupDoc.data();
-                console.log('Found group:', groupData.name);
 
                 // Create chat ID for the direct message
                 const chatId = [username, invitedBy].sort().join('_');

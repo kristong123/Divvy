@@ -7,7 +7,6 @@ exports.createGroup = async (req, res) => {
         // Get creator's full user data including venmoUsername
         const userDoc = await db.collection("users").doc(createdBy).get();
         const userData = userDoc.data();
-        console.log('Creator user data:', userData); // Debug log
 
         const newGroup = {
             name,
@@ -38,7 +37,6 @@ exports.createGroup = async (req, res) => {
             isGroup: true
         };
 
-        console.log('Created group response:', response); // Debug log
         res.status(201).json(response);
     } catch (error) {
         console.error('Error creating group:', error);
@@ -56,13 +54,11 @@ exports.getUserGroups = async (req, res) => {
         const groups = [];
         for (const doc of groupsSnapshot.docs) {
             const groupData = doc.data();
-            console.log('Processing group:', doc.id, groupData); // Debug log
 
             // Fetch user details for each member including venmoUsername
             const userPromises = groupData.users.map(async (username) => {
                 const userDoc = await db.collection("users").doc(username).get();
                 const userData = userDoc.data();
-                console.log('User data for', username, ':', userData); // Debug log
                 return {
                     username,
                     profilePicture: userData?.profilePicture || null,
@@ -72,7 +68,6 @@ exports.getUserGroups = async (req, res) => {
             });
 
             const users = await Promise.all(userPromises);
-            console.log('Processed users:', users); // Debug log
 
             const group = {
                 id: doc.id,
@@ -81,7 +76,6 @@ exports.getUserGroups = async (req, res) => {
                 currentEvent: groupData.currentEvent || null,
                 isGroup: true
             };
-            console.log('Final group object:', group); // Debug log
             groups.push(group);
         }
 

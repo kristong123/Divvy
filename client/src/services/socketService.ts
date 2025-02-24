@@ -44,11 +44,9 @@ interface Expense {
 
 export const initializeSocket = (username: string) => {
     socket.emit('join', username);
-    console.log('Joining socket room:', username);
 
     // Friend request events with real-time updates
     socket.on('new-friend-request', (data: FriendRequestEvent) => {
-        console.log('Received friend request:', data);
         if (!data.id) return; // Skip if no ID
         
         store.dispatch(setPendingRequests([{
@@ -61,7 +59,6 @@ export const initializeSocket = (username: string) => {
     });
 
     socket.on('friend-request-sent-success', (data: FriendRequestEvent) => {
-        console.log('Friend request sent:', data);
         if (!data.id) return;
         
         store.dispatch(setSentRequests([{
@@ -75,7 +72,6 @@ export const initializeSocket = (username: string) => {
     });
 
     socket.on('friend-request-accepted', (data: FriendRequestEvent) => {
-        console.log('Friend request accepted:', data);
         // Clear all requests first
         store.dispatch(clearRequests());
         
@@ -136,12 +132,6 @@ export const initializeSocket = (username: string) => {
             groupId: data.groupId,
             message: data.message
         }));
-    });
-
-    // Listen for user status changes
-    socket.on('user-status-changed', (data: UserStatusEvent) => {
-        // Update UI to show user status
-        console.log(`User ${data.username} is now ${data.status}`);
     });
 
     // Add new group member joined listener
@@ -214,7 +204,6 @@ export const initializeSocket = (username: string) => {
 
     // Inside initializeSocket function, update the venmo_username_updated listener
     socket.on('venmo_username_updated', (data: { username: string; venmoUsername: string }) => {
-        console.log('Received venmo username update:', data);
         
         // Update the user in all relevant groups
         const state = store.getState();
@@ -277,12 +266,10 @@ export const sendMessage = async (messageData: MessageData) => {
 
 // Helper function for sending friend requests
 export const sendFriendRequest = (data: { sender: string; recipient: string }) => {
-    console.log('Sending friend request:', data);
     socket.emit('friend-request-sent', data);
 };
 
 export const acceptFriendRequest = (data: { sender: string; recipient: string }) => {
-    console.log('Accepting friend request:', data);
     socket.emit('friend-request-accepted', data);
 };
 
@@ -298,7 +285,6 @@ socket.on('message-error', (error: SocketErrorEvent) => {
 
 // Add a helper function to send group invites
 export const sendGroupInvite = (data: { groupId: string; username: string; invitedBy: string }) => {
-    console.log('Sending group invite:', data);
     if (!data.invitedBy) {
         console.error('No invitedBy provided for group invite');
         return;
