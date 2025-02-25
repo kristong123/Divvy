@@ -7,7 +7,7 @@ import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
 import { sendMessage, getSocket, updateEvent } from '../../services/socketService';
-import { setMessages, addMessage } from '../../store/slice/chatSlice';
+import { addMessage, setMessages, setLoading } from '../../store/slice/chatSlice';
 import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import { UserPlus, ArrowLeft } from 'lucide-react';
@@ -38,18 +38,73 @@ interface GroupInviteData {
   invitedBy: string;
 }
 
+// Create a stable selector outside the component
+const selectChatMessages = createSelector(
+  [(state: RootState) => state.groups.messages, 
+   (state: RootState) => state.chat.messages],
+  (groupMessages, chatMessages) => ({groupMessages, chatMessages})
+);
+
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dispatch = useDispatch();
   
   const currentUser = useSelector((state: RootState) => state.user.username);
   const userProfile = useSelector((state: RootState) => state.user.profilePicture);
   
-  // Memoize the chatId calculation
   const chatId = useMemo(() => 
-    [currentUser, chat.name].sort().join('_'),
-    [currentUser, chat.name]
+    chat.isGroup ? `group_${chat.id}` : [currentUser, chat.name].sort().join('_'),
+    [currentUser, chat.name, chat.id, chat.isGroup]
   );
+
+  // Use the stable selector
+  const { groupMessages, chatMessages } = useSelector(selectChatMessages);
+  
+  // Then extract the messages we need
+  const messages = useMemo(() => 
+    chat.isGroup ? (groupMessages[chat.id] || []) : (chatMessages[chatId] || []),
+    [chat.isGroup, chat.id, chatId, groupMessages, chatMessages]
+  ) as Message[];
+
+  // Modify the message loading effect to always load messages when the chat changes
+  useEffect(() => {
+    // Check if we already have messages
+    const hasMessages = messages.length > 0;
+    
+    if (!hasMessages) {
+      if (!chat.isGroup) {
+        dispatch(setLoading(true));
+        axios.get(`${BASE_URL}/api/messages/${chatId}`)
+          .then(response => {
+            dispatch(setMessages({ chatId, messages: response.data }));
+          })
+          .catch(error => {
+            console.error('Error fetching direct messages:', error);
+            toast.error('Failed to load messages');
+          })
+          .finally(() => {
+            dispatch(setLoading(false));
+          });
+      } else if (chat.id) {
+        dispatch(setLoading(true));
+        axios.get(`${BASE_URL}/api/groups/${chat.id}/messages`)
+          .then(response => {
+            dispatch(groupActions.setGroupMessages({
+              groupId: chat.id,
+              messages: response.data
+            }));
+          })
+          .catch(error => {
+            console.error('Error fetching group messages:', error);
+            toast.error('Failed to fetch messages');
+          })
+          .finally(() => {
+            dispatch(setLoading(false));
+          });
+      }
+    }
+  }, [chatId, chat.isGroup, chat.id, dispatch, messages.length]);
 
   // Create memoized selectors
   const selectGroupData = useMemo(
@@ -79,31 +134,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   // Remove fullState selector and just use groupData
   const groupData = useSelector(selectGroupData);
 
-  // Memoize all selectors
-  const selectGroupMessages = useMemo(
-    () => createSelector(
-      [(state: RootState) => state.groups.messages, () => chat.id],
-      (messages, chatId) => messages[chatId] || []
-    ),
-    [chat.id]
-  );
-
-  const selectDirectMessages = useMemo(
-    () => createSelector(
-      [(state: RootState) => state.chat.messages, () => chatId],
-      (messages, id) => messages[id] || []
-    ),
-    [chatId]
-  );
-
   // Use memoized selectors
   const friend = useSelector((state: RootState) => chatSelectors.selectFriend(state, chat.name));
-  const groupMessages = useSelector(selectGroupMessages);
-  const directMessages = useSelector(selectDirectMessages);
-  
-  // Use group messages for group chats, direct messages otherwise
-  const messages = (chat.isGroup ? groupMessages : directMessages) as Message[];
-  const dispatch = useDispatch();
 
   const chatContainer = clsx(
     // Layout
@@ -245,42 +277,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Load messages when chat opens
-  useEffect(() => {
-    const loadMessages = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/api/messages/${chatId}`);
-        dispatch(setMessages({ chatId, messages: response.data }));
-      } catch (error) {
-        console.error('Error loading messages:', error);
-        toast.error('Failed to load messages');
-      }
-    };
-
-    if (currentUser && chat.name) {
-      loadMessages();
-    }
-  }, [currentUser, chat.name, chatId, dispatch]);
-
-  // Fetch messages when entering a chat
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (chat.isGroup && chat.id) {
-        try {
-          const response = await axios.get(`${BASE_URL}/api/groups/${chat.id}/messages`);
-          dispatch(groupActions.setGroupMessages({
-            groupId: chat.id,
-            messages: response.data
-          }));
-        } catch (error) {
-          toast.error('Failed to fetch messages');
-        }
-      }
-    };
-
-    fetchMessages();
-  }, [chat.id, chat.isGroup, dispatch]);
 
   // Update the socket listener
   useEffect(() => {

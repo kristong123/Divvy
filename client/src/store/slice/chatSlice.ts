@@ -35,6 +35,7 @@ const chatSlice = createSlice({
       }
     },
     setMessages: (state, action: PayloadAction<{ chatId: string; messages: Message[] }>) => {
+      state.loading = false;
       const { chatId, messages } = action.payload;
       const uniqueMessages = messages.filter((message, index, self) =>
         index === self.findIndex(m => m.id === message.id)
@@ -44,9 +45,12 @@ const chatSlice = createSlice({
     clearMessages: (state, action: PayloadAction<string>) => {
       const chatId = action.payload;
       delete state.messages[chatId];
+    },
+    setLoading: (state, action) => {
+      state.loading = action.payload;
     }
   }
 });
 
-export const { addMessage, setMessages, clearMessages } = chatSlice.actions;
-export default chatSlice.reducer; 
+export const { addMessage, setMessages, clearMessages, setLoading } = chatSlice.actions;
+export default chatSlice.reducer;
