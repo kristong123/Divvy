@@ -42,6 +42,12 @@ interface Expense {
     status: 'pending' | 'paid';
 }
 
+interface SocketData {
+  type: string;
+  payload: unknown;
+  // add other socket data properties
+}
+
 export const initializeSocket = (username: string) => {
     socket.emit('join', username);
 
@@ -101,7 +107,7 @@ export const initializeSocket = (username: string) => {
         }
     });
 
-    socket.on('friend-added', (data: any) => {
+    socket.on('friend-added', (data: SocketData) => {
         store.dispatch(setFriends(data));
         toast.success('New friend added!');
     });

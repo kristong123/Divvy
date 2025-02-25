@@ -6,6 +6,35 @@ import { BASE_URL } from '../config/api';
 import { store } from '../store/store';
 import { setMessages, setLoading } from '../store/slice/chatSlice';
 
+// Add GroupData interface
+interface GroupData {
+  id: string;
+  name: string;
+  currentEvent: Event | null;
+  createdAt: {
+    _seconds: number;
+    _nanoseconds: number;
+  } | string;
+  updatedAt: {
+    _seconds: number;
+    _nanoseconds: number;
+  } | string;
+  users: Array<{
+    username: string;
+    profilePicture: string | null;
+    isAdmin: boolean;
+  }>;
+}
+
+// Update UserData interface
+interface UserData {
+  username: string;
+  profilePicture: string | null;  // Change from string | undefined to string | null
+  venmoUsername?: string;
+  isAdmin?: boolean;
+  token: string;  // Add token property
+}
+
 // Load user's groups and messages after login
 export const loadUserData = async (username: string, dispatch: AppDispatch) => {
     try {
@@ -19,17 +48,23 @@ export const loadUserData = async (username: string, dispatch: AppDispatch) => {
         ]);
 
         // Process groups first
-        const groupsArray = groupsResponse.data.map((group: any) => ({
-            ...group,
-            isGroup: true,
-            currentEvent: group.currentEvent || null,
-            createdAt: group.createdAt?._seconds ? 
-                new Date(group.createdAt._seconds * 1000).toISOString() : 
-                group.createdAt,
-            updatedAt: group.updatedAt?._seconds ? 
-                new Date(group.updatedAt._seconds * 1000).toISOString() : 
-                group.updatedAt
-        }));
+        const groupsArray = groupsResponse.data.map((group: GroupData) => {
+            const formatTimestamp = (timestamp: GroupData['createdAt'] | GroupData['updatedAt']) => {
+                if (typeof timestamp === 'string') return timestamp;
+                if ('_seconds' in timestamp) {
+                    return new Date(timestamp._seconds * 1000).toISOString();
+                }
+                return new Date().toISOString(); // fallback
+            };
+
+            return {
+                ...group,
+                isGroup: true,
+                currentEvent: group.currentEvent || null,
+                createdAt: formatTimestamp(group.createdAt),
+                updatedAt: formatTimestamp(group.updatedAt)
+            };
+        });
 
         dispatch(groupActions.setGroups(groupsArray));
 
@@ -65,11 +100,11 @@ export const loadUserData = async (username: string, dispatch: AppDispatch) => {
 };
 
 // Login user and load their data
-export const login = async (username: string, password: string, dispatch: AppDispatch) => {
+export const login = async (username: string, password: string, dispatch: AppDispatch): Promise<UserData> => {
     try {
         
         // Login logic
-        const response = await axios.post(`${BASE_URL}/api/auth/login`, {
+        const response = await axios.post<UserData>(`${BASE_URL}/api/auth/login`, {
             username,
             password
         });

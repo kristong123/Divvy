@@ -43,8 +43,8 @@ const Login: React.FC = () => {
         profilePicture: response.data.profilePicture || null 
       }));
       navigate('/');
-    } catch (error) {
-      console.error('Login error:', error); // Debug log
+    } catch (_error) {
+      console.error('Login error:', _error); // Debug log
       toast.error('Login failed');
     }
   };
@@ -66,7 +66,8 @@ const Login: React.FC = () => {
         password
       });
       toast.success('Account created! Please log in');
-    } catch (error) {
+    } catch (_error) {
+      console.error('Sign up failed:', _error);
       toast.error('Sign up failed');
     }
   };

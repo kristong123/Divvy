@@ -17,7 +17,7 @@ interface GroupMember {
   isAdmin: boolean;
 }
 
-interface Group {
+interface GroupData {
   id: string;
   name: string;
   imageUrl?: string;
@@ -37,19 +37,38 @@ interface DirectChat {
   lastMessage?: string;
 }
 
+// Add interface for the API response
+interface GroupResponse {
+  id: string;
+  name: string;
+  currentEvent: Event;  // Use the Event type from your groupSlice
+  users: UserResponse[];
+  admin: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// For handleCreateGroup:
+interface UserResponse {
+  username: string;
+  profilePicture: string | null;
+  isAdmin: boolean;
+}
+
 const Main: React.FC = () => {
   const username = useSelector((state: RootState) => state.user.username);
   const groups = useSelector((state: RootState) => state.groups.groups);
   
   const groupsList = useMemo(() => 
-    Object.values(groups) as Group[],
+    Object.values(groups) as GroupData[],
     [groups]
   );
   const dispatch = useDispatch();
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<{
     type: 'group' | 'direct';
-    data: Group | DirectChat | null;
+    data: GroupData | DirectChat | null;
   }>({ type: 'group', data: null });
 
   const titleLink = clsx(
@@ -72,12 +91,13 @@ const Main: React.FC = () => {
       if (username) {
         try {
           const response = await axios.get(`${BASE_URL}/api/groups/user/${username}`);
-          const formattedGroups = response.data.map((group: any) => ({
-            ...group,  // Keep all original data including currentEvent
+          const groups = response.data.map((group: GroupResponse) => ({
+            ...group,
             isGroup: true
           }));
-          dispatch(groupActions.setGroups(formattedGroups));
-        } catch (error) {
+          dispatch(groupActions.setGroups(groups));
+        } catch (_error) {
+          console.error('Failed to fetch groups:', _error);
           toast.error('Failed to fetch groups');
         }
       }
@@ -93,11 +113,11 @@ const Main: React.FC = () => {
         createdBy: username
       });
 
-      const newGroup: Group = {
+      const newGroup: GroupData = {
         id: response.data.id,
         name: response.data.name,
         isGroup: true,
-        users: response.data.users.map((user: any) => ({
+        users: response.data.users.map((user: UserResponse) => ({
           username: user.username,
           profilePicture: user.profilePicture,
           isAdmin: user.isAdmin
@@ -109,7 +129,8 @@ const Main: React.FC = () => {
       };
 
       dispatch(groupActions.addGroup(newGroup));
-    } catch (error) {
+    } catch (_error) {
+      console.error('Failed to create group:', _error);
       toast.error('Failed to create group');
     }
   };
@@ -130,7 +151,7 @@ const Main: React.FC = () => {
     setSelectedChat({ type: 'direct', data: chat });
   };
 
-  const handleGroupClick = (group: Group) => {
+  const handleGroupClick = (group: GroupData) => {
     setSelectedChat({ 
       type: 'group', 
       data: {
