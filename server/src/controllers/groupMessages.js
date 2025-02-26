@@ -163,6 +163,10 @@ const addUserToGroup = async (req, res) => {
             users: [...groupData.users, userId], // Just store username
         });
 
+        // Get socket instance
+        const io = getIO();
+        io.to(userId).emit('user-added-to-group', { groupId });
+
         res.status(200).json({ message: "User added to group!" });
     } catch (error) {
         console.error("Error adding user to group:", error);
@@ -197,6 +201,10 @@ const removeUserFromGroup = async (req, res) => {
 
         const updatedUsers = groupData.users.filter(user => user !== userId);
         await groupRef.update({ users: updatedUsers });
+
+        // Get socket instance
+        const io = getIO();
+        io.to(userId).emit('user-removed-from-group', { groupId });
 
         res.status(200).json({ message: "User removed from group!" });
     } catch (error) {
@@ -244,29 +252,31 @@ const leaveGroup = async (req, res) => {
 // Delete the group (Only admin can delete)
 const deleteGroup = async (req, res) => {
     try {
-        const { groupId, adminId } = req.body;
-        if (!groupId || !adminId) {
-            return res.status(400).json({ message: "Missing fields" });
-        }
+        const { groupId } = req.body;
 
-        const groupRef = db.collection("groupChats").doc(groupId);
+        // Get the group data first to get all users
+        const groupRef = db.collection('groupChats').doc(groupId);
         const groupDoc = await groupRef.get();
 
         if (!groupDoc.exists) {
-            return res.status(404).json({ message: "Group not found" });
+            return res.status(404).json({ message: 'Group not found' });
         }
 
         const groupData = groupDoc.data();
 
-        if (groupData.admin !== adminId) {
-            return res.status(403).json({ message: "Only the admin can delete the group." });
-        }
-
+        // Delete the group
         await groupRef.delete();
-        res.status(200).json({ message: "Group deleted successfully!" });
+
+        // Get socket instance
+        const io = getIO();
+
+        // Emit event to all users
+        io.emit('group-deleted', groupId);
+
+        res.status(200).json({ message: 'Group deleted successfully' });
     } catch (error) {
-        console.error("Error deleting group:", error);
-        res.status(500).json({ message: "Internal server error" });
+        console.error('Error deleting group:', error);
+        res.status(500).json({ message: 'Failed to delete group' });
     }
 };
 
@@ -352,33 +362,6 @@ const updateGroupChat = async (req, res) => {
     }
 };
 
-// Pin a message in the group (admin only)
-const pinGroupMessage = async (req, res) => {
-    try {
-        const { groupId } = req.params;
-        const { adminId, messageId } = req.body;
-
-        const groupRef = db.collection("groupChats").doc(groupId);
-        const groupDoc = await groupRef.get();
-
-        if (!groupDoc.exists) {
-            return res.status(404).json({ message: "Group not found" });
-        }
-
-        const groupData = groupDoc.data();
-        if (groupData.admin !== adminId) {
-            return res.status(403).json({ message: "Only the admin can pin messages" });
-        }
-
-        await groupRef.update({ pinnedMessage: messageId });
-
-        res.status(200).json({ message: "Message pinned successfully!" });
-    } catch (error) {
-        console.error("Error pinning message:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
-
 // Create a new group
 const createGroup = async (req, res) => {
     try {
@@ -388,11 +371,10 @@ const createGroup = async (req, res) => {
             name,
             createdBy,
             admin: createdBy,
-            users: [createdBy], // Just store username
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            users: [createdBy],
             lastMessage: "",
-            lastMessageTime: null
+            updatedAt: new Date(),
+            createdAt: new Date()
         });
 
         // Get user data for response only
@@ -417,49 +399,81 @@ const createGroup = async (req, res) => {
 
 const sendGroupInvite = async (req, res) => {
     try {
-        const { groupId, username } = req.body;
+        const { groupId, username, invitedBy } = req.body;
 
-        // Verify group exists
-        const groupRef = db.collection('groupChats').doc(groupId);
+        // Get the group document
+        const groupRef = db.collection("groupChats").doc(groupId);
         const groupDoc = await groupRef.get();
 
         if (!groupDoc.exists) {
-            return res.status(404).json({ message: 'Group not found' });
-        }
-
-        // Check if user exists
-        const userDoc = await db.collection('users').doc(username).get();
-        if (!userDoc.exists) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: "Group not found" });
         }
 
         const groupData = groupDoc.data();
 
-        // Check if inviter is the admin
-        if (username === groupData.admin) {
-            return res.status(400).json({ message: 'Cannot invite yourself to the group' });
+        // Check if user is already in the group
+        if (groupData.users.includes(username)) {
+            return res.status(400).json({ message: "User is already in the group" });
         }
 
-        // Check if user is already in group
-        if (groupData.users.includes(username)) {
-            return res.status(400).json({ message: 'User is already in the group' });
-        }
+        // Create a unique ID for this invite
+        const inviteId = groupId + '_' + Date.now();
 
         // Get socket instance
         const io = getIO();
 
-        // Emit socket event
+        // Emit socket event for the group invite
         io.to(username).emit('group-invite', {
-            id: groupId,
+            id: inviteId,
             groupId,
             groupName: groupData.name,
-            invitedBy: groupData.admin
+            invitedBy: invitedBy || groupData.admin
+        });
+
+        // Also send a message to the direct chat between inviter and invitee
+        const chatId = [invitedBy, username].sort().join('_');
+
+        // Create a message object for the direct chat
+        const message = {
+            senderId: invitedBy,
+            senderName: invitedBy,
+            content: `Invited you to join ${groupData.name}`,
+            timestamp: new Date(),
+            type: 'group-invite',
+            groupId,
+            groupName: groupData.name,
+            invitedBy,
+            status: 'sent'
+        };
+
+        // Save the message to the messages collection
+        const messageRef = await db.collection('messages').add({
+            chatId,
+            ...message
+        });
+
+        // Update the message with its ID
+        const messageWithId = {
+            ...message,
+            id: messageRef.id,
+            timestamp: message.timestamp.toISOString()
+        };
+
+        // Emit a new message event to both users
+        io.to(username).emit('new-message', {
+            chatId,
+            message: messageWithId
+        });
+
+        io.to(invitedBy).emit('new-message', {
+            chatId,
+            message: messageWithId
         });
 
         res.status(200).json({ message: 'Invite sent successfully' });
     } catch (error) {
-        console.error('Error sending group invite:', error);
-        res.status(500).json({ message: 'Failed to send invite' });
+        console.error("Error sending group invite:", error);
+        res.status(500).json({ message: "Failed to send invite" });
     }
 };
 
@@ -582,6 +596,32 @@ const setGroupEvent = async (req, res) => {
     }
 };
 
+// Add this function to check group status
+const checkGroupStatus = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { username } = req.query;
+
+        const groupRef = db.collection("groupChats").doc(groupId);
+        const groupDoc = await groupRef.get();
+
+        // Check if group exists
+        if (!groupDoc.exists) {
+            return res.status(200).json({ exists: false, isMember: false });
+        }
+
+        const groupData = groupDoc.data();
+
+        // Check if user is a member
+        const isMember = groupData.users.includes(username);
+
+        res.status(200).json({ exists: true, isMember });
+    } catch (error) {
+        console.error("Error checking group status:", error);
+        res.status(500).json({ message: "Failed to check group status" });
+    }
+};
+
 module.exports = {
     // Group creation and management
     createGroup,
@@ -605,5 +645,8 @@ module.exports = {
     joinGroup,
 
     // Event-related functions
-    setGroupEvent
+    setGroupEvent,
+
+    // Add this function to check group status
+    checkGroupStatus
 };

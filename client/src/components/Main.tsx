@@ -90,7 +90,8 @@ const Main: React.FC = () => {
     try {
       const response = await axios.post(`${BASE_URL}/api/groups/create`, {
         name: groupName,
-        createdBy: username
+        createdBy: username,
+        pendingInvites: []
       });
 
       const newGroup: Group = {
@@ -110,6 +111,7 @@ const Main: React.FC = () => {
 
       dispatch(groupActions.addGroup(newGroup));
     } catch (error) {
+      console.error('Error creating group:', error);
       toast.error('Failed to create group');
     }
   };

@@ -1,18 +1,20 @@
 // store/store.ts
 import { configureStore } from '@reduxjs/toolkit';
 import userReducer from './slice/userSlice';
-import friendsReducer from './slice/friendsSlice';
 import chatReducer from './slice/chatSlice';
+import friendsReducer from './slice/friendsSlice';
 import groupReducer from './slice/groupSlice';
 import inviteReducer from './slice/inviteSlice';
+import inviteStatusReducer from './slice/inviteStatusSlice';
 
 export const store = configureStore({
   reducer: {
     user: userReducer,
-    friends: friendsReducer,
     chat: chatReducer,
+    friends: friendsReducer,
     groups: groupReducer,
-    invites: inviteReducer
+    invites: inviteReducer,
+    inviteStatus: inviteStatusReducer
   },
 });
 
