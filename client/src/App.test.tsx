@@ -41,7 +41,8 @@ const createTestStore = () => configureStore({
       username: '',
       venmoUsername: null,
       profilePicture: null,
-      isLoggedIn: false
+      isLoggedIn: false,
+      isAuthenticated: false
     },
     friends: {
       friends: [],
