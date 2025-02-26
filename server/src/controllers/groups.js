@@ -649,3 +649,79 @@ exports.checkGroupStatus = async (req, res) => {
         res.status(500).json({ message: "Failed to check group status" });
     }
 }; 
+
+
+const updateGroupProfilePicture = async (req, res) => {
+    try {
+        upload(req, res, async (err) => {
+            if (err) {
+                console.error('Multer error:', err);
+                return res.status(400).json({ message: 'File upload error' });
+            }
+
+            const { groupId, adminId } = req.body;
+            const file = req.file;
+
+            if (!file) {
+                return res.status(400).json({ message: 'No file uploaded' });
+            }
+
+            // Verify group exists and user is admin
+            const groupRef = db.collection("groupChats").doc(groupId);
+            const groupDoc = await groupRef.get();
+
+            if (!groupDoc.exists) {
+                return res.status(404).json({ message: "Group not found" });
+            }
+
+            const groupData = groupDoc.data();
+            if (groupData.admin !== adminId) {
+                return res.status(403).json({ message: "Only the admin can update group settings" });
+            }
+
+            try {
+                // Upload new image to Cloudinary
+                const uploadResponse = await cloudinary.uploader.upload(
+                    `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+                    {
+                        folder: 'group_pictures',
+                        public_id: `group-${groupId}-${Date.now()}`
+                    }
+                );
+
+                // Delete old profile picture if it exists
+                if (groupData.profilePicture) {
+                    const oldImageUrl = groupData.profilePicture;
+                    const publicId = oldImageUrl.split('/').pop().split('.')[0];
+                    await cloudinary.uploader.destroy(`group_pictures/${publicId}`);
+                }
+
+                // Update group with new profile picture
+                await groupRef.update({
+                    profilePicture: uploadResponse.secure_url,
+                    updatedAt: new Date()
+                });
+
+                // notify group members if notifcations doesn't do this
+               // const io = getIO();
+                //groupData.users.forEach(username => {
+                //    io.to(username).emit('group-profile-updated', {
+                //        groupId,
+                //        profilePicture: uploadResponse.secure_url
+                //    });
+                //});
+
+                res.status(200).json({
+                    message: 'Group profile picture updated',
+                    url: uploadResponse.secure_url
+                });
+            } catch (error) {
+                console.error('Upload error:', error);
+                res.status(500).json({ message: error.message });
+            }
+        });
+    } catch (error) {
+        console.error('Error updating group profile picture:', error);
+        res.status(500).json({ message: 'Failed to update group profile picture' });
+    }
+};
