@@ -289,22 +289,26 @@ export const initializeSocket = (username: string) => {
     });
 
     // Inside initializeSocket function, update the venmo_username_updated listener
-    socket.on('venmo_username_updated', (data: { username: string; venmoUsername: string }) => {
+    socket.on('update_venmo_username', (data: { username: string; venmoUsername: string }) => {
+        const currentUser = store.getState().user.username;
         
-        // Update the user in Redux store
-        store.dispatch(setVenmoUsername(data.venmoUsername));
+        // Only update the Redux store if this is the current user's Venmo username
+        if (data.username === currentUser) {
+            store.dispatch(setVenmoUsername(data.venmoUsername));
+        }
         
-        // Update the user in all relevant groups
-        const state = store.getState();
-        Object.keys(state.groups.groups).forEach(groupId => {
-            const group = state.groups.groups[groupId];
-            if (group.users.some(u => u.username === data.username)) {
+        // For group members, update their Venmo username in the groups state
+        const groups = store.getState().groups.groups;
+        
+        Object.keys(groups).forEach(groupId => {
+            const group = groups[groupId];
+            const userIndex = group.users.findIndex(user => user.username === data.username);
+            
+            if (userIndex !== -1) {
                 store.dispatch(groupActions.updateGroupUser({
                     groupId,
                     user: {
-                        username: data.username,
-                        profilePicture: group.users.find(u => u.username === data.username)?.profilePicture || null,
-                        isAdmin: group.users.find(u => u.username === data.username)?.isAdmin || false,
+                        ...group.users[userIndex],
                         venmoUsername: data.venmoUsername
                     }
                 }));

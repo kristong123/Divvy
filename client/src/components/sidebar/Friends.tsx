@@ -28,7 +28,12 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
 
   const friendsList = clsx(
     // Spacing
-    'mt-2'
+    'mt-2',
+    // Height and overflow
+    'max-h-[calc(100vh-250px)]',
+    'overflow-y-auto',
+    // Scrollbar styling
+    'scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent'
   );
 
   const friendItem = clsx(

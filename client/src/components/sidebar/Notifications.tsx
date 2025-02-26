@@ -29,7 +29,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
     // Height - make it responsive to parent container
     "h-full max-h-[calc(100vh-250px)]",
     // Scrollbar styling
-    "scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
+    'scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent'
   );
 
   const title = clsx(
