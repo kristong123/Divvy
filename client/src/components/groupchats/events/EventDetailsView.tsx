@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../../store/store';
 import PaymentConfirmationWindow from '../../modals/PaymentConfirmationModal';
+import ExpenseBreakdown from './ExpenseBreakdown';
 
 interface EventDetailsProps {
   description: string;
@@ -50,60 +51,6 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   const totalCost = useMemo(() => {
     return expenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [expenses]);
-
-  // Calculate what current user owes to others
-  const userDebts = useMemo(() => {
-    const debts: Record<string, number> = {};
-    
-    expenses.forEach(expense => {
-      if (expense.splitBetween.includes(currentUser || '')) {
-        const amountPerPerson = expense.amount / expense.splitBetween.length;
-        if (expense.paidBy !== currentUser) {
-          debts[expense.paidBy] = (debts[expense.paidBy] || 0) + amountPerPerson;
-        }
-      }
-    });
-
-    return debts;
-  }, [expenses, currentUser]);
-
-  // Calculate what others owe the current user
-  const othersDebts = useMemo(() => {
-    const debts: Record<string, number> = {};
-    
-    expenses.forEach(expense => {
-      if (expense.paidBy === currentUser) {
-        const amountPerPerson = expense.amount / expense.splitBetween.length;
-        expense.splitBetween.forEach(person => {
-          if (person !== currentUser) {
-            debts[person] = (debts[person] || 0) + amountPerPerson;
-          }
-        });
-      }
-    });
-
-    return debts;
-  }, [expenses, currentUser]);
-
-  const handleVenmoPayment = (recipient: string, amount: number) => {
-    const recipientData = group?.users.find(u => u.username === recipient);
-
-    if (!recipientData?.venmoUsername) {
-      toast.error(`${recipient} hasn't set their Venmo username yet.`);
-      return;
-    }
-
-    const encodedUsername = encodeURIComponent(recipientData.venmoUsername);
-    const venmoUrl = `https://account.venmo.com/pay?audience=private&amount=${amount.toFixed(2)}&note=&recipients=${encodedUsername}`;
-    window.open(venmoUrl, '_blank');
-    
-    // Open confirmation window
-    setPaymentConfirmation({
-      isOpen: true,
-      recipient,
-      amount
-    });
-  };
 
   const handlePaymentConfirm = () => {
     if (!group?.currentEvent) return;
@@ -180,54 +127,6 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         </div>
       </div>
 
-      {/* You Owe Section */}
-      {Object.keys(userDebts).length > 0 && (
-        <div className="bg-[#E7FCFB] rounded-xl p-6 shadow-sm mb-6 text-black">
-          <h3 className="text-lg font-semibold mb-4">You Owe</h3>
-          {Object.entries(userDebts).map(([recipient, amount]) => (
-            <div key={recipient} className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <ProfileAvatar
-                  username={recipient}
-                  imageUrl={participants.find(p => p.username === recipient)?.profilePicture}
-                  size="sm"
-                />
-                <span>{recipient}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[#57E3DC] font-bold">${amount.toFixed(2)}</span>
-                <button
-                  onClick={() => handleVenmoPayment(recipient, amount)}
-                  className="px-4 py-2 bg-[#3D95CE] text-white rounded-lg"
-                >
-                  Pay with Venmo
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Others Owe You Section */}
-      {Object.keys(othersDebts).length > 0 && (
-        <div className="bg-white rounded-xl p-6 shadow-sm mb-6 text-black">
-          <h3 className="text-lg font-semibold mb-4">Owed to You</h3>
-          {Object.entries(othersDebts).map(([debtor, amount]) => (
-            <div key={debtor} className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <ProfileAvatar
-                  username={debtor}
-                  imageUrl={participants.find(p => p.username === debtor)?.profilePicture}
-                  size="sm"
-                />
-                <span>{debtor}</span>
-              </div>
-              <span className="text-[#57E3DC] font-bold">${amount.toFixed(2)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       <AddExpenseWindow
         isOpen={isExpenseModalOpen}
         onClose={() => setIsExpenseModalOpen(false)}
@@ -251,6 +150,10 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         recipient={paymentConfirmation.recipient}
         amount={paymentConfirmation.amount}
       />
+
+      <div className="mt-6">
+        <ExpenseBreakdown groupId={groupId} />
+      </div>
     </div>
   );
 };

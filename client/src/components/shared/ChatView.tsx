@@ -19,6 +19,7 @@ import GroupInvite from '../groupchats/GroupInvite';
 import { addGroupInvite, removeGroupInvite } from '../../store/slice/inviteSlice';
 import AddEventButton from '../groupchats/events/AddEventButton';
 import EventDetailsView from '../groupchats/events/EventDetailsView';
+import { markAsRead } from '../../store/slice/notificationsSlice';
 
 interface ChatViewProps {
   chat: {
@@ -28,6 +29,7 @@ interface ChatViewProps {
     amount?: string;  // For group chats
     lastMessage?: string;  // For direct messages
     isGroup?: boolean;
+    notificationType?: string;
   };
 }
 
@@ -144,7 +146,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           ...rawGroup,
           currentEvent: rawGroup.currentEvent ? {
             id: rawGroup.currentEvent.id,
-            name: rawGroup.currentEvent.name,
+            title: rawGroup.currentEvent.title,
             date: rawGroup.currentEvent.date,
             description: rawGroup.currentEvent.description,
             expenses: rawGroup.currentEvent.expenses || []
@@ -297,7 +299,24 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const [showEventDetails, setShowEventDetails] = useState(false);
 
   // Update the check for current event
-  const hasCurrentEvent = !!(groupData?.currentEvent?.id && groupData?.currentEvent?.name);
+  const hasCurrentEvent = !!(groupData?.currentEvent?.id && groupData?.currentEvent?.title);
+
+  const notifications = useSelector((state: RootState) => state.notifications.notifications);
+  
+  // Add this effect to mark notifications as read when viewing a group chat
+  useEffect(() => {
+    if (chat.isGroup) {
+      // Find any unread notifications for this group
+      const groupNotifications = notifications.filter(n => 
+        n.data?.groupId === chat.id && !n.read
+      );
+      
+      // Mark them as read
+      groupNotifications.forEach(notification => {
+        dispatch(markAsRead(notification.id));
+      });
+    }
+  }, [chat.id, chat.isGroup, dispatch, notifications]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -370,6 +389,32 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }
   }, [groupData?.currentEvent]);
 
+  // Add this to prevent event view from closing when expenses are added
+  useEffect(() => {
+    const socket = getSocket();
+    
+    const handleExpenseAdded = () => {
+      // This prevents the event view from closing when an expense is added
+      if (showEventDetails) {
+        // Keep the event details view open
+        setShowEventDetails(true);
+      }
+    };
+    
+    socket.on('expense-added', handleExpenseAdded);
+    
+    return () => {
+      socket.off('expense-added', handleExpenseAdded);
+    };
+  }, [showEventDetails]);
+
+  // Modify the existing effect that closes the event view
+  useEffect(() => {
+    if (!groupData?.currentEvent && showEventDetails) {
+      setShowEventDetails(false);
+    }
+  }, [groupData?.currentEvent, showEventDetails]);
+
   const handleSendMessage = async () => {
     if (!inputText.trim() || !currentUser) return;
 
@@ -425,13 +470,20 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       groupId: chat.id,
       event: {
         id: '',
-        name: '',
+        title: '',
         date: '',
         description: '',
         expenses: []
       }
     }));
   };
+
+  useEffect(() => {
+    // If this is an expense notification, show the event details
+    if (chat.notificationType === 'expense_added' && groupData?.currentEvent) {
+      setShowEventDetails(true);
+    }
+  }, [chat.id, chat.notificationType, groupData]);
 
   return (
     <div className="flex w-full h-full">
@@ -447,7 +499,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
               </button>
               <div className="flex flex-col">
                 <span className="text-black text-2xl font-bold">
-                  {groupData.currentEvent.name}
+                  {groupData.currentEvent.title}
                 </span>
                 <span className="text-gray-500 text-sm">
                   {new Date(groupData.currentEvent.date).toLocaleDateString()}
@@ -486,14 +538,14 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                     onClick={() => setShowEventDetails(true)}
                     className="px-4 py-2 bg-[#57E3DC] rounded-lg text-white"
                   >
-                    {groupData?.currentEvent?.name}
+                    {groupData?.currentEvent?.title}
                   </button>
                 ) : (
                   <AddEventButton 
                     onConfirm={(eventName: string, eventDate: string, description: string) => {
                       const newEvent = {
                         id: Date.now().toString(),
-                        name: eventName,
+                        title: eventName,
                         date: eventDate,
                         description,
                         expenses: []

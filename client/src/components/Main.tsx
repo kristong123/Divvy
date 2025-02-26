@@ -28,6 +28,7 @@ interface GroupData {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  notificationType?: string;
 }
 
 interface DirectChat {
@@ -136,14 +137,24 @@ const Main: React.FC = () => {
     }
   };
 
-  const handleDirectChatClick = (chatId: string) => {
+  const handleDirectChatClick = (chatId: string, notificationType?: string) => {
+    // Check if this is a group ID
+    const group = groupsList.find(g => g.id === chatId);
+    
+    if (group) {
+      // It's a group, handle it as a group click
+      handleGroupClick(group, notificationType);
+      return;
+    }
+    
+    // Otherwise handle as a direct chat
     let chat = directChats.find(c => c.id === chatId);
     
     // If chat doesn't exist, create it
     if (!chat) {
       chat = {
         id: chatId,
-        name: chatId, // Using username as name for now
+        name: chatId,
         lastMessage: ''
       };
       setDirectChats([...directChats, chat]);
@@ -152,16 +163,17 @@ const Main: React.FC = () => {
     setSelectedChat({ type: 'direct', data: chat });
   };
 
-  const handleGroupClick = (group: GroupData) => {
-    setSelectedChat({ 
-      type: 'group', 
+  const handleGroupClick = (group: GroupData, notificationType?: string) => {
+    setSelectedChat({
+      type: 'group',
       data: {
         id: group.id,
         name: group.name,
         imageUrl: group.imageUrl,
         amount: group.amount,
         isGroup: true,
-        users: group.users
+        users: group.users,
+        notificationType
       }
     });
   };

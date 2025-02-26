@@ -6,6 +6,8 @@ import friendsReducer from './slice/friendsSlice';
 import groupReducer from './slice/groupSlice';
 import inviteReducer from './slice/inviteSlice';
 import inviteStatusReducer from './slice/inviteStatusSlice';
+import notificationsReducer from './slice/notificationsSlice';
+import { loggerMiddleware } from './slice/notificationsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -14,8 +16,13 @@ export const store = configureStore({
     friends: friendsReducer,
     groups: groupReducer,
     invites: inviteReducer,
-    inviteStatus: inviteStatusReducer
+    inviteStatus: inviteStatusReducer,
+    notifications: notificationsReducer
   },
+  middleware: (getDefaultMiddleware) => 
+    getDefaultMiddleware({
+      serializableCheck: false
+    }).concat(loggerMiddleware)
 });
 
 export type RootState = ReturnType<typeof store.getState>;

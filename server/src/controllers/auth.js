@@ -17,7 +17,7 @@ exports.login = async (req, res) => {
       const responseData = {
         username: username,
         profilePicture: userData?.profilePicture || null,
-        venmoUsername: userData?.venmoUsername || null,
+        venmoUsername: userData?.venmoUsername || null,  // Make sure this is included
         message: 'Login successful'
       };
       res.status(200).json(responseData);

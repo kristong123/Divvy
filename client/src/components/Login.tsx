@@ -38,10 +38,16 @@ const Login: React.FC = () => {
         password
       });
       
+      
+      // Get user data to ensure we have venmoUsername
+      const userResponse = await axios.get(`${BASE_URL}/api/users/${username}`);
+      
       dispatch(setUser({ 
         username: response.data.username,
-        profilePicture: response.data.profilePicture || null 
+        profilePicture: response.data.profilePicture || null,
+        venmoUsername: userResponse.data.venmoUsername || response.data.venmoUsername || null
       }));
+      
       navigate('/');
     } catch (_error) {
       console.error('Login error:', _error); // Debug log

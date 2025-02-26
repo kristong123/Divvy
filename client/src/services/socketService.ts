@@ -10,6 +10,8 @@ import axios from 'axios';
 import { BASE_URL } from '../config/api';
 import { Event } from '../store/slice/groupSlice';
 import { setVenmoUsername } from '../store/slice/userSlice';
+import { addNotification, notificationMarkedRead, allNotificationsMarkedRead, setNotifications, allNotificationsCleared } from '../store/slice/notificationsSlice';
+import { createAsyncThunk } from '@reduxjs/toolkit';
 
 const socket = io(SOCKET_URL);
 
@@ -48,8 +50,20 @@ interface SocketData {
   // add other socket data properties
 }
 
+// Move these outside the initializeSocket function
+export const clearAllNotifications = createAsyncThunk(
+  'notifications/clearAllNotifications',
+  async (username: string) => {
+    socket.emit('clear-all-notifications', { username });
+    return;
+  }
+);
+
 export const initializeSocket = (username: string) => {
     socket.emit('join', username);
+
+    // Track message IDs we've already processed
+    const processedMessageIds = new Set<string>();
 
     // Friend request events with real-time updates
     socket.on('new-friend-request', (data: FriendRequestEvent) => {
@@ -83,8 +97,9 @@ export const initializeSocket = (username: string) => {
         
         // Get current friends list
         const currentFriends = store.getState().friends.friends;
+        const currentUser = store.getState().user.username;
         
-        if (store.getState().user.username === data.sender) {
+        if (currentUser === data.sender) {
             // For the sender: add new friend to existing list
             store.dispatch(setFriends([
                 ...currentFriends,
@@ -94,7 +109,7 @@ export const initializeSocket = (username: string) => {
                 }
             ]));
             toast.success(`${data.recipient} accepted your friend request`);
-        } else {
+        } else if (currentUser === data.recipient) {
             // For the recipient: add new friend to existing list
             store.dispatch(setFriends([
                 ...currentFriends,
@@ -105,6 +120,27 @@ export const initializeSocket = (username: string) => {
             ]));
             toast.success(`You are now friends with ${data.sender}`);
         }
+        
+        // Force a refresh of the friends list
+        setTimeout(() => {
+            // Try this endpoint instead
+            axios.get(`${BASE_URL}/api/friends/${currentUser}`)
+                .then(response => {
+                    store.dispatch(setFriends(response.data));
+                })
+                .catch(error => {
+                    console.error('Error fetching friends:', error);
+                    
+                    // Fallback to another possible endpoint format if the first one fails
+                    axios.get(`${BASE_URL}/api/users/${currentUser}/friends`)
+                        .then(response => {
+                            store.dispatch(setFriends(response.data));
+                        })
+                        .catch(err => {
+                            console.error('Error fetching friends (fallback):', err);
+                        });
+                });
+        }, 500);
     });
 
     socket.on('friend-added', (data: SocketData) => {
@@ -125,7 +161,17 @@ export const initializeSocket = (username: string) => {
 
     // Listen for direct messages
     socket.on('new-message', (data: SocketMessageEvent) => {
-        if (!data.chatId) return; // Skip if no chatId
+        // Skip if no chatId or if we've already processed this message
+        if (!data.chatId || (data.message.id && processedMessageIds.has(data.message.id))) {
+            return;
+        }
+        
+        // Add to processed set if it has an ID
+        if (data.message.id) {
+            processedMessageIds.add(data.message.id);
+        }
+        
+        // Add message to store
         store.dispatch(addMessage({
             chatId: data.chatId,
             message: data.message
@@ -134,6 +180,17 @@ export const initializeSocket = (username: string) => {
 
     // Listen for group messages
     socket.on('new-group-message', (data: SocketMessageEvent) => {
+        // Skip if we've already processed this message
+        if (data.message.id && processedMessageIds.has(data.message.id)) {
+            return;
+        }
+        
+        // Add to processed set if it has an ID
+        if (data.message.id) {
+            processedMessageIds.add(data.message.id);
+        }
+        
+        // Add message to store
         store.dispatch(groupActions.addGroupMessage({
             groupId: data.groupId,
             message: data.message
@@ -196,20 +253,23 @@ export const initializeSocket = (username: string) => {
         toast.success('Event updated successfully');
     });
 
-    socket.on('expense-added', (data: { 
-        groupId: string; 
-        expense: Expense;
-        currentEvent: Event;
-    }) => {
-        store.dispatch(groupActions.setGroupEvent({
-            groupId: data.groupId,
-            event: data.currentEvent
-        }));
-        toast.success(`New expense added: ${data.expense.item}`);
+    socket.on('expense-added', (data) => {
+        // Update the group with the new expense
+        if (data.groupId && data.expense) {
+            // Dispatch the expense update to Redux
+            store.dispatch(groupActions.addExpense({
+                groupId: data.groupId,
+                expense: data.expense,
+                keepEventOpen: data.keepEventOpen // Pass this flag to the reducer
+            }));
+        }
     });
 
     // Inside initializeSocket function, update the venmo_username_updated listener
     socket.on('venmo_username_updated', (data: { username: string; venmoUsername: string }) => {
+        
+        // Update the user in Redux store
+        store.dispatch(setVenmoUsername(data.venmoUsername));
         
         // Update the user in all relevant groups
         const state = store.getState();
@@ -229,6 +289,151 @@ export const initializeSocket = (username: string) => {
         });
     });
 
+    // Inside initializeSocket function, add these event listeners
+    socket.on('expense-updated', (data: { groupId: string; expense: any }) => {
+        // Get the current event from the store
+        const state = store.getState();
+        const group = state.groups.groups[data.groupId];
+        
+        if (group?.currentEvent) {
+            // Create a new array of expenses with the updated expense
+            const updatedExpenses = group.currentEvent.expenses.map(exp => {
+                if (exp.id === data.expense.id || 
+                    (exp.item === data.expense.originalItem && exp.paidBy === data.expense.paidBy)) {
+                    return data.expense;
+                }
+                return exp;
+            });
+            
+            // Update the event in the store
+            store.dispatch(groupActions.setGroupEvent({
+                groupId: data.groupId,
+                event: {
+                    ...group.currentEvent,
+                    expenses: updatedExpenses
+                }
+            }));
+        }
+    });
+
+    socket.on('expense-removed', (data: { groupId: string; expenseId: string }) => {
+        // Get the current event from the store
+        const state = store.getState();
+        const group = state.groups.groups[data.groupId];
+        
+        if (group?.currentEvent) {
+            // Filter out the removed expense
+            const updatedExpenses = group.currentEvent.expenses.filter(exp => 
+                exp.id !== data.expenseId
+            );
+            
+            // Update the event in the store
+            store.dispatch(groupActions.setGroupEvent({
+                groupId: data.groupId,
+                event: {
+                    ...group.currentEvent,
+                    expenses: updatedExpenses
+                }
+            }));
+        }
+    });
+
+    // Update the 'user-added-to-group' event handler
+    socket.on('user-added-to-group', async ({ groupId, groupData }) => {
+        try {
+            // If we received full group data, use it directly
+            if (groupData) {
+                // Add the group to Redux store with the current event
+                store.dispatch(groupActions.addGroup({
+                    ...groupData,
+                    isGroup: true
+                }));
+                
+                // Explicitly set the event in the store to ensure it's properly loaded
+                if (groupData.currentEvent) {
+                    store.dispatch(groupActions.setGroupEvent({
+                        groupId,
+                        event: groupData.currentEvent
+                    }));
+                }
+                
+                // Fetch messages for the group
+                const messagesResponse = await axios.get(`${BASE_URL}/api/groups/${groupId}/messages`);
+                store.dispatch(groupActions.setGroupMessages({
+                    groupId,
+                    messages: messagesResponse.data
+                }));
+                
+                toast.success(`You've been added to ${groupData.name}`);
+            } else {
+                // Fallback to the old approach if we didn't get full group data
+                const response = await axios.get(`${BASE_URL}/api/groups/${groupId}`);
+                const fetchedGroupData = response.data;
+                
+                store.dispatch(groupActions.addGroup({
+                    ...fetchedGroupData,
+                    isGroup: true,
+                    currentEvent: fetchedGroupData.currentEvent
+                }));
+                
+                // Fetch messages for the group
+                const messagesResponse = await axios.get(`${BASE_URL}/api/groups/${groupId}/messages`);
+                store.dispatch(groupActions.setGroupMessages({
+                    groupId,
+                    messages: messagesResponse.data
+                }));
+                
+                // Explicitly set the event
+                if (fetchedGroupData.currentEvent) {
+                    store.dispatch(groupActions.setGroupEvent({
+                        groupId,
+                        event: fetchedGroupData.currentEvent
+                    }));
+                }
+                
+                toast.success(`You've been added to ${fetchedGroupData.name}`);
+            }
+        } catch (error) {
+            console.error('Error processing group data:', error);
+            toast.error('Failed to load group data');
+        }
+    });
+
+    // Add notification listener
+    socket.on('notification', (notification) => {
+        // Ensure the notification is marked as unread
+        const unreadNotification = {
+            ...notification,
+            read: false
+        };
+        
+        // Store the notification in Redux
+        store.dispatch(addNotification(unreadNotification));
+    });
+
+    // Add notification marked read listener
+    socket.on('notification-marked-read', (data) => {
+        // Only dispatch if we have a valid ID
+        if (data && data.id) {
+            store.dispatch(notificationMarkedRead(data));
+        }
+    });
+
+    // Add all notifications marked read listener
+    socket.on('all-notifications-marked-read', () => {
+        store.dispatch(allNotificationsMarkedRead());
+    });
+
+    // Add this to your socket initialization
+    socket.on('notifications-loaded', (notifications) => {
+        store.dispatch(setNotifications(notifications));
+    });
+
+    // Just add the listener here, don't redeclare the action
+    socket.on('all-notifications-cleared', () => {
+      store.dispatch(allNotificationsCleared());
+    });
+
     return () => {
         socket.off('new-message');
         socket.off('new-group-message');
@@ -243,13 +448,28 @@ export const initializeSocket = (username: string) => {
         socket.off('event-updated');
         socket.off('expense-added');
         socket.off('venmo_username_updated');
+        socket.off('expense-updated');
+        socket.off('expense-removed');
+        socket.off('user-added-to-group');
+        socket.off('notification');
+        socket.off('notification-marked-read');
+        socket.off('all-notifications-marked-read');
         socket.emit('leave', username);
     };
 };
 
-export const sendMessage = async (messageData: MessageData) => {
+export const sendMessage = async (messageData: MessageData): Promise<MessageData> => {
     try {
-        // Emit through socket only - remove HTTP call
+        // Add timestamp if not present
+        if (!messageData.timestamp) {
+            messageData.timestamp = new Date().toISOString();
+        }
+        
+        // Add a temporary ID to track this message
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        messageData.id = messageData.id || tempId;
+        
+        // Emit the message via socket
         const socket = getSocket();
         if (messageData.chatId.startsWith('group_')) {
             socket.emit('group-message', {
@@ -263,7 +483,7 @@ export const sendMessage = async (messageData: MessageData) => {
             });
         }
         
-        return messageData; // Return the message data directly
+        return messageData;
     } catch (error) {
         console.error('Error sending message:', error);
         throw error;
@@ -311,7 +531,11 @@ export const updateEvent = (groupId: string, event: Omit<Event, 'updatedAt'> | n
 };
 
 export const addExpense = (groupId: string, expense: Omit<Expense, 'id' | 'createdAt' | 'status'>) => {
-    socket.emit('expense-added', { groupId, expense });
+    socket.emit('expense-added', { 
+        groupId, 
+        expense,
+        eventTitle: store.getState().groups.groups[groupId]?.currentEvent?.title || 'Event'
+    });
 };
 
 export const getSocket = () => socket;
@@ -335,4 +559,35 @@ export const updateVenmoUsername = async (username: string, venmoUsername: strin
         console.error('Error updating Venmo username:', error);
         throw error;
     }
+};
+
+export const updateExpense = (groupId: string, updatedExpense: any) => {
+  const socket = getSocket();
+  socket.emit('update-expense', {
+    groupId,
+    expense: updatedExpense
+  });
+};
+
+export const removeExpense = (groupId: string, expense: any) => {
+  const socket = getSocket();
+  socket.emit('remove-expense', {
+    groupId,
+    expense
+  });
+};
+
+// Add this function to mark a notification as read via socket
+export const markNotificationRead = (username: string, notificationId: string) => {
+  socket.emit('mark-notification-read', { username, notificationId });
+};
+
+// Add this function to mark all notifications as read
+export const markAllNotificationsRead = (username: string) => {
+  socket.emit('mark-all-notifications-read', { username });
+};
+
+// Add this function to fetch notifications
+export const fetchUserNotifications = (username: string) => {
+    socket.emit('fetch-notifications', username);
 }; 

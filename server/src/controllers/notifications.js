@@ -28,40 +28,36 @@ const createNotification = async (userId, notification) => {
 const getNotifications = async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    // Get all notifications for the user, ordered by timestamp
-    const notificationsSnapshot = await db.collection('notifications')
+
+    // Get notifications from Firestore
+    const notificationsSnapshot = await db.collection('users')
       .doc(userId)
-      .collection('items')
+      .collection('notifications')
       .orderBy('timestamp', 'desc')
-      .limit(50) // Limit to last 50 notifications
+      .limit(50)
       .get();
 
-    const notifications = notificationsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp.toDate().toISOString()
-    }));
+    const notifications = [];
+    notificationsSnapshot.forEach(doc => {
+      notifications.push(doc.data());
+    });
 
     res.status(200).json(notifications);
   } catch (error) {
-    console.error('Error getting notifications:', error);
-    res.status(500).json({ message: 'Failed to get notifications' });
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ message: 'Failed to fetch notifications' });
   }
 };
 
 const markNotificationAsRead = async (req, res) => {
   try {
     const { userId, notificationId } = req.params;
-    
-    await db.collection('notifications')
+
+    await db.collection('users')
       .doc(userId)
-      .collection('items')
+      .collection('notifications')
       .doc(notificationId)
-      .update({ 
-        read: true,
-        readAt: new Date()
-      });
+      .update({ read: true });
 
     res.status(200).json({ message: 'Notification marked as read' });
   } catch (error) {
@@ -73,7 +69,7 @@ const markNotificationAsRead = async (req, res) => {
 const deleteNotification = async (req, res) => {
   try {
     const { userId, notificationId } = req.params;
-    
+
     await db.collection('notifications')
       .doc(userId)
       .collection('items')
@@ -90,7 +86,7 @@ const deleteNotification = async (req, res) => {
 const deleteAllNotifications = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const batch = db.batch();
     const notificationsSnapshot = await db.collection('notifications')
       .doc(userId)
@@ -110,10 +106,35 @@ const deleteAllNotifications = async (req, res) => {
   }
 };
 
+const markAllNotificationsAsRead = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const batch = db.batch();
+    const notificationsSnapshot = await db.collection('users')
+      .doc(userId)
+      .collection('notifications')
+      .where('read', '==', false)
+      .get();
+
+    notificationsSnapshot.forEach(doc => {
+      batch.update(doc.ref, { read: true });
+    });
+
+    await batch.commit();
+
+    res.status(200).json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ message: 'Failed to mark all notifications as read' });
+  }
+};
+
 module.exports = {
   createNotification,
   getNotifications,
   markNotificationAsRead,
   deleteNotification,
-  deleteAllNotifications
+  deleteAllNotifications,
+  markAllNotificationsAsRead
 }; 

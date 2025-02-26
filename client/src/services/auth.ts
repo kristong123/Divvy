@@ -102,13 +102,14 @@ export const loadUserData = async (username: string, dispatch: AppDispatch) => {
 // Login user and load their data
 export const login = async (username: string, password: string, dispatch: AppDispatch): Promise<UserData> => {
     try {
-        
         // Login logic
         const response = await axios.post<UserData>(`${BASE_URL}/api/auth/login`, {
             username,
             password
         });
-                
+        
+        console.log('Login response:', response.data); // Debug log
+        
         // Store token and user data with venmoUsername
         localStorage.setItem('token', response.data.token);
         
@@ -118,6 +119,22 @@ export const login = async (username: string, password: string, dispatch: AppDis
             profilePicture: response.data.profilePicture,
             venmoUsername: response.data.venmoUsername
         }));
+        
+        // Also fetch user data directly to ensure we have the latest venmoUsername
+        try {
+            const userResponse = await axios.get(`${BASE_URL}/api/users/${username}`);
+            console.log('User data response:', userResponse.data);
+            
+            if (userResponse.data.venmoUsername) {
+                dispatch(setUser({
+                    username: response.data.username,
+                    profilePicture: response.data.profilePicture,
+                    venmoUsername: userResponse.data.venmoUsername
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching user data:', error);
+        }
         
         // Load additional user data
         await loadUserData(username, dispatch);

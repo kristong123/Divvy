@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import Notifications from './sidebar/Notifications';
+import NotificationsPanel from './sidebar/Notifications';
 import Friends from './sidebar/Friends';
 import Requests from './sidebar/Requests';
 import { setupFriendsListeners } from '../store/slice/friendsSlice';
@@ -11,7 +11,7 @@ import ProfilePicture from './sidebar/ProfilePicture';
 import VenmoUsernameEditor from './sidebar/VenmoUsernameEditor';
 
 interface SidebarProps {
-  onChatSelect: (chatId: string) => void;
+  onChatSelect: (chatId: string, notificationType?: string) => void;
   onHomeClick: () => void;
 }
 
@@ -19,6 +19,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
   const currentUser = useSelector((state: RootState) => state.user.username);
   const dispatch = useDispatch<AppDispatch>();
   const [activeSection, setActiveSection] = useState<'notifications' | 'friends' | 'requests'>('friends');
+  const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
+  const groups = useSelector((state: RootState) => state.groups.groups);
 
   const container = clsx(
     // Layout
@@ -120,6 +122,18 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
     }
   }, [dispatch, currentUser]);
 
+  const handleNotificationClick = (groupId: string, notificationType?: string) => {
+    const group = groups[groupId];
+    
+    if (group) {
+      setActiveSection('notifications');
+      
+      setTimeout(() => {
+        onChatSelect(groupId, notificationType);
+      }, 100);
+    }
+  };
+
   return (
     <div className={container}>
       <div className={sidebar}>
@@ -139,8 +153,16 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
             <button 
               onClick={() => setActiveSection('notifications')}
               className={navButton}
+              aria-label="Notifications"
             >
-              <Bell className={navIcon(activeSection === 'notifications')}/>
+              <div className="relative">
+                <Bell className={navIcon(activeSection === 'notifications')}/>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-dark1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
             </button>
             <button 
               onClick={() => setActiveSection('friends')}
@@ -157,7 +179,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
           </div>
           <div>
             <div className={sectionTransition(activeSection === 'notifications')}>
-              <Notifications />
+              <NotificationsPanel onNotificationClick={handleNotificationClick} />
             </div>
             <div className={activeSection === 'friends' ? '' : 'hidden'}>
               <Friends onChatSelect={onChatSelect} />

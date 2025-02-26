@@ -5,7 +5,6 @@ import { batchSetInviteStatuses, InviteStatus } from '../store/slice/inviteStatu
 
 export const checkAllGroupInvites = async (username: string) => {
   try {
-    console.log('Checking all group invites for:', username);
     // Get all group invites from the Redux store
     const state = store.getState();
     const groupInvites = state.invites.groupInvites[username] || [];
@@ -44,7 +43,6 @@ export const checkAllGroupInvites = async (username: string) => {
     // Dispatch the batch update
     store.dispatch(batchSetInviteStatuses(inviteStatuses));
     
-    console.log('Batch updated invite statuses:', inviteStatuses);
   } catch (error) {
     console.error('Error checking group invites:', error);
   }

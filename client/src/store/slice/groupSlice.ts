@@ -8,17 +8,20 @@ interface GroupMember {
   venmoUsername?: string;
 }
 
+export interface Expense {
+  id?: string;
+  item: string;
+  amount: number;
+  paidBy: string;
+  splitBetween: string[];
+}
+
 export interface Event {
   id: string;
-  name: string;
-  date: string;
+  title: string;
   description: string;
-  expenses: Array<{
-    item: string;
-    amount: number;
-    paidBy: string;
-    splitBetween: string[];
-  }>;
+  date: string;
+  expenses: Expense[];
   updatedAt?: {
     _seconds: number;
     _nanoseconds: number;
@@ -37,6 +40,8 @@ export interface Group {
   createdAt: string;
   updatedAt: string;
   currentEvent?: Event | null;
+  messages?: MessageData[];
+  keepEventOpen?: boolean;
 }
 
 interface GroupState {
@@ -53,12 +58,18 @@ const initialState: GroupState = {
   error: null
 };
 
-const groupSlice = createSlice({
+export const groupSlice = createSlice({
   name: 'groups',
   initialState,
   reducers: {
     addGroup: (state, action: PayloadAction<Group>) => {
-      state.groups[action.payload.id] = action.payload;
+      const newGroup = {
+        ...action.payload,
+        messages: state.groups[action.payload.id]?.messages || [],
+        currentEvent: action.payload.currentEvent || state.groups[action.payload.id]?.currentEvent || null
+      };
+      
+      state.groups[action.payload.id] = newGroup;
     },
     setGroups: (state, action: PayloadAction<Group[]>) => {
       const newGroups: { [key: string]: Group } = {};
@@ -121,18 +132,14 @@ const groupSlice = createSlice({
         state.groups[action.payload.groupId].currentEvent = action.payload.event;
       }
     },
-    addExpense: (state, action: PayloadAction<{ 
-      groupId: string; 
-      expense: {
-        item: string;
-        amount: number;
-        paidBy: string;
-        splitBetween: string[];
-      }
-    }>) => {
-      const group = state.groups[action.payload.groupId];
-      if (group?.currentEvent) {
-        group.currentEvent.expenses = [...(group.currentEvent.expenses || []), action.payload.expense];
+    addExpense: (state, action: PayloadAction<{groupId: string, expense: Expense, keepEventOpen?: boolean}>) => {
+      const { groupId, expense, keepEventOpen } = action.payload;
+      if (state.groups[groupId] && state.groups[groupId].currentEvent) {
+        state.groups[groupId].currentEvent.expenses.push(expense);
+        
+        if (keepEventOpen) {
+          state.groups[groupId].keepEventOpen = true;
+        }
       }
     },
     updateGroupUser: (state, action: PayloadAction<{
