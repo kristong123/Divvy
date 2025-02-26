@@ -203,4 +203,7 @@ npm run test
 
 ## Adding New Tests
 
-To incorporate new tests, you will go into the client folder to access the server folder and finally you will find the test folder(for directory path, client/server/test). The test folder contains backend tests to ensure communication between client and server are operational. When creating a new test, you should follow the naming convention of [YOUR IMPLEMENTATION].test.js. 
+To incorporate new frontend tests, you will go into the client folder to access the test folder (for directory path, client/test). The test folder contains frontend tests to ensure the major components of the web application are working fine. When creating a new test, you should follow the naming convention of [YOUR IMPLEMENTATION].test.tsx
+
+To incorporate new backend tests, you will go into the server folder and finally you will find the test folder(for directory path, server/test). The test folder contains backend tests to ensure communication between client and server are operational. When creating a new test, you should follow the naming convention of [YOUR IMPLEMENTATION].test.js.
+
