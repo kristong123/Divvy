@@ -1,5 +1,7 @@
 const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
+const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
 const upload = multer().single('image');
 
 // Check if two users are friends
