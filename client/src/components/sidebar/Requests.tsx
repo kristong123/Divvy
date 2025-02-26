@@ -116,7 +116,8 @@ const Requests: React.FC = () => {
           recipient: friendUsername 
         });
         setFriendUsername('');
-      } catch (error) {
+      } catch (_error) {
+        console.error('Failed to send friend request:', _error);
         toast.error('Failed to send friend request');
       }
     }
@@ -129,7 +130,8 @@ const Requests: React.FC = () => {
           sender: senderUsername, 
           recipient: username 
         });
-      } catch (error) {
+      } catch (_error) {
+        console.error('Failed to accept friend request:', _error);
         toast.error('Failed to accept friend request');
       }
     }
@@ -142,7 +144,8 @@ const Requests: React.FC = () => {
           sender: senderUsername, 
           recipient: username 
         });
-      } catch (error) {
+      } catch (_error) {
+        console.error('Failed to decline friend request:', _error);
         toast.error('Failed to decline friend request');
       }
     }

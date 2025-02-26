@@ -21,7 +21,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-function App() {
+interface AppProps {
+  RouterComponent?: typeof BrowserRouter;
+}
+
+function App({ RouterComponent = BrowserRouter }: AppProps) {
   const username = useSelector((state: RootState) => state.user.username);
   const isAuthenticated = useSelector((state: RootState) => state.user.isAuthenticated);
   const dispatch = useDispatch();
@@ -57,7 +61,7 @@ function App() {
   return (
     <>
       <Toaster position="top-center" />
-      <BrowserRouter>
+      <RouterComponent>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route 
@@ -74,7 +78,7 @@ function App() {
             element={<Navigate to="/dashboard" replace />} 
           />
         </Routes>
-      </BrowserRouter>
+      </RouterComponent>
     </>
   );
 }

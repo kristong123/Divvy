@@ -38,6 +38,31 @@ interface GroupInviteData {
   invitedBy: string;
 }
 
+interface MessageResponse {
+  id: string;
+  content: string;
+  sender: string;
+  timestamp: string;
+  chatId: string;
+}
+
+// Add interface for group data
+interface GroupJoinData {
+  groupId: string;
+  group: {
+    id: string;
+    name: string;
+    users: Array<{
+      username: string;
+      profilePicture: string | null;
+      isAdmin: boolean;
+      venmoUsername?: string;
+    }>;
+    currentEvent?: Event;
+    // add other group properties you need
+  };
+}
+
 // Create a stable selector outside the component
 const selectChatMessages = createSelector(
   [(state: RootState) => state.groups.messages, 
@@ -79,8 +104,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           .then(response => {
             dispatch(setMessages({ chatId, messages: response.data }));
           })
-          .catch(error => {
-            console.error('Error fetching direct messages:', error);
+          .catch((_error) => {
+            console.error('Failed to load messages:', _error);
             toast.error('Failed to load messages');
           })
           .finally(() => {
@@ -95,8 +120,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
               messages: response.data
             }));
           })
-          .catch(error => {
-            console.error('Error fetching group messages:', error);
+          .catch((_error) => {
+            console.error('Failed to fetch messages:', _error);
             toast.error('Failed to fetch messages');
           })
           .finally(() => {
@@ -312,10 +337,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       }
     };
 
-    const handleGroupJoin = (data: { groupId: string; group: any }) => {
+    const handleGroupJoin = (data: GroupJoinData) => {
       if (data.groupId === chat.id) {
         dispatch(groupActions.updateGroup({
-          id: data.groupId,
           ...data.group,
           currentEvent: data.group.currentEvent || groupData?.currentEvent
         }));
@@ -326,6 +350,10 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     socket.on('new-message', handleNewMessage);
     socket.on('group-invite', handleGroupInvite);
     socket.on('group-invite-accepted', handleGroupJoin);
+    socket.on('message-error', (error: MessageResponse) => {
+      console.error('Message error:', error);
+      toast.error('Failed to send message');
+    });
 
     return () => {
       socket.off('event-updated', handleEventUpdate);
@@ -359,7 +387,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     try {
       await sendMessage(messageData);
       setInputText('');
-    } catch (error) {
+    } catch (_error) {
+      console.error('Failed to send message:', _error);
       toast.error('Failed to send message');
     }
   };
