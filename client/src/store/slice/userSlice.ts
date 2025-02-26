@@ -6,6 +6,7 @@ interface UserState {
   venmoUsername: string | null;
   profilePicture: string | null;
   isLoggedIn: boolean;
+  isAuthenticated: boolean;
   // add other user properties you need
 }
 
@@ -13,7 +14,8 @@ const initialState: UserState = {
   username: '',
   venmoUsername: null,
   profilePicture: null,
-  isLoggedIn: false
+  isLoggedIn: false,
+  isAuthenticated: false
 };
 
 export const userSlice = createSlice({
@@ -29,12 +31,14 @@ export const userSlice = createSlice({
       state.profilePicture = action.payload.profilePicture;
       state.venmoUsername = action.payload.venmoUsername || null;
       state.isLoggedIn = true;
+      state.isAuthenticated = true;
     },
     logout: (state) => {
       state.username = '';
       state.venmoUsername = null;
       state.profilePicture = null;
       state.isLoggedIn = false;
+      state.isAuthenticated = false;
     },
     updateProfilePicture: (state, action: PayloadAction<string>) => {
       state.profilePicture = action.payload;

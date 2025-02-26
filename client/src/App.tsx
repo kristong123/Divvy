@@ -8,6 +8,7 @@ import Main from './components/Main';
 import { Toaster } from 'react-hot-toast';
 import { initializeSocket } from './services/socketService';
 import { loadUserData } from './services/auth';
+import { checkAllGroupInvites } from './services/inviteService';
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -26,6 +27,7 @@ interface AppProps {
 
 function App({ RouterComponent = BrowserRouter }: AppProps) {
   const username = useSelector((state: RootState) => state.user.username);
+  const isAuthenticated = useSelector((state: RootState) => state.user.isAuthenticated);
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -48,6 +50,13 @@ function App({ RouterComponent = BrowserRouter }: AppProps) {
       return cleanup;
     }
   }, [username, dispatch]);
+
+  // Check all group invites when user logs in
+  useEffect(() => {
+    if (isAuthenticated && username) {
+      checkAllGroupInvites(username);
+    }
+  }, [isAuthenticated, username]);
 
   return (
     <>

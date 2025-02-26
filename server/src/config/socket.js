@@ -520,6 +520,24 @@ const initializeSocket = (server) => {
             }
         });
 
+        // When a group is deleted
+        socket.on('group-deleted', (groupId) => {
+            // Notify all connected clients about the deleted group
+            io.emit('group-deleted', { groupId });
+        });
+
+        // When a user is added to a group
+        socket.on('user-added-to-group', ({ groupId, username }) => {
+            // Notify the specific user that they've been added
+            io.to(username).emit('user-added-to-group', { groupId });
+        });
+
+        // When a user is removed from a group
+        socket.on('user-removed-from-group', ({ groupId, username }) => {
+            // Notify the specific user that they've been removed
+            io.to(username).emit('user-removed-from-group', { groupId });
+        });
+
         socket.on('disconnect', () => {
             console.log('Client disconnected:', socket.id);
         });

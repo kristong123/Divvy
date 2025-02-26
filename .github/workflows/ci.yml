@@ -23,6 +23,7 @@ jobs:
       run: |
         npm ci
         cd client && npm ci
+        cd ../server && npm ci
     
     - name: Create env file
       run: |
@@ -40,6 +41,6 @@ jobs:
     
     - name: Run frontend tests
       run: cd client && npm test
-
+    
     - name: Run backend tests
-      run: cd server && npm test
+      run: cd server && npx jest

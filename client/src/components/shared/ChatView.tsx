@@ -12,7 +12,7 @@ import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import { UserPlus, ArrowLeft } from 'lucide-react';
 import GroupMembers from '../groupchats/GroupMembers';
-import InviteModal from '../modals/InviteModal';
+import InviteModal from '../modals/GroupInviteModal';
 import { createSelector } from '@reduxjs/toolkit';
 import { groupActions, Event } from '../../store/slice/groupSlice';
 import GroupInvite from '../groupchats/GroupInvite';
@@ -519,6 +519,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                 {groupInvites.map((invite) => (
                   <GroupInvite
                     key={invite.id}
+                    id={invite.id}
                     groupId={invite.groupId}
                     groupName={invite.groupName}
                     invitedBy={invite.invitedBy}
@@ -536,6 +537,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                 return (
                   <GroupInvite
                     key={`${message.id}-${index}`}
+                    id={`${message.id}-${index}`}
                     groupId={message.groupId || ''}
                     groupName={message.groupName || ''}
                     invitedBy={message.invitedBy || ''}
@@ -599,16 +601,27 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           onClose={() => setShowInviteModal(false)}
           groupId={chat.id}
           groupName={chat.name}
-          onInvite={async (username) => {
+          onInvite={async (usernames) => {
             try {
-              await axios.post(`${BASE_URL}/api/groups/invite`, {
-                groupId: chat.id,
-                username
-              });
-              toast.success(`Invite sent to ${username}`);
+              // Send invites one by one with invitedBy field
+              for (const username of usernames) {
+                await axios.post(`${BASE_URL}/api/groups/invite`, {
+                  groupId: chat.id,
+                  username,
+                  invitedBy: currentUser // Add the invitedBy field
+                });
+              }
+              
+              toast.success(`Invites sent to ${usernames.length} friend${usernames.length !== 1 ? 's' : ''}`);
             } catch (error) {
-              console.error('Failed to send invite:', error);
-              toast.error('Failed to send invite');
+              // Type guard for AxiosError
+              if (axios.isAxiosError(error)) {
+                if (error.response) {
+                  console.error('Invite error response:', error.response.data);
+                }
+                console.error('Failed to send invites:', error);
+              }
+              toast.error('Failed to send invites');
             }
           }}
         />
