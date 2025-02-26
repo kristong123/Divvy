@@ -50,6 +50,29 @@ interface SocketData {
   // add other socket data properties
 }
 
+interface GroupData {
+  id: string;
+  name: string;
+  users: Array<{
+    username: string;
+    profilePicture: string | null;
+    isAdmin: boolean;
+    venmoUsername?: string;
+  }>;
+  currentEvent?: Event | null;
+  [key: string]: any; // For any other properties
+}
+
+interface NotificationData {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: any;
+  timestamp: string;
+  read: boolean;
+}
+
 // Move these outside the initializeSocket function
 export const clearAllNotifications = createAsyncThunk(
   'notifications/clearAllNotifications',
@@ -253,7 +276,7 @@ export const initializeSocket = (username: string) => {
         toast.success('Event updated successfully');
     });
 
-    socket.on('expense-added', (data) => {
+    socket.on('expense-added', (data: { groupId: string; expense: Expense; keepEventOpen?: boolean }) => {
         // Update the group with the new expense
         if (data.groupId && data.expense) {
             // Dispatch the expense update to Redux
@@ -339,14 +362,19 @@ export const initializeSocket = (username: string) => {
     });
 
     // Update the 'user-added-to-group' event handler
-    socket.on('user-added-to-group', async ({ groupId, groupData }) => {
+    socket.on('user-added-to-group', async ({ groupId, groupData }: { groupId: string; groupData?: GroupData }) => {
         try {
             // If we received full group data, use it directly
             if (groupData) {
                 // Add the group to Redux store with the current event
                 store.dispatch(groupActions.addGroup({
                     ...groupData,
-                    isGroup: true
+                    isGroup: true,
+                    // Add missing required properties with default values
+                    admin: groupData.admin || '',
+                    createdBy: groupData.createdBy || '',
+                    createdAt: groupData.createdAt || new Date().toISOString(),
+                    updatedAt: groupData.updatedAt || new Date().toISOString()
                 }));
                 
                 // Explicitly set the event in the store to ensure it's properly loaded
@@ -400,7 +428,7 @@ export const initializeSocket = (username: string) => {
     });
 
     // Add notification listener
-    socket.on('notification', (notification) => {
+    socket.on('notification', (notification: NotificationData) => {
         // Ensure the notification is marked as unread
         const unreadNotification = {
             ...notification,
@@ -412,7 +440,7 @@ export const initializeSocket = (username: string) => {
     });
 
     // Add notification marked read listener
-    socket.on('notification-marked-read', (data) => {
+    socket.on('notification-marked-read', (data: { id: string }) => {
         // Only dispatch if we have a valid ID
         if (data && data.id) {
             store.dispatch(notificationMarkedRead(data));
@@ -425,7 +453,7 @@ export const initializeSocket = (username: string) => {
     });
 
     // Add this to your socket initialization
-    socket.on('notifications-loaded', (notifications) => {
+    socket.on('notifications-loaded', (notifications: NotificationData[]) => {
         store.dispatch(setNotifications(notifications));
     });
 
