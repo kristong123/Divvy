@@ -3,16 +3,16 @@ import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
-import App from './App';
-import userReducer from './store/slice/userSlice';
-import groupReducer from './store/slice/groupSlice';
-import chatReducer from './store/slice/chatSlice';
-import inviteReducer from './store/slice/inviteSlice';
-import friendsReducer from './store/slice/friendsSlice';
-import { initializeSocket } from './services/socketService';
+import App from '../App';
+import userReducer from '../store/slice/userSlice';
+import groupReducer from '../store/slice/groupSlice';
+import chatReducer from '../store/slice/chatSlice';
+import inviteReducer from '../store/slice/inviteSlice';
+import friendsReducer from '../store/slice/friendsSlice';
+import { initializeSocket } from '../services/socketService';
 
 // Mock the socket service to avoid actual socket connections during tests
-vi.mock('./services/socketService', () => ({
+vi.mock('../services/socketService', () => ({
   initializeSocket: vi.fn(() => () => {}),
   getSocket: vi.fn(() => ({
     on: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock('./services/socketService', () => ({
 }));
 
 // Mock the auth service to avoid actual API calls during tests
-vi.mock('./services/auth', () => ({
+vi.mock('../services/auth', () => ({
   loadUserData: vi.fn()
 }));
 
