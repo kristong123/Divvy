@@ -1,55 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { MessageData } from '../../types/messages';
-
-interface GroupMember {
-  username: string;
-  profilePicture: string | null;
-  isAdmin: boolean;
-  venmoUsername?: string;
-}
-
-export interface Expense {
-  id?: string;
-  item: string;
-  amount: number;
-  paidBy: string;
-  splitBetween: string[];
-}
-
-export interface Event {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  expenses: Expense[];
-  updatedAt?: {
-    _seconds: number;
-    _nanoseconds: number;
-  };
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  imageUrl?: string;
-  amount?: string;
-  isGroup: true;
-  users: GroupMember[];
-  admin: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  currentEvent?: Event | null;
-  messages?: MessageData[];
-  keepEventOpen?: boolean;
-}
-
-interface GroupState {
-  groups: { [key: string]: Group };
-  messages: { [key: string]: MessageData[] };
-  loading: boolean;
-  error: string | null;
-}
+import { MessageData } from '../../types/messageTypes';
+import { Group, GroupState, Event, Expense } from '../../types/groupTypes';
 
 const initialState: GroupState = {
   groups: {},
@@ -127,7 +78,11 @@ export const groupSlice = createSlice({
         state.groups[groupId].users = users;
       }
     },
-    setGroupEvent: (state, action: PayloadAction<{ groupId: string; event: Group['currentEvent'] }>) => {
+    setGroupEvent: (state, action: PayloadAction<{
+      groupId: string;
+      event: Event | null | undefined;
+      keepEventOpen?: boolean;
+    }>) => {
       if (state.groups[action.payload.groupId]) {
         state.groups[action.payload.groupId].currentEvent = action.payload.event;
       }

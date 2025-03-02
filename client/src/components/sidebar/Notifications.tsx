@@ -179,8 +179,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                   {notification.data?.senderProfile && (
                     <ProfileAvatar
                       username={notification.data.sender || "User"}
-                      imageUrl={notification.data.senderProfile}
-                      size="sm"
+                      size={32}
                     />
                   )}
                   <span className={notificationTitle}>

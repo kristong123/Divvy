@@ -78,8 +78,7 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
             <div className={avatarContainer}>
               <ProfileAvatar
                 username={friend.username}
-                imageUrl={friend.profilePicture}
-                size="sm"
+                size={32}
               />
               <span className={friendName}>{friend.username}</span>
             </div>

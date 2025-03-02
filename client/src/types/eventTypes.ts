@@ -1,9 +1,9 @@
-export interface ExpenseItem {
+export interface Expense {
   id: string;
   name: string;
   amount: number;
   paidBy: string;
-  splitBetween: string[];
+  addedBy: string;
   date: string;
 }
 
@@ -17,4 +17,4 @@ export interface DebtCalculation {
     amount: number;
     originalAmount: number;
   }[];
-} 
+}

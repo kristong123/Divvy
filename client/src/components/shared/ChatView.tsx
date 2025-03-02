@@ -8,13 +8,14 @@ import axios from 'axios';
 import { BASE_URL } from '../../config/api';
 import { sendMessage, getSocket, updateEvent } from '../../services/socketService';
 import { addMessage, setMessages, setLoading } from '../../store/slice/chatSlice';
-import { SocketMessageEvent, MessageData, Message } from '../../types/messages';
+import { SocketMessageEvent, MessageData, Message } from '../../types/messageTypes';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import { UserPlus, ArrowLeft } from 'lucide-react';
 import GroupMembers from '../groupchats/GroupMembers';
 import InviteModal from '../modals/GroupInviteModal';
 import { createSelector } from '@reduxjs/toolkit';
-import { groupActions, Event } from '../../store/slice/groupSlice';
+import { groupActions } from '../../store/slice/groupSlice';
+import { Event } from '../../types/groupTypes';
 import GroupInvite from '../groupchats/GroupInvite';
 import { addGroupInvite, removeGroupInvite } from '../../store/slice/inviteSlice';
 import AddEventButton from '../groupchats/events/AddEventButton';
@@ -162,8 +163,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const groupData = useSelector(selectGroupData);
 
   // Use memoized selectors
-  const friend = useSelector((state: RootState) => chatSelectors.selectFriend(state, chat.name));
-
   const chatContainer = clsx(
     // Layout
     'flex flex-col flex-1',
@@ -177,7 +176,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Layout
     'flex items-center',
     // Spacing
-    'h-24 px-6',
+    'p-4',
     // Width
     'w-full',
     // Border
@@ -525,8 +524,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
             <div className="flex items-center gap-4 mr-auto">
               <ProfileAvatar
                 username={chat.name}
-                imageUrl={friend?.profilePicture}
-                size="md"
+                size={70}
               />
               <span className="text-black text-2xl font-bold">{chat.name}</span>
             </div>
@@ -604,8 +602,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   {!isOwnMessage && message.type !== 'system' && (
                     <ProfileAvatar
                       username={message.senderName}
-                      imageUrl={message.senderProfile}
-                      size="sm"
+                      size={70}
                     />
                   )}
                   <div className={messageContent(isOwnMessage)}>

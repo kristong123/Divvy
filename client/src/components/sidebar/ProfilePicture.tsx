@@ -11,7 +11,7 @@ import ProfileAvatar from '../shared/ProfileAvatar';
 const ProfilePicture: React.FC = () => {
   const dispatch = useDispatch();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { username, profilePicture } = useSelector((state: RootState) => state.user);
+  const { username } = useSelector((state: RootState) => state.user);
 
   const container = clsx(
     // Layout
@@ -77,8 +77,7 @@ const ProfilePicture: React.FC = () => {
       <div className="group">
         <ProfileAvatar
           username={username || 'Guest'}
-          imageUrl={profilePicture}
-          size="lg"
+          size={70}
         />
         <div className={overlay}>
           <span className="text-white text-xs">Edit</span>

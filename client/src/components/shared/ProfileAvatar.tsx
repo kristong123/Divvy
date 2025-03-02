@@ -1,95 +1,61 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { UserRound } from 'lucide-react';
-import clsx from 'clsx';
 import { toast } from 'react-hot-toast';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
 
 interface ProfileAvatarProps {
   username: string;
-  imageUrl?: string | null;
-  size?: 'sm' | 'md' | 'lg';
-  onClick?: () => void;
+  size?: number; // Use numeric size instead of preset sizes
 }
 
 const ProfileAvatar: React.FC<ProfileAvatarProps> = ({ 
   username, 
-  imageUrl, 
-  size = 'md',
-  onClick 
+  size = 32, // Default size of 32px
 }) => {
-  const container = clsx(
-    // Layout
-    'flex rounded-full',
-    // Appearance
-    'bg-gradient-to-br from-dark2 to-light1',
-    // Position
-    'relative',
-    // Interactive
-    onClick && 'cursor-pointer',
-    // Sizes
-    {
-      'w-8 h-8': size === 'sm',
-      'w-14 h-14': size === 'md',
-      'w-16 h-16': size === 'lg'
+  // Get data from Redux store
+  const groups = useSelector((state: RootState) => state.groups.groups);
+  const friends = useSelector((state: RootState) => state.friends.friends);
+  
+  // Find profile picture based on username
+  const imageUrl = useMemo(() => {
+    // Check in groups first
+    for (const groupId in groups) {
+      const user = groups[groupId].users.find(u => u.username === username);
+      if (user?.profilePicture) {
+        return user.profilePicture;
+      }
     }
-  );
-
-  const innerContainer = clsx(
-    // Layout
-    'm-auto'
-  );
-
-  const defaultAvatar = clsx(
-    // Layout
-    'flex rounded-full',
-    // Appearance
-    'bg-slate-300',
-    // Sizes
-    {
-      'w-7 h-7': size === 'sm',
-      'w-12 h-12': size === 'md',
-      'w-14 h-14': size === 'lg'
+    
+    // Then check in friends list
+    const friend = friends.find(f => f.username === username);
+    if (friend?.profilePicture) {
+      return friend.profilePicture;
     }
-  );
-
-  const defaultIcon = clsx(
-    // Layout
-    'm-auto',
-    // Size
-    'w-3/4 h-3/4',
-    // Appearance
-    'text-white'
-  );
-
-  const profileImage = clsx(
-    // Layout
-    'rounded-full object-cover',
-    // Sizes
-    {
-      'w-7 h-7': size === 'sm',
-      'w-12 h-12': size === 'md',
-      'w-14 h-14': size === 'lg'
-    }
-  );
+    
+    return null;
+  }, [username, groups, friends]);
 
   return (
-    <div className={container} onClick={onClick}>
-      <div className={innerContainer}>
-        {imageUrl ? (
-          <img 
-            src={imageUrl} 
-            alt={username}
-            className={profileImage}
-            onError={(e) => {
-              e.currentTarget.src = '';
-              toast.error(`Failed to load ${username}'s profile picture`);
-            }}
-          />
-        ) : (
-          <div className={defaultAvatar}>
-            <UserRound className={defaultIcon}/>
-          </div>
-        )}
-      </div>
+    <div 
+      className="relative flex items-center justify-center rounded-full overflow-hidden bg-gradient-to-br from-dark2 to-light1"
+      style={{ width: `${size}px`, height: `${size}px` }}
+    >
+      {imageUrl ? (
+        <img 
+          src={imageUrl} 
+          alt={username}
+          className="w-5/6 h-5/6 object-cover rounded-full"
+          onError={(e) => {
+            e.currentTarget.src = '';
+            toast.error(`Failed to load ${username}'s profile picture`);
+          }}
+        />
+      ) : (
+        <div className="flex items-center justify-center w-full h-full bg-slate-300">
+          <UserRound className="text-white w-3/4 h-3/4" />
+        </div>
+      )}
     </div>
   );
 };
