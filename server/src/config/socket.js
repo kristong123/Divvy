@@ -788,59 +788,59 @@ const initializeSocket = (server) => {
         socket.on('remove-expense-item', async (data) => {
             try {
                 const { groupId, expenseId, itemIndex } = data;
+                console.log('Removing expense item:', { groupId, expenseId, itemIndex });
 
                 // Get the group document
                 const groupRef = db.collection('groupChats').doc(groupId);
                 const groupDoc = await groupRef.get();
 
                 if (!groupDoc.exists) {
+                    console.log('Group not found');
                     return;
                 }
 
                 const groupData = groupDoc.data();
 
                 if (!groupData.currentEvent || !groupData.currentEvent.expenses) {
+                    console.log('No current event or expenses');
                     return;
                 }
 
                 // Find the expense
-                const expenses = groupData.currentEvent.expenses;
+                const expenses = [...groupData.currentEvent.expenses]; // Create a copy
                 const expenseIndex = expenses.findIndex(exp => exp.id === expenseId);
 
                 if (expenseIndex === -1) {
+                    console.log('Expense not found:', expenseId);
                     return;
                 }
 
-                // Remove the specific item from the expense's items array
-                // Assuming each expense has an items array
-                if (expenses[expenseIndex].items && expenses[expenseIndex].items.length > itemIndex) {
-                    expenses[expenseIndex].items.splice(itemIndex, 1);
+                console.log('Found expense at index:', expenseIndex);
 
-                    // If no items left, remove the entire expense
-                    if (expenses[expenseIndex].items.length === 0) {
-                        expenses.splice(expenseIndex, 1);
-                    }
+                // Remove the expense from the array
+                expenses.splice(expenseIndex, 1);
 
-                    // Update the group document
-                    await groupRef.update({
-                        'currentEvent.expenses': expenses
-                    });
+                // Update the group document with the modified expenses array
+                await groupRef.update({
+                    'currentEvent.expenses': expenses
+                });
 
-                    // Notify all group members
-                    io.to(groupId).emit('expense-updated', {
-                        groupId,
-                        expenses
-                    });
-                }
+                console.log('Updated expenses:', expenses);
+
+                // Notify all group members with the complete updated expenses array
+                io.to(groupId).emit('expenses-updated', {
+                    groupId,
+                    expenses
+                });
             } catch (error) {
                 console.error('Error removing expense item:', error);
             }
         });
 
         // Add a new socket event handler for individual expenses
-        socket.on('add-expense-item', async (data) => {
+        socket.on('add-expense', async (data) => {
             try {
-                const { groupId, individualExpenses, eventTitle } = data;
+                const { groupId, expense, keepEventOpen } = data;
 
                 // Get the group document
                 const groupRef = db.collection('groupChats').doc(groupId);
@@ -856,34 +856,77 @@ const initializeSocket = (server) => {
                     return;
                 }
 
-                // Generate a unique ID for this expense group
-                const expenseGroupId = admin.firestore().collection('temp').doc().id;
-
-                // Add each individual expense with the same expenseGroupId
-                const expenses = individualExpenses.map(expense => ({
+                // Create a single expense with a unique ID
+                const newExpense = {
                     id: admin.firestore().collection('temp').doc().id,
-                    expenseGroupId, // Link related expenses
                     item: expense.item,
                     amount: expense.amount,
                     paidBy: expense.paidBy,
                     addedBy: expense.addedBy,
-                    date: new Date().toISOString(), // Add date field
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
-                }));
+                    splitBetween: expense.splitBetween,
+                    date: expense.date || new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                };
 
-                // Update the group document with the new expenses
+                // Update the group document with the new expense
                 await groupRef.update({
-                    'currentEvent.expenses': admin.firestore.FieldValue.arrayUnion(...expenses)
+                    'currentEvent.expenses': admin.firestore.FieldValue.arrayUnion(newExpense)
                 });
 
-                // Notify all group members using the existing expense-added event
+                // Notify all group members
                 io.to(groupId).emit('expense-added', {
                     groupId,
-                    expenses,
-                    keepEventOpen: true
+                    expenses: [newExpense],
+                    keepEventOpen
                 });
             } catch (error) {
-                console.error('Error adding individual expenses:', error);
+                console.error('Error adding expense:', error);
+            }
+        });
+
+        // Add a new socket event handler to update existing expenses
+        socket.on('update-existing-expenses', async (data) => {
+            try {
+                const { groupId } = data;
+
+                // Get the group document
+                const groupRef = db.collection('groupChats').doc(groupId);
+                const groupDoc = await groupRef.get();
+
+                if (!groupDoc.exists) return;
+
+                const groupData = groupDoc.data();
+
+                if (!groupData.currentEvent || !groupData.currentEvent.expenses) return;
+
+                // Update each expense to include splitBetween if missing
+                const updatedExpenses = groupData.currentEvent.expenses.map(expense => {
+                    if (!expense.splitBetween) {
+                        // Add all users except the payer to splitBetween
+                        const splitBetween = groupData.users
+                            .filter(user => user.username !== expense.paidBy)
+                            .map(user => user.username);
+
+                        return {
+                            ...expense,
+                            splitBetween: splitBetween.length > 0 ? splitBetween : ['a'] // Fallback to 'a' if no other users
+                        };
+                    }
+                    return expense;
+                });
+
+                // Update the group document
+                await groupRef.update({
+                    'currentEvent.expenses': updatedExpenses
+                });
+
+                // Notify all group members
+                io.to(groupId).emit('expenses-updated', {
+                    groupId,
+                    expenses: updatedExpenses
+                });
+            } catch (error) {
+                console.error('Error updating existing expenses:', error);
             }
         });
 

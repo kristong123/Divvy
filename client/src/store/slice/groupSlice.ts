@@ -89,12 +89,24 @@ export const groupSlice = createSlice({
     },
     addExpense: (state, action: PayloadAction<{groupId: string, expense: Expense, keepEventOpen?: boolean}>) => {
       const { groupId, expense, keepEventOpen } = action.payload;
+      
+      console.log("Adding expense to Redux store:", expense);
+      
       if (state.groups[groupId] && state.groups[groupId].currentEvent) {
-        state.groups[groupId].currentEvent.expenses.push(expense);
+        state.groups[groupId].currentEvent!.expenses = [
+          ...state.groups[groupId].currentEvent!.expenses,
+          {
+            ...expense,
+            id: expense.id || `temp-${Date.now()}`,
+            splitBetween: expense.splitBetween || [],
+          }
+        ];
         
         if (keepEventOpen) {
           state.groups[groupId].keepEventOpen = true;
         }
+        
+        console.log("Updated expenses:", state.groups[groupId].currentEvent!.expenses);
       }
     },
     updateGroupUser: (state, action: PayloadAction<{

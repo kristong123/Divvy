@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import ProfileAvatar from '../../shared/ProfileAvatar';
-import AddExpenseWindow from '../../modals/AddExpenseModal';
-import { addExpense, updateEvent } from '../../../services/socketService';
-import { toast } from 'react-hot-toast';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../../store/store';
-import PaymentConfirmationWindow from '../../modals/PaymentConfirmationModal';
-import ExpenseBreakdown from './ExpenseBreakdown';
+import React, { useState, useMemo } from "react";
+import ProfileAvatar from "../../shared/ProfileAvatar";
+import AddExpenseModal from "../../modals/AddExpenseModal";
+import { addExpense, updateEvent } from "../../../services/socketService";
+import { toast } from "react-hot-toast";
+import { useSelector } from "react-redux";
+import { RootState } from "../../../store/store";
+import PaymentConfirmationWindow from "../../modals/PaymentConfirmationModal";
+import ExpenseBreakdown from "./ExpenseBreakdown";
 
 interface EventDetailsProps {
   description: string;
@@ -33,7 +33,7 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   participants,
   currentUser,
   onCancel,
-  groupId
+  groupId,
 }) => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [paymentConfirmation, setPaymentConfirmation] = useState<{
@@ -42,8 +42,8 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
     amount: number;
   }>({
     isOpen: false,
-    recipient: '',
-    amount: 0
+    recipient: "",
+    amount: 0,
   });
   const group = useSelector((state: RootState) => state.groups.groups[groupId]);
 
@@ -56,13 +56,17 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
     if (!group?.currentEvent) return;
 
     // Filter out the expenses that were just paid
-    const updatedExpenses = group.currentEvent.expenses.filter(expense => {
-      if (expense.paidBy === paymentConfirmation.recipient && 
-          expense.splitBetween.includes(currentUser || '')) {
+    const updatedExpenses = group.currentEvent.expenses.filter((expense) => {
+      if (
+        expense.paidBy === paymentConfirmation.recipient &&
+        expense.splitBetween.includes(currentUser || "")
+      ) {
         return false; // Remove this expense
       }
-      if (expense.paidBy === currentUser && 
-          expense.splitBetween.includes(paymentConfirmation.recipient)) {
+      if (
+        expense.paidBy === currentUser &&
+        expense.splitBetween.includes(paymentConfirmation.recipient)
+      ) {
         return false; // Remove this expense
       }
       return true;
@@ -71,17 +75,16 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
     // Update the event with new expenses
     const updatedEvent = {
       ...group.currentEvent,
-      expenses: updatedExpenses
+      expenses: updatedExpenses,
     };
 
     updateEvent(groupId, updatedEvent);
-    setPaymentConfirmation({ isOpen: false, recipient: '', amount: 0 });
-    toast.success('Payment confirmed and expenses cleared!');
+    setPaymentConfirmation({ isOpen: false, recipient: "", amount: 0 });
+    toast.success("Payment confirmed and expenses cleared!");
   };
 
   return (
     <div className="max-w-4xl mx-auto">
-
       {/* Description */}
       <div className="bg-white rounded-xl p-6 shadow-md mb-6">
         <p className="text-gray-600 whitespace-pre-wrap">{description}</p>
@@ -92,7 +95,9 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         {/* Left side - Back button and Total */}
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
-            <span className="text-gray-500">Total cost: ${totalCost.toFixed(2)}</span>
+            <span className="text-gray-500">
+              Total cost: ${totalCost.toFixed(2)}
+            </span>
           </div>
         </div>
 
@@ -113,21 +118,22 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
             </button>
           </div>
           <div className="flex gap-2">
-            {participants.map(participant => (
-              <div key={participant.username} className="flex flex-col items-center">
-                <ProfileAvatar
-                  username={participant.username}
-                  imageUrl={participant.profilePicture}
-                  size="sm"
-                />
-                <span className="text-xs text-gray-600">{participant.username}</span>
+            {participants.map((participant) => (
+              <div
+                key={participant.username}
+                className="flex flex-col items-center"
+              >
+                <ProfileAvatar username={participant.username} size={32} />
+                <span className="text-xs text-gray-600">
+                  {participant.username}
+                </span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <AddExpenseWindow
+      <AddExpenseModal
         isOpen={isExpenseModalOpen}
         onClose={() => setIsExpenseModalOpen(false)}
         onConfirm={(item, amount, splitBetween) => {
@@ -140,12 +146,15 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
           addExpense(groupId, newExpense);
           setIsExpenseModalOpen(false);
         }}
-        participants={participants}
+        participants={group.users}
+        groupId={groupId}
       />
 
       <PaymentConfirmationWindow
         isOpen={paymentConfirmation.isOpen}
-        onClose={() => setPaymentConfirmation({ isOpen: false, recipient: '', amount: 0 })}
+        onClose={() =>
+          setPaymentConfirmation({ isOpen: false, recipient: "", amount: 0 })
+        }
         onConfirm={handlePaymentConfirm}
         recipient={paymentConfirmation.recipient}
         amount={paymentConfirmation.amount}
@@ -158,4 +167,4 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   );
 };
 
-export default EventDetailsView; 
+export default EventDetailsView;

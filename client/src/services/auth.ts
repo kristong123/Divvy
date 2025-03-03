@@ -108,8 +108,6 @@ export const login = async (username: string, password: string, dispatch: AppDis
             password
         });
         
-        console.log('Login response:', response.data); // Debug log
-        
         // Store token and user data with venmoUsername
         localStorage.setItem('token', response.data.token);
         
@@ -123,7 +121,6 @@ export const login = async (username: string, password: string, dispatch: AppDis
         // Also fetch user data directly to ensure we have the latest venmoUsername
         try {
             const userResponse = await axios.get(`${BASE_URL}/api/users/${username}`);
-            console.log('User data response:', userResponse.data);
             
             if (userResponse.data.venmoUsername) {
                 dispatch(setUser({

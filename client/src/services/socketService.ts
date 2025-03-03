@@ -284,42 +284,38 @@ export const initializeSocket = (username: string) => {
     toast.success("Event updated successfully");
   });
 
-  // Update the existing expense-added event handler
-  socket.on(
-    "expense-added",
-    (data: {
-      groupId: string;
-      expenses: Expense[];
-      keepEventOpen?: boolean;
-    }) => {
-      // Update the group with the new expenses
-      if (data.groupId && data.expenses) {
-        // Get the current event from the store
-        const state = store.getState();
-        const group = state.groups.groups[data.groupId];
-
-        if (group?.currentEvent) {
-          // Add all the new expenses to the current event
-          const updatedExpenses = [
-            ...group.currentEvent.expenses,
-            ...data.expenses,
-          ];
-
-          // Update the event in the store
-          store.dispatch(
-            groupActions.setGroupEvent({
-              groupId: data.groupId,
-              event: {
-                ...group.currentEvent,
-                expenses: updatedExpenses,
-              },
-              keepEventOpen: data.keepEventOpen,
-            })
-          );
-        }
+  // Update the expense-added event handler
+  socket.on('expense-added', (data: { groupId: string; expenses: Expense[]; keepEventOpen?: boolean }) => {
+    // Update the group with the new expenses
+    if (data.groupId && data.expenses) {
+      console.log("Received expense-added event:", data);
+      
+      const currentState = store.getState();
+      const group = currentState.groups.groups[data.groupId];
+      
+      if (group && group.currentEvent) {
+        // Get current expenses
+        const currentExpenses = [...(group.currentEvent.expenses || [])];
+        
+        // Add new expenses
+        const updatedExpenses = [...currentExpenses, ...data.expenses];
+        
+        // Update the entire event with the new expenses array
+        store.dispatch(
+          groupActions.setGroupEvent({
+            groupId: data.groupId,
+            event: {
+              ...group.currentEvent,
+              expenses: updatedExpenses
+            },
+            keepEventOpen: data.keepEventOpen
+          })
+        );
+        
+        console.log("Updated Redux store with new expenses:", updatedExpenses);
       }
     }
-  );
+  });
 
   // Inside initializeSocket function, update the venmo_username_updated listener
   socket.on(
@@ -535,6 +531,31 @@ export const initializeSocket = (username: string) => {
     store.dispatch(allNotificationsCleared());
   });
 
+  // Add this event handler to handle updated expenses
+  socket.on('expenses-updated', (data: { groupId: string; expenses: Expense[] }) => {
+    if (data.groupId && data.expenses) {
+      // Get the current group from the store
+      const currentState = store.getState();
+      const group = currentState.groups.groups[data.groupId];
+      
+      if (group && group.currentEvent) {
+        // Update the entire expenses array
+        store.dispatch(
+          groupActions.setGroupEvent({
+            groupId: data.groupId,
+            event: {
+              ...group.currentEvent,
+              expenses: data.expenses
+            },
+            keepEventOpen: true
+          })
+        );
+        
+        console.log("Updated expenses from server:", data.expenses);
+      }
+    }
+  });
+
   return () => {
     socket.off("new-message");
     socket.off("new-group-message");
@@ -654,32 +675,32 @@ export const updateEvent = (
 };
 
 export const addExpense = (
-  groupId: string,
-  expense: {
-    item: string;
-    amount: number;
-    paidBy: string;
-    splitBetween: string[];
+  groupId: string, 
+  expense: { 
+    item: string; 
+    amount: number; 
+    paidBy: string; 
+    splitBetween: string[] 
   }
 ) => {
+  const socket = getSocket();
   const currentUser = store.getState().user.username;
-  const splitAmount = expense.amount / expense.splitBetween.length; // Calculate split amount
-
-  // Create individual expense items for each person in splitBetween
-  const individualExpenses = expense.splitBetween.map((username) => ({
+  
+  // Create a single expense with the full splitBetween array
+  const expenseData = {
     item: expense.item,
-    amount: splitAmount, // Each person's portion
+    amount: expense.amount,
     paidBy: expense.paidBy,
-    addedBy: currentUser, // Track who added the expense
-    forUser: username, // Track who this expense is for
-  }));
-
+    addedBy: currentUser,
+    splitBetween: expense.splitBetween, // Keep the full array
+    date: new Date().toISOString()
+  };
+  
   // Send to server
-  socket.emit("add-expense-item", {
+  socket.emit("add-expense", {
     groupId,
-    individualExpenses,
-    eventTitle:
-      store.getState().groups.groups[groupId]?.currentEvent?.title || "Event",
+    expense: expenseData,
+    keepEventOpen: true
   });
 };
 
@@ -756,4 +777,10 @@ export const markAllNotificationsRead = (username: string) => {
 // Add this function to fetch notifications
 export const fetchUserNotifications = (username: string) => {
   socket.emit("fetch-notifications", username);
+};
+
+// Add this function to update existing expenses
+export const updateExistingExpenses = (groupId: string) => {
+  const socket = getSocket();
+  socket.emit('update-existing-expenses', { groupId });
 };

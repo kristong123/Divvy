@@ -13,7 +13,9 @@ export interface Expense {
   amount: number;
   paidBy: string;
   addedBy: string;
-  date: string;
+  date?: string;
+  splitBetween: string[];
+  createdAt?: any;
 }
 
 export interface Event {

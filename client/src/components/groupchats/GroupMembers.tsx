@@ -1,6 +1,6 @@
-import React from 'react';
-import clsx from 'clsx';
-import ProfileAvatar from '../shared/ProfileAvatar';
+import React from "react";
+import clsx from "clsx";
+import ProfileAvatar from "../shared/ProfileAvatar";
 
 interface Member {
   username: string;
@@ -13,47 +13,47 @@ interface GroupMembersProps {
   adminUsername: string;
 }
 
-const GroupMembers: React.FC<GroupMembersProps> = ({ 
+const GroupMembers: React.FC<GroupMembersProps> = ({
   members = [], // Add default empty array
-  adminUsername = '' // Add default empty string
+  adminUsername = "", // Add default empty string
 }) => {
   const container = clsx(
     // Layout
-    'w-64 h-full',
+    "w-64 h-full",
     // Border
-    'border-l border-divider',
+    "border-l border-divider",
     // Spacing
-    'p-4'
+    "p-4"
   );
 
   const title = clsx(
     // Typography
-    'text-lg font-bold text-black',
+    "text-lg font-bold text-black",
     // Spacing
-    'mb-4'
+    "mb-4"
   );
 
   const memberItem = clsx(
     // Layout
-    'flex items-center',
+    "flex items-center",
     // Spacing
-    'mb-3'
+    "mb-3"
   );
 
   const memberName = clsx(
     // Typography
-    'text-sm text-black',
+    "text-sm text-black",
     // Spacing
-    'ml-2'
+    "ml-2"
   );
 
   const adminBadge = clsx(
     // Layout
-    'ml-2 px-2 py-0.5',
+    "ml-2 px-2 py-0.5",
     // Appearance
-    'bg-[#57E3DC] rounded-full',
+    "bg-[#57E3DC] rounded-full",
     // Typography
-    'text-xs text-white'
+    "text-xs text-white"
   );
 
   // Add error checking
@@ -65,16 +65,12 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
     <div className={container}>
       <h2 className={title}>Members ({members.length})</h2>
       {members.map((member, index) => (
-        <div 
+        <div
           // Use combination of username and index as key for extra uniqueness
-          key={`${member.username}-${index}`} 
+          key={`${member.username}-${index}`}
           className={memberItem}
         >
-          <ProfileAvatar
-            username={member.username}
-            imageUrl={member.profilePicture}
-            size="sm"
-          />
+          <ProfileAvatar username={member.username} size={32} />
           <span className={memberName}>
             {member.username}
             {member.username === adminUsername && (
