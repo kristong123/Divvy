@@ -9,6 +9,7 @@ import {
   sendMessage,
   getSocket,
   updateEvent,
+  sendSocketEvent
 } from "../../services/socketService";
 import {
   addMessage,
@@ -17,7 +18,6 @@ import {
 } from "../../store/slice/chatSlice";
 import {
   SocketMessageEvent,
-  MessageData,
   Message,
 } from "../../types/messageTypes";
 import ProfileAvatar from "../shared/ProfileAvatar";
@@ -25,13 +25,14 @@ import { UserPlus, ArrowLeft } from "lucide-react";
 import GroupMembers from "../groupchats/GroupMembers";
 import InviteModal from "../modals/GroupInviteModal";
 import { createSelector } from "@reduxjs/toolkit";
-import { groupActions } from "../../store/slice/groupSlice";
+import * as groupActions from "../../store/slice/groupSlice";
 import { Event } from "../../types/groupTypes";
 import GroupInvite from "../groupchats/GroupInvite";
 import {
   addGroupInvite,
   removeGroupInvite,
-} from "../../store/slice/inviteSlice";
+  setInviteStatus,
+} from "../../store/slice/groupSlice";
 import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
@@ -95,9 +96,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const dispatch = useDispatch();
 
   const currentUser = useSelector((state: RootState) => state.user.username);
-  const userProfile = useSelector(
-    (state: RootState) => state.user.profilePicture
-  );
 
   const chatId = useMemo(
     () =>
@@ -276,17 +274,10 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       // Layout
       "flex flex-col",
       // Spacing
-      "w-fit min-w-0",
+      "w-fit ml-1",
       // Alignment
-      isOwnMessage ? "items-end" : "items-start"
+      isOwnMessage ? "items-end" : "items-start",
     );
-
-  const senderName = clsx(
-    // Typography
-    "text-xs text-gray-600",
-    // Spacing
-    "mb-1 ml-2"
-  );
 
   const messageStyle = (isOwnMessage: boolean) =>
     clsx(
@@ -317,16 +308,13 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     "transition-colors duration-200"
   );
 
-  const selectGroupInvites = useMemo(
-    () =>
-      createSelector(
-        [
-          (state: RootState) => state.invites.groupInvites,
-          (state: RootState) => state.user.username,
-        ],
-        (groupInvites, username) => groupInvites[username || ""] || []
-      ),
-    []
+  // Update the selector to safely handle missing data
+  const selectGroupInvites = createSelector(
+    [
+      (state: RootState) => state.groups.groupInvites || {},
+      (state: RootState) => state.user.username,
+    ],
+    (groupInvites, username) => (username && groupInvites[username]) || []
   );
 
   const groupInvites = useSelector(selectGroupInvites);
@@ -473,19 +461,16 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const handleSendMessage = async () => {
     if (!inputText.trim() || !currentUser) return;
 
-    const messageData: MessageData = {
-      chatId: chat.isGroup ? `group_${chat.id}` : chatId,
-      senderId: currentUser,
-      receiverId: chat.isGroup ? "group" : chat.name,
-      content: inputText,
-      timestamp: new Date().toISOString(),
-      status: "sent",
-      senderName: currentUser,
-      senderProfile: userProfile,
-    };
-
     try {
-      await sendMessage(messageData);
+      await sendMessage({
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        chatId: chat.isGroup ? `group_${chat.id}` : chatId,
+        senderId: currentUser,
+        content: inputText,
+        timestamp: new Date().toISOString(),
+        status: "sent",
+      });
+      
       setInputText("");
     } catch (_error) {
       console.error("Failed to send message:", _error);
@@ -501,12 +486,20 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   };
 
   const handleAcceptInvite = (inviteId: string) => {
-    dispatch(
-      removeGroupInvite({
-        username: chat.name,
-        inviteId,
-      })
-    );
+    if (inviteId && chat.name) {
+      dispatch(setInviteStatus({ inviteId, status: 'accepted' }));
+      dispatch(removeGroupInvite({ username: chat.name, inviteId }));
+      
+      // Extract groupId from the inviteId or from the invite object
+      const invite = groupInvites.find(inv => inv.id === inviteId);
+      if (invite) {
+        sendSocketEvent({
+          type: 'group-join',
+          groupId: invite.groupId,
+          username: currentUser
+        });
+      }
+    }
   };
 
   // Update the event cancellation handler
@@ -546,6 +539,26 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }
   }, [chat.id, chat.notificationType, groupData]);
 
+  useEffect(() => {
+    if (chat.id && chat.isGroup) {
+      console.log(`Joining group room: ${chat.id}`);
+      sendSocketEvent({
+        type: 'join-group',
+        groupId: chat.id,
+        username: currentUser
+      });
+      
+      return () => {
+        console.log(`Leaving group room: ${chat.id}`);
+        sendSocketEvent({
+          type: 'leave-group',
+          groupId: chat.id,
+          username: currentUser
+        });
+      };
+    }
+  }, [chat.id, chat.isGroup, currentUser]);
+
   return (
     <div className="flex w-full h-full">
       {showEventDetails && groupData?.currentEvent ? (
@@ -584,7 +597,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
         <div className={chatContainer}>
           <div className={chatHeader}>
             <div className="flex items-center gap-4 mr-auto">
-              <ProfileAvatar username={chat.name} size={32} />
+              <ProfileAvatar username={chat.name} size={74} />
               <span className="text-black text-2xl font-bold">{chat.name}</span>
             </div>
 
@@ -641,44 +654,28 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                     groupId={invite.groupId}
                     groupName={invite.groupName}
                     invitedBy={invite.invitedBy}
-                    messageId={invite.id}
-                    onAccept={() => handleAcceptInvite(invite.id)}
+                    onAccept={handleAcceptInvite}
                   />
                 ))}
               </div>
             )}
             {messages.map((message, index) => {
               const isOwnMessage = message.senderId === currentUser;
-
-              // Handle group invite messages
-              if (message.type === "group-invite") {
-                return (
-                  <GroupInvite
-                    key={`${message.id}-${index}`}
-                    id={`${message.id}-${index}`}
-                    groupId={message.groupId || ""}
-                    groupName={message.groupName || ""}
-                    invitedBy={message.invitedBy || ""}
-                    messageId={message.id || ""}
-                    onAccept={() => handleAcceptInvite(message.id || "")}
-                  />
-                );
-              }
-
+              
+              // For displaying sender name (which is no longer in the Message type)
+              const senderName = isOwnMessage ? "You" : message.senderId;
+              
               return (
-                <div
-                  key={`${message.id}-${index}`}
-                  className={messageContainer(isOwnMessage)}
-                >
+                <div key={message.id || index} className={messageContainer(isOwnMessage)}>
                   {!isOwnMessage && message.type !== "system" && (
-                    <ProfileAvatar username={message.senderName} size={40} />
+                    <ProfileAvatar username={message.senderId} size={40} />
                   )}
                   <div className={messageContent(isOwnMessage)}>
                     {!isOwnMessage && message.type !== "system" && (
-                      <span className={senderName}>{message.senderName}</span>
+                      <span className='text-gray-500 text-sm ml-2 mb-1'>{senderName}</span>
                     )}
                     {message.type === "system" ? (
-                      <span className="text-gray-500 text-sm italic text-center">
+                      <span className="text-gray-900 text-sm italic text-center">
                         {message.content}
                       </span>
                     ) : (

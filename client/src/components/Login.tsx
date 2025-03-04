@@ -3,7 +3,7 @@ import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import axios from 'axios';
 import clsx from 'clsx';
 import { useAppDispatch } from '../store/hooks'; // Type-safe dispatch
-import { setUser } from '../store/slice/userSlice';
+import { setUser, forceProfileRefresh } from '../store/slice/userSlice';
 import { useNavigate } from 'react-router-dom'; // Add this
 import { BASE_URL } from '../config/api';
 import { toast } from 'react-hot-toast';
@@ -38,19 +38,26 @@ const Login: React.FC = () => {
         password
       });
       
+      // Add a timestamp to the profile picture URL to prevent caching
+      const profilePicture = response.data.profilePicture 
+        ? `${response.data.profilePicture}?t=${Date.now()}` 
+        : null;
       
-      // Get user data to ensure we have venmoUsername
-      const userResponse = await axios.get(`${BASE_URL}/api/users/${username}`);
-      
+      // Store the user data in Redux
       dispatch(setUser({ 
         username: response.data.username,
-        profilePicture: response.data.profilePicture || null,
-        venmoUsername: userResponse.data.venmoUsername || response.data.venmoUsername || null
+        profilePicture: profilePicture,
+        venmoUsername: response.data.venmoUsername || null
       }));
+      
+      // Also dispatch the force refresh action to ensure the image is updated
+      if (profilePicture) {
+        dispatch(forceProfileRefresh());
+      }
       
       navigate('/');
     } catch (_error) {
-      console.error('Login error:', _error); // Debug log
+      console.error('Login error:', _error);
       toast.error('Login failed');
     }
   };

@@ -13,7 +13,8 @@ const {
     joinGroup,
     setGroupEvent,
     checkGroupStatus,
-    getUserGroups
+    getUserGroups,
+    getGroupInvites
 } = require("../controllers/groups");
 
 const router = express.Router();
@@ -43,5 +44,8 @@ router.put('/:groupId/event', setGroupEvent);
 
 // Add this route
 router.get("/:groupId/status", checkGroupStatus);
+
+// Add this route to fetch group invites
+router.get('/invites/:username', getGroupInvites);
 
 module.exports = router;

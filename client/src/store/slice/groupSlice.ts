@@ -1,97 +1,152 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { MessageData } from '../../types/messageTypes';
-import { Group, GroupState, Event, Expense } from '../../types/groupTypes';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { Message } from "../../types/messageTypes";
+import { Group, Event, Expense } from "../../types/groupTypes";
 
-const initialState: GroupState = {
+interface GroupInvite {
+  id: string;
+  groupId: string;
+  groupName: string;
+  invitedBy: string;
+}
+
+export type InviteStatus =
+  | "valid"
+  | "invalid"
+  | "already_member"
+  | "accepted"
+  | "declined"
+  | "loading";
+
+interface LocalGroupState {
+  groups: { [key: string]: Group };
+  messages: { [key: string]: Message[] };
+  loading: boolean;
+  error: string | null;
+  groupInvites: { [username: string]: GroupInvite[] };
+  inviteStatus: { [inviteId: string]: InviteStatus };
+}
+
+const initialState: LocalGroupState = {
   groups: {},
   messages: {},
   loading: false,
-  error: null
+  error: null,
+  groupInvites: {},
+  inviteStatus: {},
 };
 
 export const groupSlice = createSlice({
-  name: 'groups',
+  name: "groups",
   initialState,
   reducers: {
     addGroup: (state, action: PayloadAction<Group>) => {
       const newGroup = {
         ...action.payload,
         messages: state.groups[action.payload.id]?.messages || [],
-        currentEvent: action.payload.currentEvent || state.groups[action.payload.id]?.currentEvent || null
+        currentEvent:
+          action.payload.currentEvent ||
+          state.groups[action.payload.id]?.currentEvent ||
+          null,
       };
-      
+
       state.groups[action.payload.id] = newGroup;
     },
     setGroups: (state, action: PayloadAction<Group[]>) => {
       const newGroups: { [key: string]: Group } = {};
-      action.payload.forEach(group => {
+      action.payload.forEach((group) => {
         newGroups[group.id] = {
           ...group,
-          currentEvent: group.currentEvent || null
+          currentEvent: group.currentEvent || null,
         };
       });
       state.groups = newGroups;
     },
-    setGroupMessages: (state, action: PayloadAction<{ groupId: string; messages: MessageData[] }>) => {
+    setGroupMessages: (
+      state,
+      action: PayloadAction<{ groupId: string; messages: Message[] }>
+    ) => {
       state.messages[action.payload.groupId] = action.payload.messages;
     },
-    addGroupMessage: (state, action: PayloadAction<{ groupId: string; message: MessageData }>) => {
+    addGroupMessage: (
+      state,
+      action: PayloadAction<{ groupId: string; message: Message }>
+    ) => {
       if (!state.messages[action.payload.groupId]) {
         state.messages[action.payload.groupId] = [];
       }
       state.messages[action.payload.groupId].push(action.payload.message);
     },
-    updateGroup: (state, action: PayloadAction<Partial<Group> & { id: string }>) => {
+    updateGroup: (
+      state,
+      action: PayloadAction<Partial<Group> & { id: string }>
+    ) => {
       if (state.groups[action.payload.id]) {
         state.groups[action.payload.id] = {
           ...state.groups[action.payload.id],
-          ...action.payload
+          ...action.payload,
         };
       }
     },
-    addGroupMember: (state, action: PayloadAction<{
-      groupId: string;
-      member: {
-        username: string;
-        profilePicture: string | null;
-        isAdmin: boolean;
-      };
-    }>) => {
+    addGroupMember: (
+      state,
+      action: PayloadAction<{
+        groupId: string;
+        member: {
+          username: string;
+          profilePicture: string | null;
+          isAdmin: boolean;
+        };
+      }>
+    ) => {
       const { groupId, member } = action.payload;
       const group = state.groups[groupId];
       if (group) {
-        if (!group.users.some(user => user.username === member.username)) {
+        if (!group.users.some((user) => user.username === member.username)) {
           group.users.push(member);
         }
       }
     },
-    updateGroupUsers: (state, action: PayloadAction<{
-      groupId: string;
-      users: Array<{
-        username: string;
-        profilePicture: string | null;
-        isAdmin: boolean;
-      }>;
-    }>) => {
+    updateGroupUsers: (
+      state,
+      action: PayloadAction<{
+        groupId: string;
+        users: Array<{
+          username: string;
+          profilePicture: string | null;
+          isAdmin: boolean;
+        }>;
+      }>
+    ) => {
       const { groupId, users } = action.payload;
       if (state.groups[groupId]) {
         state.groups[groupId].users = users;
       }
     },
-    setGroupEvent: (state, action: PayloadAction<{
-      groupId: string;
-      event: Event | null | undefined;
-      keepEventOpen?: boolean;
-    }>) => {
+    setGroupEvent: (
+      state,
+      action: PayloadAction<{
+        groupId: string;
+        event: Event | null | undefined;
+        keepEventOpen?: boolean;
+      }>
+    ) => {
       if (state.groups[action.payload.groupId]) {
-        state.groups[action.payload.groupId].currentEvent = action.payload.event;
+        state.groups[action.payload.groupId].currentEvent =
+          action.payload.event;
       }
     },
-    addExpense: (state, action: PayloadAction<{groupId: string, expense: Expense, keepEventOpen?: boolean}>) => {
+    addExpense: (
+      state,
+      action: PayloadAction<{
+        groupId: string;
+        expense: Expense;
+        keepEventOpen?: boolean;
+      }>
+    ) => {
       const { groupId, expense, keepEventOpen } = action.payload;
-      
+
       console.log("Adding expense to Redux store:", expense);
-      
+
       if (state.groups[groupId] && state.groups[groupId].currentEvent) {
         state.groups[groupId].currentEvent!.expenses = [
           ...state.groups[groupId].currentEvent!.expenses,
@@ -99,34 +154,115 @@ export const groupSlice = createSlice({
             ...expense,
             id: expense.id || `temp-${Date.now()}`,
             splitBetween: expense.splitBetween || [],
-          }
+          },
         ];
-        
+
         if (keepEventOpen) {
           state.groups[groupId].keepEventOpen = true;
         }
-        
-        console.log("Updated expenses:", state.groups[groupId].currentEvent!.expenses);
+
+        console.log(
+          "Updated expenses:",
+          state.groups[groupId].currentEvent!.expenses
+        );
       }
     },
-    updateGroupUser: (state, action: PayloadAction<{
-      groupId: string;
-      user: {
-        username: string;
-        profilePicture: string | null;
-        isAdmin: boolean;
-        venmoUsername?: string;
-      };
-    }>) => {
+    updateGroupUser: (
+      state,
+      action: PayloadAction<{
+        groupId: string;
+        user: {
+          username: string;
+          profilePicture: string | null;
+          isAdmin: boolean;
+          venmoUsername?: string;
+        };
+      }>
+    ) => {
       const { groupId, user } = action.payload;
       if (state.groups[groupId]) {
-        state.groups[groupId].users = state.groups[groupId].users.map(u => 
+        state.groups[groupId].users = state.groups[groupId].users.map((u) =>
           u.username === user.username ? { ...u, ...user } : u
         );
       }
-    }
-  }
+    },
+    addGroupInvite: (
+      state,
+      action: PayloadAction<{ username: string; invite: GroupInvite }>
+    ) => {
+      const { username, invite } = action.payload;
+      if (!state.groupInvites[username]) {
+        state.groupInvites[username] = [];
+      }
+      state.groupInvites[username].push(invite);
+    },
+    removeGroupInvite: (
+      state,
+      action: PayloadAction<{ username: string; inviteId: string }>
+    ) => {
+      const { username, inviteId } = action.payload;
+      if (state.groupInvites[username]) {
+        state.groupInvites[username] = state.groupInvites[username].filter(
+          (invite) => invite.id !== inviteId
+        );
+      }
+    },
+    setInviteStatus: (
+      state,
+      action: PayloadAction<{ inviteId: string; status: InviteStatus }>
+    ) => {
+      const { inviteId, status } = action.payload;
+      state.inviteStatus[inviteId] = status;
+    },
+    batchSetInviteStatuses: (
+      state,
+      action: PayloadAction<{ [inviteId: string]: InviteStatus }>
+    ) => {
+      state.inviteStatus = { ...state.inviteStatus, ...action.payload };
+    },
+    removeInviteStatus: (state, action: PayloadAction<string>) => {
+      delete state.inviteStatus[action.payload];
+    },
+    markGroupInvitesInvalid: (state, action: PayloadAction<string>) => {
+      const groupId = action.payload;
+      Object.keys(state.inviteStatus).forEach((inviteId) => {
+        if (inviteId.startsWith(groupId)) {
+          state.inviteStatus[inviteId] = "invalid";
+        }
+      });
+    },
+    markUserInvitesAsMember: (
+      state,
+      action: PayloadAction<{ groupId: string; username: string }>
+    ) => {
+      const { groupId } = action.payload;
+      Object.keys(state.inviteStatus).forEach((inviteId) => {
+        if (inviteId.startsWith(groupId)) {
+          state.inviteStatus[inviteId] = "already_member";
+        }
+      });
+    },
+  },
 });
 
+export const {
+  addGroup,
+  setGroups,
+  setGroupMessages,
+  addGroupMessage,
+  updateGroup,
+  addGroupMember,
+  updateGroupUsers,
+  setGroupEvent,
+  addExpense,
+  updateGroupUser,
+  addGroupInvite,
+  removeGroupInvite,
+  setInviteStatus,
+  batchSetInviteStatuses,
+  removeInviteStatus,
+  markGroupInvitesInvalid,
+  markUserInvitesAsMember,
+} = groupSlice.actions;
 export const groupActions = groupSlice.actions;
-export default groupSlice.reducer; 
+export default groupSlice.reducer;

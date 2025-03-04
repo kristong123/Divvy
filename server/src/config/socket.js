@@ -25,48 +25,45 @@ const initializeSocket = (server) => {
 
         socket.on('private-message', async (data) => {
             try {
-                // Get sender's profile
-                const senderDoc = await db.collection('users').doc(data.message.senderId).get();
-                const senderData = senderDoc.data();
+                const { chatId, message } = data;
 
-                // Save message with sender info
-                const messageRef = await db.collection('friends')
-                    .doc(data.chatId)
+                // Ensure the message has an ID
+                if (!message.id) {
+                    message.id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                }
+
+                // Store the message in the messages subcollection
+                await db.collection('friends')
+                    .doc(chatId)
                     .collection('messages')
-                    .add({
-                        content: data.message.content,
-                        senderId: data.message.senderId,
-                        senderName: data.message.senderId, // Username as name
-                        senderProfile: senderData?.profilePicture || null,
-                        receiverId: data.message.receiverId,
-                        timestamp: new Date(),
-                        status: 'sent'
+                    .doc(message.id)
+                    .set({
+                        ...message,
+                        timestamp: new Date()
                     });
 
-                const message = {
-                    id: messageRef.id,
-                    ...data.message,
-                    senderName: data.message.senderId,
-                    senderProfile: senderData?.profilePicture || null,
-                    timestamp: new Date().toISOString()
-                };
+                // Get the usernames from the chatId
+                const [user1, user2] = chatId.split('_');
 
-                // Emit to both sender and recipient rooms
-                io.to(data.message.receiverId).emit('new-message', {
-                    chatId: data.chatId,
-                    message
+                // Emit to both users with the simplified message structure
+                io.to(user1).emit('new-message', {
+                    chatId,
+                    message: {
+                        ...message,
+                        timestamp: new Date().toISOString()
+                    }
+                });
+                io.to(user2).emit('new-message', {
+                    chatId,
+                    message: {
+                        ...message,
+                        timestamp: new Date().toISOString()
+                    }
                 });
 
-                // Also emit to sender if they're not the recipient
-                if (data.message.senderId !== data.message.receiverId) {
-                    io.to(data.message.senderId).emit('new-message', {
-                        chatId: data.chatId,
-                        message
-                    });
-                }
             } catch (error) {
-                console.error('Error handling private message:', error);
-                socket.emit('message-error', { error: 'Failed to save message' });
+                console.error('Error sending private message:', error);
+                socket.emit('message-error', { error: 'Failed to send message' });
             }
         });
 
@@ -79,58 +76,53 @@ const initializeSocket = (server) => {
         socket.on('friend-request-sent', async (data) => {
             try {
                 const { sender, recipient } = data;
+                console.log(`Friend request attempt from ${sender} to ${recipient}`);
 
-                // Prevent sending friend request to yourself
-                if (sender === recipient) {
-                    socket.emit('error', { message: 'Cannot send friend request to yourself' });
+                // Check if users exist
+                const senderDoc = await db.collection('users').doc(sender).get();
+                const recipientDoc = await db.collection('users').doc(recipient).get();
+
+                if (!senderDoc.exists || !recipientDoc.exists) {
+                    socket.emit('error', { message: 'User not found' });
                     return;
                 }
 
                 // Check if they're already friends
                 const friendshipId = [sender, recipient].sort().join('_');
-                const existingFriendship = await db.collection('friends').doc(friendshipId).get();
-                if (existingFriendship.exists) {
-                    socket.emit('error', { message: 'You are already friends with this user' });
+                const friendshipDoc = await db.collection('friends').doc(friendshipId).get();
+
+                if (friendshipDoc.exists) {
+                    socket.emit('error', { message: 'Already friends' });
                     return;
                 }
 
-                // Check for any existing requests in either direction
-                const existingRequests = await db.collection('friendRequests')
-                    .where('status', '==', 'pending')
-                    .where('sender', 'in', [sender, recipient])
+                // IMPORTANT: Delete ANY existing requests between these users, regardless of status
+                const existingRequestsSnapshot = await db.collection('friendRequests')
+                    .where('sender', '==', sender)
+                    .where('recipient', '==', recipient)
                     .get();
 
-                const hasExistingRequest = existingRequests.docs.some(doc => {
-                    const request = doc.data();
-                    return (request.sender === sender && request.recipient === recipient) ||
-                        (request.sender === recipient && request.recipient === sender);
-                });
-
-                if (hasExistingRequest) {
-                    socket.emit('error', { message: 'A friend request already exists between you and this user' });
-                    return;
+                // Delete all existing requests in a batch
+                if (!existingRequestsSnapshot.empty) {
+                    console.log(`Deleting ${existingRequestsSnapshot.size} existing requests from ${sender} to ${recipient}`);
+                    const batch = db.batch();
+                    existingRequestsSnapshot.docs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    await batch.commit();
                 }
 
-                // Get both users' profile data
-                const [senderDoc, recipientDoc] = await Promise.all([
-                    db.collection('users').doc(sender).get(),
-                    db.collection('users').doc(recipient).get()
-                ]);
-                const senderData = senderDoc.data();
-                const recipientData = recipientDoc.data();
-
-                if (!recipientDoc.exists) {
-                    socket.emit('error', { message: 'User not found' });
-                    return;
-                }
-
-                // Create new request with just the essential data
+                // Create a new friend request
                 const requestRef = await db.collection('friendRequests').add({
                     sender,
                     recipient,
                     status: 'pending',
-                    createdAt: new Date()
+                    timestamp: new Date()
                 });
+
+                // Get user profiles for the notification
+                const senderData = senderDoc.data();
+                const recipientData = recipientDoc.data();
 
                 // Send different profile pictures to each user
                 const recipientEventData = {
@@ -152,6 +144,8 @@ const initializeSocket = (server) => {
                 // Emit to recipient and sender with appropriate profile pictures
                 io.to(recipient).emit('new-friend-request', recipientEventData);
                 io.to(sender).emit('friend-request-sent-success', senderEventData);
+
+                console.log(`Friend request sent from ${sender} to ${recipient}`);
             } catch (error) {
                 console.error('Detailed error in friend request:', error);
                 socket.emit('error', { message: 'Failed to send friend request' });
@@ -161,6 +155,7 @@ const initializeSocket = (server) => {
         socket.on('friend-request-accepted', async (data) => {
             try {
                 const { sender, recipient } = data;
+                console.log(`Friend request accepted: ${sender} -> ${recipient}`);
 
                 // Get user profiles
                 const senderDoc = await db.collection('users').doc(sender).get();
@@ -180,18 +175,14 @@ const initializeSocket = (server) => {
                     createdAt: new Date()
                 });
 
-                // Update the friend request status
+                // Delete the friend request (instead of updating status)
                 const requestSnapshot = await db.collection('friendRequests')
                     .where('sender', '==', sender)
                     .where('recipient', '==', recipient)
-                    .where('status', '==', 'pending')
                     .get();
 
                 if (!requestSnapshot.empty) {
-                    await requestSnapshot.docs[0].ref.update({
-                        status: 'accepted',
-                        updatedAt: new Date()
-                    });
+                    await requestSnapshot.docs[0].ref.delete();
                 }
 
                 // Notify both users about the accepted request
@@ -208,6 +199,11 @@ const initializeSocket = (server) => {
 
                 // Notify the recipient
                 io.to(recipient).emit('friend-request-accepted', notificationData);
+
+                // Add this line to explicitly notify the sender that their request was accepted
+                io.to(sender).emit('sent-request-accepted', { sender, recipient });
+
+                console.log(`Emitted friend-request-accepted event to ${sender} and ${recipient}`);
             } catch (error) {
                 console.error('Error handling friend acceptance:', error);
                 socket.emit('error', { message: 'Failed to accept friend request' });
@@ -217,26 +213,38 @@ const initializeSocket = (server) => {
         socket.on('friend-request-declined', async (data) => {
             try {
                 const { sender, recipient } = data;
+                console.log(`Friend request declined: ${sender} -> ${recipient}`);
 
-                // Delete the friend request document
-                const requestSnapshot = await db.collection('friendRequests')
+                // Get the request ID from the friendRequests collection
+                const requestsSnapshot = await db.collection('friendRequests')
                     .where('sender', '==', sender)
                     .where('recipient', '==', recipient)
-                    .where('status', '==', 'pending')
                     .get();
 
-                if (!requestSnapshot.empty) {
-                    await requestSnapshot.docs[0].ref.delete();
+                if (requestsSnapshot.empty) {
+                    console.log('No matching friend request found');
+                    return;
                 }
 
-                // Notify sender their request was declined
-                io.to(sender).emit('request-declined', {
-                    sender,
-                    recipient,
-                    timestamp: new Date().toISOString()
+                // Delete the request from the database
+                const batch = db.batch();
+                requestsSnapshot.docs.forEach(doc => {
+                    batch.delete(doc.ref);
                 });
+                await batch.commit();
+
+                console.log(`Deleted ${requestsSnapshot.docs.length} friend request documents`);
+
+                // Notify both users about the removed request
+                io.to(recipient).emit('friend-request-removed', { sender, recipient });
+                io.to(sender).emit('friend-request-removed', { sender, recipient });
+
+                // Add this line to explicitly notify the sender that their request was declined
+                io.to(sender).emit('sent-request-declined', { sender, recipient });
+
+                console.log(`Emitted friend-request-removed event to ${recipient} and ${sender}`);
             } catch (error) {
-                console.error('Error handling friend decline:', error);
+                console.error('Error declining friend request:', error);
                 socket.emit('error', { message: 'Failed to decline friend request' });
             }
         });
@@ -329,54 +337,55 @@ const initializeSocket = (server) => {
                 // Get group details
                 const groupRef = db.collection('groupChats').doc(groupId);
                 const groupDoc = await groupRef.get();
-
-                if (!groupDoc.exists) {
-                    console.error('Group not found:', groupId);
-                    socket.emit('error', { message: 'Group not found' });
-                    return;
-                }
-
                 const groupData = groupDoc.data();
 
-                // Create chat ID for the direct message
-                const chatId = [username, invitedBy].sort().join('_');
+                // Create a chat ID for the direct message conversation
+                const chatId = [invitedBy, username].sort().join('_');
 
-                // Add invite as a message in the friends collection's messages subcollection
-                const messageRef = await db.collection('friends')
-                    .doc(chatId)
-                    .collection('messages')
-                    .add({
-                        type: 'group-invite',
-                        groupId,
-                        groupName: groupData.name,
-                        senderId: invitedBy,
-                        receiverId: username,
-                        timestamp: new Date(),
-                        status: 'sent',
-                        content: `Invited you to join ${groupData.name}`
-                    });
+                // Generate a unique ID for the invite
+                const inviteId = `invite_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-                const inviteData = {
-                    id: messageRef.id,
-                    type: 'group-invite',
-                    groupId,
-                    groupName: groupData.name,
+                // Create the invite message with the simplified structure
+                const inviteMessage = {
+                    id: inviteId,
+                    chatId: chatId,
                     senderId: invitedBy,
-                    receiverId: username,
-                    timestamp: new Date().toISOString(),
+                    content: `${invitedBy} invited you to join ${groupData.name}`,
+                    timestamp: new Date(),
                     status: 'sent',
-                    content: `Invited you to join ${groupData.name}`
+                    type: 'group-invite',
+                    groupId: groupId
                 };
 
-                // Emit as a regular message
-                io.to(username).emit('new-message', {
-                    chatId,
-                    message: inviteData
+                // Save the invite to the messages subcollection
+                await db.collection('friends')
+                    .doc(chatId)
+                    .collection('messages')
+                    .doc(inviteId)
+                    .set(inviteMessage);
+
+                // Also save additional metadata to a dedicated collection for easier querying
+                await db.collection('groupInvites').add({
+                    id: inviteId,
+                    groupId,
+                    username,
+                    invitedBy,
+                    groupName: groupData.name,
+                    timestamp: new Date(),
+                    status: 'pending'
+                });
+
+                // Emit the invite to the recipient with additional metadata
+                io.to(username).emit('group-invite', {
+                    id: inviteId,
+                    groupId,
+                    groupName: groupData.name,
+                    invitedBy,
+                    timestamp: new Date().toISOString()
                 });
 
             } catch (error) {
                 console.error('Error sending group invite:', error);
-                socket.emit('error', { message: 'Failed to send invite' });
             }
         });
 
@@ -476,7 +485,7 @@ const initializeSocket = (server) => {
 
         socket.on('expense-added', async (data) => {
             try {
-                const { groupId, expense, eventTitle } = data;
+                const { groupId, expense, keepEventOpen } = data;
 
                 // Get the group
                 const groupRef = db.collection('groupChats').doc(groupId);
@@ -488,80 +497,31 @@ const initializeSocket = (server) => {
 
                 const groupData = groupDoc.data();
 
-                // Get sender's profile data
-                const senderDoc = await db.collection('users').doc(expense.paidBy).get();
-                const senderData = senderDoc.data();
+                // Create a new expense object with an ID
+                const newExpense = {
+                    id: Date.now().toString(),
+                    item: expense.item,
+                    amount: expense.amount,
+                    paidBy: expense.paidBy,
+                    addedBy: expense.paidBy,
+                    splitBetween: expense.splitBetween,
+                    date: expense.date || new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                };
 
-                // Add the expense to the current event
-                if (groupData.currentEvent) {
-                    const newExpense = {
-                        ...expense,
-                        id: Date.now().toString(),
-                        createdAt: new Date().toISOString()
-                    };
+                // Update the group document with the new expense
+                await groupRef.update({
+                    'currentEvent.expenses': admin.firestore.FieldValue.arrayUnion(newExpense)
+                });
 
-                    // Important: Make a copy of the current event to avoid reference issues
-                    const updatedEvent = {
-                        ...groupData.currentEvent,
-                        expenses: [...(groupData.currentEvent.expenses || []), newExpense]
-                    };
-
-                    // Update with the entire event object to maintain all properties
-                    await groupRef.update({
-                        currentEvent: updatedEvent
-                    });
-
-                    // Notify all users who are part of the split
-                    for (const username of expense.splitBetween) {
-                        // Don't notify the person who added the expense
-                        if (username !== expense.paidBy) {
-                            // Create notification
-                            const notification = {
-                                id: `expense_${newExpense.id}_${username}`,
-                                type: 'expense_added',
-                                title: `New expense in ${groupData.name}`,
-                                message: `${expense.paidBy} added a charge for ${expense.item} ($${expense.amount.toFixed(2)}) to you`,
-                                data: {
-                                    groupId,
-                                    eventId: groupData.currentEvent.id,
-                                    expenseId: newExpense.id,
-                                    sender: expense.paidBy,
-                                    senderProfile: senderData?.profilePicture || null,
-                                    item: expense.item,
-                                    amount: expense.amount,
-                                    eventTitle: eventTitle || groupData.currentEvent.title
-                                },
-                                timestamp: new Date().toISOString(),
-                                read: false
-                            };
-
-                            // Store notification in Firestore
-                            try {
-                                await db.collection('users').doc(username)
-                                    .collection('notifications')
-                                    .doc(notification.id)
-                                    .set(notification);
-                            } catch (err) {
-                                console.error('Error storing notification:', err);
-                            }
-
-                            // Send notification to the user
-                            io.to(username).emit('notification', notification);
-                        }
-                    }
-
-                    // Notify all group members about the expense update
-                    groupData.users.forEach(username => {
-                        io.to(username).emit('expense-added', {
-                            groupId,
-                            expense: newExpense,
-                            keepEventOpen: true // Add this flag to indicate event view should stay open
-                        });
-                    });
-                }
+                // Notify all group members - broadcast to the group room
+                io.to(groupId).emit('expense-added', {
+                    groupId,
+                    expenses: [newExpense],
+                    keepEventOpen
+                });
             } catch (error) {
                 console.error('Error adding expense:', error);
-                socket.emit('expense-error', { error: 'Failed to add expense' });
             }
         });
 
@@ -841,6 +801,7 @@ const initializeSocket = (server) => {
         socket.on('add-expense', async (data) => {
             try {
                 const { groupId, expense, keepEventOpen } = data;
+                console.log(`Adding expense to group ${groupId}:`, expense);
 
                 // Get the group document
                 const groupRef = db.collection('groupChats').doc(groupId);
@@ -873,7 +834,8 @@ const initializeSocket = (server) => {
                     'currentEvent.expenses': admin.firestore.FieldValue.arrayUnion(newExpense)
                 });
 
-                // Notify all group members
+                // Explicitly broadcast to the group room
+                console.log(`Broadcasting expense-added to group room: ${groupId}`);
                 io.to(groupId).emit('expense-added', {
                     groupId,
                     expenses: [newExpense],
@@ -930,8 +892,37 @@ const initializeSocket = (server) => {
             }
         });
 
+        socket.on('join-group', (data) => {
+            const { groupId, username } = data;
+            if (groupId && username) {
+                console.log(`${username} joined group room: ${groupId}`);
+                socket.join(groupId);
+            }
+        });
+
+        socket.on('leave-group', (data) => {
+            const { groupId, username } = data;
+            if (groupId && username) {
+                console.log(`${username} left group room: ${groupId}`);
+                socket.leave(groupId);
+            }
+        });
+
         socket.on('disconnect', () => {
             console.log('Client disconnected:', socket.id);
+        });
+
+        socket.on('profile-picture-updated', async (data) => {
+            try {
+                const { username, imageUrl } = data;
+
+                // Broadcast to all connected clients
+                io.emit('profile-picture-updated', { username, imageUrl });
+
+                console.log(`Profile picture updated for ${username}`);
+            } catch (error) {
+                console.error('Error handling profile picture update:', error);
+            }
         });
     });
 

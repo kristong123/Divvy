@@ -7,6 +7,7 @@ import axios from 'axios';
 import { BASE_URL } from '../../config/api';
 import { toast } from 'react-hot-toast';
 import ProfileAvatar from '../shared/ProfileAvatar';
+import { updateProfilePictureSocket } from '../../services/socketService';
 
 const ProfilePicture: React.FC = () => {
   const dispatch = useDispatch();
@@ -56,7 +57,21 @@ const ProfilePicture: React.FC = () => {
         }
       );
       
-      dispatch(updateProfilePicture(response.data.url));
+      dispatch(updateProfilePicture({ username: username || '', imageUrl: response.data.url }));
+      
+      updateProfilePictureSocket(username || '', response.data.url);
+      
+      const avatarElements = document.querySelectorAll(`[data-username="${username}"]`);
+      avatarElements.forEach(el => {
+        const img = el.querySelector('img');
+        if (img) {
+          const currentSrc = img.src;
+          img.src = currentSrc.includes('?') 
+            ? currentSrc.split('?')[0] + '?t=' + Date.now() 
+            : currentSrc + '?t=' + Date.now();
+        }
+      });
+      
       toast.success('Profile picture updated!', {
         id: loadingToast
       });
@@ -76,7 +91,7 @@ const ProfilePicture: React.FC = () => {
     <div className={container} onClick={handleClick}>
       <div className="group">
         <ProfileAvatar
-          username={username || 'Guest'}
+          username={username}
           size={70}
         />
         <div className={overlay}>

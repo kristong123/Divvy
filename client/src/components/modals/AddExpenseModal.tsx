@@ -3,7 +3,6 @@ import clsx from "clsx";
 import Modal from "../shared/Modal";
 import ProfileAvatar from "../shared/ProfileAvatar";
 import { toast } from "react-hot-toast";
-import { groupActions } from "../../store/slice/groupSlice";
 import { store } from "../../store/store";
 
 interface AddExpenseModalProps {
@@ -23,7 +22,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   onClose,
   onConfirm,
   participants,
-  groupId,
 }) => {
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
@@ -48,41 +46,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     try {
       setSubmitting(true);
 
-      // Send to server via socket
+      // Send to server via socket - let the socket event update Redux
       onConfirm(item, parseFloat(amount), selectedParticipants);
-
-      // Manually update the UI immediately
-      const tempExpense = {
-        id: `temp-${Date.now()}`,
-        item,
-        amount: parseFloat(amount),
-        paidBy,
-        addedBy: currentUser,
-        splitBetween: selectedParticipants,
-        date: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      };
-
-      // Get current group and expenses
-      const state = store.getState();
-      const group = state.groups.groups[groupId];
-
-      if (group && group.currentEvent) {
-        // Create updated expenses array
-        const updatedExpenses = [...group.currentEvent.expenses, tempExpense];
-
-        // Update the Redux store directly
-        store.dispatch(
-          groupActions.setGroupEvent({
-            groupId,
-            event: {
-              ...group.currentEvent,
-              expenses: updatedExpenses,
-            },
-            keepEventOpen: true,
-          })
-        );
-      }
 
       // Reset form and close modal
       setItem("");

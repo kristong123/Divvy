@@ -1,19 +1,18 @@
-export interface MessageData {
+export interface Message {
+  id: string;
   chatId: string;
   senderId: string;
-  receiverId: string;
   content: string;
   timestamp: string;
-  id?: string;
   status: string;
-  senderName: string;
-  senderProfile: string | null;
+  type?: "group-invite" | "system" | string;
+  groupId?: string;
 }
 
 export interface SocketMessageEvent {
   chatId?: string;
   groupId: string;
-  message: MessageData;
+  message: Message;
 }
 
 export interface SocketErrorEvent {
@@ -34,17 +33,3 @@ export interface FriendRequestEvent {
   senderProfile?: string | null;
   recipientProfile?: string | null;
 }
-
-export interface Message {
-  id?: string;
-  senderId: string;
-  content: string;
-  timestamp: string;
-  status: string;
-  type?: 'group-invite' | 'system';
-  groupId?: string;
-  groupName?: string;
-  invitedBy?: string;
-  senderName: string;
-  senderProfile: string | null;
-} 

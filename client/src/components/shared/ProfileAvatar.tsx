@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import { UserRound } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
@@ -36,24 +35,33 @@ const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     return null;
   }, [username, groups, friends]);
 
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = "";
+    toast.error(`Failed to load ${username}'s profile picture`);
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    return parts.map(part => part.charAt(0)).join('');
+  };
+
   return (
     <div
       className="relative flex items-center justify-center rounded-full overflow-hidden bg-gradient-to-br from-dark2 to-light1"
       style={{ width: `${size}px`, height: `${size}px` }}
+      data-username={username}
     >
       {imageUrl ? (
         <img
+          key={imageUrl}
           src={imageUrl}
           alt={username}
           className="w-[90%] h-[90%] object-cover rounded-full"
-          onError={(e) => {
-            e.currentTarget.src = "";
-            toast.error(`Failed to load ${username}'s profile picture`);
-          }}
+          onError={handleImageError}
         />
       ) : (
         <div className="flex items-center rounded-full justify-center w-[90%] h-[90%] bg-slate-300">
-          <UserRound className="text-white w-3/4 h-3/4" />
+          <span className="text-white">{getInitials(username)}</span>
         </div>
       )}
     </div>

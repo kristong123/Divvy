@@ -124,27 +124,32 @@ const sendImageMessage = async (req, res) => {
         res.status(500).json({ message: 'Failed to send image message' });
     }
 };
-// Get messages from a conversation
+
+// Get messages for a chat
 const getMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
 
+        // Get messages from the messages subcollection of the friends collection
         const messagesSnapshot = await db.collection('friends')
             .doc(chatId)
             .collection('messages')
             .orderBy('timestamp', 'asc')
             .get();
 
-        const messages = messagesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp.toDate().toISOString()
-        }));
+        const messages = messagesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: doc.id,
+                timestamp: data.timestamp.toDate().toISOString()
+            };
+        });
 
         res.status(200).json(messages);
     } catch (error) {
-        console.error('Error getting messages:', error);
-        res.status(500).json({ message: 'Failed to get messages' });
+        console.error('Error fetching messages:', error);
+        res.status(500).json({ message: 'Failed to fetch messages' });
     }
 };
 

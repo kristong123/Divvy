@@ -1,5 +1,5 @@
 // store/userSlice.ts
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface UserState {
   username: string;
@@ -11,22 +11,25 @@ interface UserState {
 }
 
 const initialState: UserState = {
-  username: '',
+  username: "",
   venmoUsername: null,
   profilePicture: null,
   isLoggedIn: false,
-  isAuthenticated: false
+  isAuthenticated: false,
 };
 
 export const userSlice = createSlice({
-  name: 'user',
+  name: "user",
   initialState,
   reducers: {
-    setUser: (state, action: PayloadAction<{ 
-        username: string; 
+    setUser: (
+      state,
+      action: PayloadAction<{
+        username: string;
         profilePicture: string | null;
         venmoUsername?: string | null;
-    }>) => {
+      }>
+    ) => {
       state.username = action.payload.username;
       state.profilePicture = action.payload.profilePicture;
       state.venmoUsername = action.payload.venmoUsername || null;
@@ -34,20 +37,36 @@ export const userSlice = createSlice({
       state.isAuthenticated = true;
     },
     logout: (state) => {
-      state.username = '';
+      state.username = "";
       state.venmoUsername = null;
       state.profilePicture = null;
       state.isLoggedIn = false;
       state.isAuthenticated = false;
     },
-    updateProfilePicture: (state, action: PayloadAction<string>) => {
-      state.profilePicture = action.payload;
+    updateProfilePicture: (
+      state,
+      action: PayloadAction<{ username: string; imageUrl: string }>
+    ) => {
+      state.profilePicture = action.payload.imageUrl;
     },
     setVenmoUsername: (state, action: PayloadAction<string | null>) => {
       state.venmoUsername = action.payload;
     },
-  }
+    forceProfileRefresh: (state) => {
+      if (state.profilePicture) {
+        state.profilePicture = state.profilePicture.includes("?")
+          ? state.profilePicture.split("?")[0] + "?t=" + Date.now()
+          : state.profilePicture + "?t=" + Date.now();
+      }
+    },
+  },
 });
 
-export const { setUser, logout, updateProfilePicture, setVenmoUsername } = userSlice.actions;
+export const {
+  setUser,
+  logout,
+  updateProfilePicture,
+  setVenmoUsername,
+  forceProfileRefresh,
+} = userSlice.actions;
 export default userSlice.reducer;

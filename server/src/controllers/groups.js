@@ -648,8 +648,7 @@ exports.checkGroupStatus = async (req, res) => {
         console.error("Error checking group status:", error);
         res.status(500).json({ message: "Failed to check group status" });
     }
-}; 
-
+};
 
 const updateGroupProfilePicture = async (req, res) => {
     try {
@@ -703,7 +702,7 @@ const updateGroupProfilePicture = async (req, res) => {
                 });
 
                 // notify group members if notifcations doesn't do this
-               // const io = getIO();
+                // const io = getIO();
                 //groupData.users.forEach(username => {
                 //    io.to(username).emit('group-profile-updated', {
                 //        groupId,
@@ -723,5 +722,47 @@ const updateGroupProfilePicture = async (req, res) => {
     } catch (error) {
         console.error('Error updating group profile picture:', error);
         res.status(500).json({ message: 'Failed to update group profile picture' });
+    }
+};
+
+exports.getGroupInvites = async (req, res) => {
+    try {
+        const { username } = req.params;
+
+        // Find all chat IDs where this user is a participant
+        const friendsSnapshot = await db.collection('friends')
+            .where('users', 'array-contains', username)
+            .get();
+
+        const chatIds = friendsSnapshot.docs.map(doc => doc.id);
+
+        // For each chat, get group invites from the messages subcollection
+        const invites = [];
+
+        for (const chatId of chatIds) {
+            const invitesSnapshot = await db.collection('friends')
+                .doc(chatId)
+                .collection('messages')
+                .where('type', '==', 'group-invite')
+                .where('receiverId', '==', username)
+                .where('status', '==', 'sent')
+                .get();
+
+            invitesSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                invites.push({
+                    id: doc.id,
+                    groupId: data.groupId,
+                    groupName: data.groupName,
+                    invitedBy: data.invitedBy,
+                    timestamp: data.timestamp.toDate().toISOString()
+                });
+            });
+        }
+
+        res.status(200).json(invites);
+    } catch (error) {
+        console.error('Error fetching group invites:', error);
+        res.status(500).json({ message: 'Failed to fetch group invites' });
     }
 };

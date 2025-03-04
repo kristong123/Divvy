@@ -1,155 +1,152 @@
-import { AppDispatch } from '../store/store';
-import { setUser } from '../store/slice/userSlice';
-import { groupActions } from '../store/slice/groupSlice';
-import axios from 'axios';
-import { BASE_URL } from '../config/api';
-import { store } from '../store/store';
-import { setMessages, setLoading } from '../store/slice/chatSlice';
-
-// Add GroupData interface
-interface GroupData {
-  id: string;
-  name: string;
-  currentEvent: Event | null;
-  createdAt: {
-    _seconds: number;
-    _nanoseconds: number;
-  } | string;
-  updatedAt: {
-    _seconds: number;
-    _nanoseconds: number;
-  } | string;
-  users: Array<{
-    username: string;
-    profilePicture: string | null;
-    isAdmin: boolean;
-  }>;
-}
+import { AppDispatch } from "../store/store";
+import { setUser, forceProfileRefresh } from "../store/slice/userSlice";
+import { groupActions } from "../store/slice/groupSlice";
+import axios from "axios";
+import { BASE_URL } from "../config/api";
+import { store } from "../store/store";
+import { setMessages, setLoading } from "../store/slice/chatSlice";
+import { setFriends } from "../store/slice/friendsSlice";
+import { addGroupInvite } from "../store/slice/groupSlice";
 
 // Update UserData interface
 interface UserData {
   username: string;
-  profilePicture: string | null;  // Change from string | undefined to string | null
+  profilePicture: string | null; // Change from string | undefined to string | null
   venmoUsername?: string;
   isAdmin?: boolean;
-  token: string;  // Add token property
+  token: string; // Add token property
 }
 
 // Load user's groups and messages after login
 export const loadUserData = async (username: string, dispatch: AppDispatch) => {
-    try {
-        // Set loading state
-        dispatch(setLoading(true));
+  try {
+    // Set loading state
+    dispatch(setLoading(true));
 
-        // First load friends and groups
-        const [groupsResponse, friendsResponse] = await Promise.all([
-            axios.get(`${BASE_URL}/api/groups/user/${username}`),
-            axios.get(`${BASE_URL}/api/friends/${username}`)
-        ]);
+    // Load friends, groups, and invites
+    const [groupsResponse, friendsResponse, invitesResponse] =
+      await Promise.all([
+        axios.get(`${BASE_URL}/api/groups/user/${username}`),
+        axios.get(`${BASE_URL}/api/friends/${username}`),
+        axios.get(`${BASE_URL}/api/groups/invites/${username}`),
+      ]);
 
-        // Process groups first
-        const groupsArray = groupsResponse.data.map((group: GroupData) => {
-            const formatTimestamp = (timestamp: GroupData['createdAt'] | GroupData['updatedAt']) => {
-                if (typeof timestamp === 'string') return timestamp;
-                if ('_seconds' in timestamp) {
-                    return new Date(timestamp._seconds * 1000).toISOString();
-                }
-                return new Date().toISOString(); // fallback
-            };
+    // Process groups
+    dispatch(groupActions.setGroups(groupsResponse.data));
 
-            return {
-                ...group,
-                isGroup: true,
-                currentEvent: group.currentEvent || null,
-                createdAt: formatTimestamp(group.createdAt),
-                updatedAt: formatTimestamp(group.updatedAt)
-            };
-        });
+    // Process friends
+    dispatch(setFriends(friendsResponse.data));
 
-        dispatch(groupActions.setGroups(groupsArray));
+    // Process invites
+    invitesResponse.data.forEach(
+      (invite: {
+        id: string;
+        groupId: string;
+        groupName: string;
+        invitedBy: string;
+        timestamp: string;
+      }) => {
+        dispatch(
+          addGroupInvite({
+            username,
+            invite: {
+              id: invite.id,
+              groupId: invite.groupId,
+              groupName: invite.groupName,
+              invitedBy: invite.invitedBy,
+            },
+          })
+        );
+      }
+    );
 
-        // Then load messages sequentially to ensure they're all loaded
-        for (const friend of friendsResponse.data) {
-            const chatId = [username, friend.username].sort().join('_');
-            try {
-                const response = await axios.get(`${BASE_URL}/api/messages/${chatId}`);
-                dispatch(setMessages({ chatId, messages: response.data }));
-            } catch (error) {
-                console.error(`Failed to load messages for chat ${chatId}:`, error);
-            }
-        }
-
-        for (const group of groupsArray) {
-            try {
-                const response = await axios.get(`${BASE_URL}/api/groups/${group.id}/messages`);
-                dispatch(groupActions.setGroupMessages({ 
-                    groupId: group.id, 
-                    messages: response.data 
-                }));
-            } catch (error) {
-                console.error(`Failed to load messages for group ${group.id}:`, error);
-            }
-        }
-
-        dispatch(setLoading(false));
-    } catch (error) {
-        console.error('Error in loadUserData:', error);
-        dispatch(setLoading(false));
-        throw error;
+    // Then load messages sequentially to ensure they're all loaded
+    for (const friend of friendsResponse.data) {
+      const chatId = [username, friend.username].sort().join("_");
+      try {
+        const response = await axios.get(`${BASE_URL}/api/messages/${chatId}`);
+        dispatch(setMessages({ chatId, messages: response.data }));
+      } catch (error) {
+        console.error(`Failed to load messages for chat ${chatId}:`, error);
+      }
     }
+
+    for (const group of groupsResponse.data) {
+      try {
+        const response = await axios.get(
+          `${BASE_URL}/api/groups/${group.id}/messages`
+        );
+        dispatch(
+          groupActions.setGroupMessages({
+            groupId: group.id,
+            messages: response.data,
+          })
+        );
+      } catch (error) {
+        console.error(`Failed to load messages for group ${group.id}:`, error);
+      }
+    }
+
+    dispatch(setLoading(false));
+  } catch (error) {
+    console.error("Error in loadUserData:", error);
+    dispatch(setLoading(false));
+    throw error;
+  }
 };
 
 // Login user and load their data
-export const login = async (username: string, password: string, dispatch: AppDispatch): Promise<UserData> => {
-    try {
-        // Login logic
-        const response = await axios.post<UserData>(`${BASE_URL}/api/auth/login`, {
-            username,
-            password
-        });
-        
-        // Store token and user data with venmoUsername
-        localStorage.setItem('token', response.data.token);
-        
-        // Dispatch user data including venmoUsername from login response
-        dispatch(setUser({
-            username: response.data.username,
-            profilePicture: response.data.profilePicture,
-            venmoUsername: response.data.venmoUsername
-        }));
-        
-        // Also fetch user data directly to ensure we have the latest venmoUsername
-        try {
-            const userResponse = await axios.get(`${BASE_URL}/api/users/${username}`);
-            
-            if (userResponse.data.venmoUsername) {
-                dispatch(setUser({
-                    username: response.data.username,
-                    profilePicture: response.data.profilePicture,
-                    venmoUsername: userResponse.data.venmoUsername
-                }));
-            }
-        } catch (error) {
-            console.error('Error fetching user data:', error);
-        }
-        
-        // Load additional user data
-        await loadUserData(username, dispatch);
+export const login = async (
+  username: string,
+  password: string,
+  dispatch: AppDispatch
+): Promise<UserData> => {
+  try {
+    // Login logic
+    const response = await axios.post<UserData>(`${BASE_URL}/api/auth/login`, {
+      username,
+      password,
+    });
 
-        return response.data;
-    } catch (error) {
-        console.error('Login error:', error);
-        throw error;
+    // Add a timestamp to prevent caching
+    const profilePicture = response.data.profilePicture
+      ? `${response.data.profilePicture}?t=${Date.now()}`
+      : null;
+
+    // Store token and user data with venmoUsername
+    localStorage.setItem("token", response.data.token);
+
+    // Dispatch user data including venmoUsername from login response
+    dispatch(
+      setUser({
+        username: response.data.username,
+        profilePicture: profilePicture,
+        venmoUsername: response.data.venmoUsername,
+      })
+    );
+
+    // Force a refresh of the profile picture
+    if (profilePicture) {
+      dispatch(forceProfileRefresh());
     }
+
+    // Load additional user data
+    await loadUserData(username, dispatch);
+
+    return response.data;
+  } catch (error) {
+    console.error("Login error:", error);
+    throw error;
+  }
 };
 
 export const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    // Clear Redux store
-    store.dispatch(groupActions.setGroups([]));
-    store.dispatch(groupActions.setGroupMessages({ groupId: '', messages: [] }));
-    // ... other cleanup
+  localStorage.removeItem("token");
+  localStorage.removeItem("username");
+  // Clear Redux store
+  store.dispatch(groupActions.setGroups([]));
+  store.dispatch(groupActions.setGroupMessages({ groupId: "", messages: [] }));
+  // ... other cleanup
 };
 
-// ... rest of your existing auth functions 
+// ... rest of your existing auth functions

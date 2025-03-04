@@ -4,13 +4,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
 import { toast } from 'react-hot-toast';
-import { removeGroupInvite } from '../../store/slice/inviteSlice';
+import { removeGroupInvite, setInviteStatus, InviteStatus } from '../../store/slice/groupSlice';
 import { RootState } from '../../store/store';
 import { getSocket } from '../../services/socketService';
-import { 
-  setInviteStatus, 
-  InviteStatus 
-} from '../../store/slice/inviteStatusSlice';
 
 interface GroupInviteProps {
   id: string;
@@ -31,9 +27,9 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   const dispatch = useDispatch();
   const currentUser = useSelector((state: RootState) => state.user.username);
   
-  // Get status from Redux instead of local state
-  const inviteStatus = useSelector((state: RootState) => 
-    state.inviteStatus[id] || 'loading'
+  // Use a safe default value and add a null check
+  const inviteStatus = useSelector(
+    (state: RootState) => (state.groups.inviteStatus && id ? state.groups.inviteStatus[id] : 'loading')
   ) as InviteStatus;
 
   // Check group status initially and store in Redux

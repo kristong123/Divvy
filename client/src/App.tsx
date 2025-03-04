@@ -40,6 +40,13 @@ function App({ RouterComponent = BrowserRouter }: AppProps) {
         try {
           // This will load all messages for the user
           await loadUserData(username, dispatch);
+          
+          // Preload the profile picture
+          const profilePicture = useSelector((state: RootState) => state.user.profilePicture);
+          if (profilePicture) {
+            const img = new Image();
+            img.src = profilePicture;
+          }
         } catch (error) {
           console.error('Error loading initial data:', error);
         }
