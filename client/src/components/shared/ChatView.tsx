@@ -9,17 +9,14 @@ import {
   sendMessage,
   getSocket,
   updateEvent,
-  sendSocketEvent
+  sendSocketEvent,
 } from "../../services/socketService";
 import {
   addMessage,
   setMessages,
   setLoading,
 } from "../../store/slice/chatSlice";
-import {
-  SocketMessageEvent,
-  Message,
-} from "../../types/messageTypes";
+import { SocketMessageEvent, Message } from "../../types/messageTypes";
 import ProfileAvatar from "../shared/ProfileAvatar";
 import { UserPlus, ArrowLeft } from "lucide-react";
 import GroupMembers from "../groupchats/GroupMembers";
@@ -28,11 +25,7 @@ import { createSelector } from "@reduxjs/toolkit";
 import * as groupActions from "../../store/slice/groupSlice";
 import { Event } from "../../types/groupTypes";
 import GroupInvite from "../groupchats/GroupInvite";
-import {
-  addGroupInvite,
-  removeGroupInvite,
-  setInviteStatus,
-} from "../../store/slice/groupSlice";
+import { setInviteStatus } from "../../store/slice/groupSlice";
 import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
@@ -47,13 +40,6 @@ interface ChatViewProps {
     isGroup?: boolean;
     notificationType?: string;
   };
-}
-
-interface GroupInviteData {
-  id: string;
-  groupId: string;
-  groupName: string;
-  invitedBy: string;
 }
 
 interface MessageResponse {
@@ -276,7 +262,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       // Spacing
       "w-fit ml-1",
       // Alignment
-      isOwnMessage ? "items-end" : "items-start",
+      isOwnMessage ? "items-end" : "items-start"
     );
 
   const messageStyle = (isOwnMessage: boolean) =>
@@ -307,17 +293,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Transitions
     "transition-colors duration-200"
   );
-
-  // Update the selector to safely handle missing data
-  const selectGroupInvites = createSelector(
-    [
-      (state: RootState) => state.groups.groupInvites || {},
-      (state: RootState) => state.user.username,
-    ],
-    (groupInvites, username) => (username && groupInvites[username]) || []
-  );
-
-  const groupInvites = useSelector(selectGroupInvites);
 
   const [showEventDetails, setShowEventDetails] = useState(false);
 
@@ -361,16 +336,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       }
     };
 
-    const handleGroupInvite = (invite: GroupInviteData) => {
-      dispatch(
-        addGroupInvite({
-          username: invite.invitedBy,
-          invite,
-        })
-      );
-      toast.success(`You've been invited to join ${invite.groupName}`);
-    };
-
     const handleEventUpdate = (data: {
       groupId: string;
       event: Event | null;
@@ -391,19 +356,23 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     };
 
     const handleGroupJoin = (data: GroupJoinData) => {
-      if (data.groupId === chat.id) {
+      if (data?.groupId === chat.id && data?.group) {
         dispatch(
           groupActions.updateGroup({
             ...data.group,
-            currentEvent: data.group.currentEvent || groupData?.currentEvent,
+            currentEvent:
+              data.group.currentEvent || groupData?.currentEvent || null,
           })
         );
       }
     };
 
+    // Create a reference to an empty function for the group-invite handler
+    const emptyHandler = () => {};
+
     socket.on("event-updated", handleEventUpdate);
     socket.on("new-message", handleNewMessage);
-    socket.on("group-invite", handleGroupInvite);
+    socket.on("group-invite", emptyHandler); // Use the reference
     socket.on("group-invite-accepted", handleGroupJoin);
     socket.on("message-error", (error: MessageResponse) => {
       console.error("Message error:", error);
@@ -413,7 +382,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     return () => {
       socket.off("event-updated", handleEventUpdate);
       socket.off("new-message", handleNewMessage);
-      socket.off("group-invite", handleGroupInvite);
+      socket.off("group-invite", emptyHandler); // Use the same reference
       socket.off("group-invite-accepted", handleGroupJoin);
     };
   }, [
@@ -425,7 +394,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     groupData?.currentEvent,
   ]);
 
-  // Add this useEffect to automatically close event view when event is cleared
+  // Add this effect to automatically close event view when event is cleared
   useEffect(() => {
     if (!groupData?.currentEvent) {
       setShowEventDetails(false);
@@ -470,7 +439,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
         timestamp: new Date().toISOString(),
         status: "sent",
       });
-      
+
       setInputText("");
     } catch (_error) {
       console.error("Failed to send message:", _error);
@@ -487,16 +456,17 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const handleAcceptInvite = (inviteId: string) => {
     if (inviteId && chat.name) {
-      dispatch(setInviteStatus({ inviteId, status: 'accepted' }));
-      dispatch(removeGroupInvite({ username: chat.name, inviteId }));
-      
-      // Extract groupId from the inviteId or from the invite object
-      const invite = groupInvites.find(inv => inv.id === inviteId);
-      if (invite) {
+      dispatch(setInviteStatus({ inviteId, status: "accepted" }));
+
+      // Since we're now getting the invite from the message directly,
+      // we can extract the groupId from the message with this ID
+      const inviteMessage = messages.find((msg) => msg.id === inviteId);
+
+      if (inviteMessage && inviteMessage.groupId) {
         sendSocketEvent({
-          type: 'group-join',
-          groupId: invite.groupId,
-          username: currentUser
+          type: "group-join",
+          groupId: inviteMessage.groupId,
+          username: currentUser,
         });
       }
     }
@@ -541,23 +511,31 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   useEffect(() => {
     if (chat.id && chat.isGroup) {
-      console.log(`Joining group room: ${chat.id}`);
+      // Log when a user joins a group chat room
+      console.log(
+        `👥 User ${currentUser} viewing group: ${chat.name} (${chat.id})`
+      );
+
       sendSocketEvent({
-        type: 'join-group',
+        type: "join-group",
         groupId: chat.id,
-        username: currentUser
+        username: currentUser,
       });
-      
+
       return () => {
-        console.log(`Leaving group room: ${chat.id}`);
+        // Log when a user leaves a group chat room
+        console.log(
+          `👋 User ${currentUser} left group: ${chat.name} (${chat.id})`
+        );
+
         sendSocketEvent({
-          type: 'leave-group',
+          type: "leave-group",
           groupId: chat.id,
-          username: currentUser
+          username: currentUser,
         });
       };
     }
-  }, [chat.id, chat.isGroup, currentUser]);
+  }, [chat.id, chat.isGroup, currentUser, chat.name]);
 
   return (
     <div className="flex w-full h-full">
@@ -645,34 +623,49 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           </div>
 
           <div className={messagesContainer}>
-            {groupInvites.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {groupInvites.map((invite) => (
-                  <GroupInvite
-                    key={invite.id}
-                    id={invite.id}
-                    groupId={invite.groupId}
-                    groupName={invite.groupName}
-                    invitedBy={invite.invitedBy}
-                    onAccept={handleAcceptInvite}
-                  />
-                ))}
-              </div>
-            )}
             {messages.map((message, index) => {
               const isOwnMessage = message.senderId === currentUser;
-              
+
               // For displaying sender name (which is no longer in the Message type)
               const senderName = isOwnMessage ? "You" : message.senderId;
-              
+
+              // Check if this is a group invite message
+              if (message.type === "group-invite") {
+                // Extract the group name from the message content
+                // The format is: "{invitedBy} invited you to join {groupName}"
+                const groupNameMatch = message.content.match(
+                  /invited you to join (.+)$/
+                );
+                const extractedGroupName = groupNameMatch
+                  ? groupNameMatch[1]
+                  : (message as any).groupName || "Unknown Group";
+
+                return (
+                  <div key={message.id || index} className="w-full my-2">
+                    <GroupInvite
+                      id={message.id}
+                      groupId={message.groupId || ""}
+                      groupName={extractedGroupName}
+                      invitedBy={message.senderId}
+                      onAccept={handleAcceptInvite}
+                    />
+                  </div>
+                );
+              }
+
               return (
-                <div key={message.id || index} className={messageContainer(isOwnMessage)}>
+                <div
+                  key={message.id || index}
+                  className={messageContainer(isOwnMessage)}
+                >
                   {!isOwnMessage && message.type !== "system" && (
                     <ProfileAvatar username={message.senderId} size={40} />
                   )}
                   <div className={messageContent(isOwnMessage)}>
                     {!isOwnMessage && message.type !== "system" && (
-                      <span className='text-gray-500 text-sm ml-2 mb-1'>{senderName}</span>
+                      <span className="text-gray-500 text-sm ml-2 mb-1">
+                        {senderName}
+                      </span>
                     )}
                     {message.type === "system" ? (
                       <span className="text-gray-900 text-sm italic text-center">

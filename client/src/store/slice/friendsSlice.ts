@@ -90,8 +90,22 @@ const friendsSlice = createSlice({
   name: "friends",
   initialState,
   reducers: {
-    setFriends: (state, action) => {
-      state.friends = action.payload;
+    setFriends: (state, action: PayloadAction<Friend[]>) => {
+      // Create a map to deduplicate friends by username
+      const friendsMap = new Map<string, Friend>();
+      
+      // Add existing friends to the map
+      state.friends.forEach(friend => {
+        friendsMap.set(friend.username, friend);
+      });
+      
+      // Add new friends, overwriting any existing ones with the same username
+      action.payload.forEach(friend => {
+        friendsMap.set(friend.username, friend);
+      });
+      
+      // Convert map back to array
+      state.friends = Array.from(friendsMap.values());
     },
     setPendingRequests: (state, action: PayloadAction<PendingRequest[]>) => {
       // Create a map of sender -> request

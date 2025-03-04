@@ -39,8 +39,18 @@ const socket = io(SOCKET_URL);
 interface SocketData {
   type: string;
   payload: unknown;
-  // add other socket data properties
+  sender?: string;
+  senderProfile?: string | null;
 }
+
+// Define the Friend interface locally
+interface Friend {
+  username: string;
+  profilePicture: string | null;
+}
+
+// Set to track processed notifications to prevent duplicates
+const processedNotifications = new Set<string>();
 
 // Move these outside the initializeSocket function
 export const clearAllNotifications = createAsyncThunk(
@@ -50,6 +60,30 @@ export const clearAllNotifications = createAsyncThunk(
     return;
   }
 );
+
+// Create a Set to track recently shown notifications
+const recentNotifications = new Set<string>();
+
+// Helper function to prevent duplicate notifications
+export const showUniqueToast = (key: string, message: string, type: 'success' | 'error' = 'success') => {
+  // Check if we've shown this notification recently
+  if (!recentNotifications.has(key)) {
+    // Add to recent notifications
+    recentNotifications.add(key);
+    
+    // Show the toast
+    if (type === 'success') {
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
+    
+    // Remove from set after a delay to allow showing the same notification again later
+    setTimeout(() => {
+      recentNotifications.delete(key);
+    }, 5000); // 5 second cooldown
+  }
+};
 
 export const initializeSocket = (username: string) => {
   socket.emit("join", username);
@@ -64,24 +98,30 @@ export const initializeSocket = (username: string) => {
     const currentUser = store.getState().user.username;
 
     if (currentUser === data.recipient) {
-      // Create a new request object
+      // Create a new request object with the sender's profile picture
       const newRequest = {
         id: data.id,
         sender: data.sender,
         timestamp: data.timestamp,
-        profilePicture: data.profilePicture,
+        profilePicture: data.profilePicture, // This should be the sender's profile picture
       };
 
       // Dispatch just this single request - our reducer will handle deduplication
       store.dispatch(setPendingRequests([newRequest]));
 
-      toast.success(`New friend request from ${data.sender}`);
+      // Log new friend request
+      console.log(`📩 New friend request received from: ${data.sender}`);
+      
+      // Use unique toast to prevent duplicates
+      const notificationKey = `friend-request-received-${data.sender}-${Date.now().toString().slice(0, -3)}`;
+      showUniqueToast(notificationKey, `New friend request from ${data.sender}`);
     }
   });
 
   socket.on("friend-request-sent-success", (data: FriendRequestEvent) => {
     if (!data.id) return;
 
+    // Add the recipient's profile picture to the sent request
     store.dispatch(
       setSentRequests([
         {
@@ -89,15 +129,22 @@ export const initializeSocket = (username: string) => {
           recipient: data.recipient,
           status: "pending",
           timestamp: data.timestamp,
-          profilePicture: data.profilePicture,
+          profilePicture: data.profilePicture, // This should be the recipient's profile picture
         },
       ])
     );
-    toast.success(`Friend request sent to ${data.recipient}`);
+    
+    // Log friend request sent
+    console.log(`📤 Friend request sent to: ${data.recipient}`);
+    
+    // Use unique toast to prevent duplicates
+    const notificationKey = `friend-request-sent-${data.recipient}-${Date.now().toString().slice(0, -3)}`;
+    showUniqueToast(notificationKey, `Friend request sent to ${data.recipient}`);
   });
 
   socket.on("friend-request-accepted", (data: FriendRequestEvent) => {
     const currentUser = store.getState().user.username;
+    const currentFriends = store.getState().friends.friends;
 
     // If I'm the sender, remove from sent requests
     if (currentUser === data.sender) {
@@ -106,23 +153,31 @@ export const initializeSocket = (username: string) => {
         (req) => req.recipient !== data.recipient
       );
 
-      console.log("Friend request accepted - Updating sent requests:", {
-        before: sentRequests.length,
-        after: updatedRequests.length,
-      });
-
       store.dispatch(setSentRequests(updatedRequests));
 
-      // Also add to friends list
-      store.dispatch(
-        setFriends([
-          ...store.getState().friends.friends,
-          {
-            username: data.recipient,
-            profilePicture: data.recipientProfile || null,
-          },
-        ])
+      // Check if friend already exists before adding
+      const friendExists = currentFriends.some(
+        friend => friend.username === data.recipient
       );
+      
+      if (!friendExists) {
+        // Add to friends list
+        const newFriend = {
+          username: data.recipient,
+          profilePicture: data.recipientProfile || null,
+        };
+        
+        // Use type assertion to ensure correct type
+        const updatedFriends = [...currentFriends, newFriend] as Friend[];
+        store.dispatch(setFriends(updatedFriends));
+      }
+      
+      // Log friend request accepted (for sender)
+      console.log(`✅ ${data.recipient} accepted your friend request`);
+      
+      // Use unique toast to prevent duplicates
+      const notificationKey = `friend-request-accepted-by-${data.recipient}-${Date.now().toString().slice(0, -3)}`;
+      showUniqueToast(notificationKey, `${data.recipient} accepted your friend request`);
     }
 
     // If I'm the recipient, remove from pending requests
@@ -132,28 +187,41 @@ export const initializeSocket = (username: string) => {
         (req) => req.sender !== data.sender
       );
 
-      console.log("Friend request accepted - Updating pending requests:", {
-        before: pendingRequests.length,
-        after: updatedRequests.length,
-      });
-
       store.dispatch(setPendingRequests(updatedRequests));
 
-      // Also add to friends list
-      store.dispatch(
-        setFriends([
-          ...store.getState().friends.friends,
-          {
-            username: data.sender,
-            profilePicture: data.senderProfile || null,
-          },
-        ])
+      // Check if friend already exists before adding
+      const friendExists = currentFriends.some(
+        friend => friend.username === data.sender
       );
+      
+      if (!friendExists) {
+        // Add to friends list
+        const newFriend = {
+          username: data.sender,
+          profilePicture: data.senderProfile || null,
+        };
+        
+        // Use type assertion to ensure correct type
+        const updatedFriends = [...currentFriends, newFriend] as Friend[];
+        store.dispatch(setFriends(updatedFriends));
+      }
+      
+      // Log friend request accepted (for recipient)
+      console.log(`✅ You accepted ${data.sender}'s friend request`);
     }
   });
 
   socket.on("friend-added", (data: SocketData) => {
-    store.dispatch(setFriends(data));
+    if (!data.sender) return; // Ensure sender is defined
+
+    const currentFriends = store.getState().friends.friends;
+    const newFriend = {
+      username: data.sender,
+      profilePicture: data.senderProfile || null,
+    };
+
+    const updatedFriends = [...currentFriends, newFriend];
+    store.dispatch(setFriends(updatedFriends));
     toast.success("New friend added!");
   });
 
@@ -238,43 +306,83 @@ export const initializeSocket = (username: string) => {
   // Update the group-invite-accepted event handler
   socket.on(
     "group-invite-accepted",
-    (data: { groupId: string; username: string; group: Group }) => {
+    (data: { 
+      groupId: string; 
+      username: string; 
+      group?: Group;
+      profilePicture?: string | null;
+    }) => {
       const currentUser = store.getState().user.username;
-
-      // Add group directly since server sends correctly formatted data
-      store.dispatch(
-        groupActions.addGroup({
-          ...data.group,
-          isGroup: true,
-        })
-      );
-
-      // Fetch messages for the group
-      if (data.username === currentUser) {
-        axios
-          .get(`${BASE_URL}/api/groups/${data.groupId}/messages`)
-          .then((response) => {
-            store.dispatch(
-              groupActions.setGroupMessages({
-                groupId: data.groupId,
-                messages: response.data,
-              })
-            );
-            // Force a re-render of the groups list
-            store.dispatch(
-              groupActions.setGroups(
-                Object.values(store.getState().groups.groups)
-              )
-            );
-          })
-          .catch((error) => {
-            console.error("Error fetching messages:", error);
-          });
+      
+      // Only show notification if the user joining is not the current user
+      if (data.username !== currentUser) {
+        console.log(`👥 ${data.username} joined the group: ${data.groupId}`);
+        
+        // Use the unique toast helper with a key based on the event data
+        const notificationKey = `group-join-${data.username}-${data.groupId}-${Date.now().toString().slice(0, -3)}`;
+        showUniqueToast(notificationKey, `${data.username} joined the group`);
       }
 
-      // Show toast notification
-      if (data.username !== currentUser) {
-        toast.success(`${data.username} joined the group`);
+      // Handle the simplified format (from socket.js)
+      if (!data.group && data.groupId) {
+        // This is just a notification that someone joined a group
+        // We don't need to add a new group to Redux in this case
+        return;
+      }
+
+      // Handle the full format (from groups.js controller)
+      if (data.group && data.groupId) {
+        // Ensure the group has all required properties
+        const validGroup = {
+          ...data.group,
+          id: data.groupId, // Ensure ID is set correctly
+          isGroup: true as const, // Use const assertion to ensure it's the literal 'true'
+          users: Array.isArray(data.group.users) ? data.group.users : [],
+          name: data.group.name || "Unnamed Group",
+          admin: data.group.admin || "",
+          createdBy: data.group.createdBy || "",
+          createdAt: data.group.createdAt || new Date().toISOString(),
+          updatedAt: data.group.updatedAt || new Date().toISOString(),
+          currentEvent: data.group.currentEvent || {
+            id: "",
+            title: "",
+            date: "",
+            description: "",
+            expenses: []
+          }
+        };
+
+        // Add group to Redux store
+        store.dispatch(groupActions.addGroup(validGroup));
+
+        // Fetch messages for the group
+        if (data.username === currentUser) {
+          console.log(`🎉 You joined the group: ${validGroup.name}`);
+          
+          // Show a toast notification for the current user when they join a group
+          const notificationKey = `you-joined-group-${validGroup.id}-${Date.now().toString().slice(0, -3)}`;
+          showUniqueToast(notificationKey, `You joined ${validGroup.name}`);
+          
+          axios
+            .get(`${BASE_URL}/api/groups/${data.groupId}/messages`)
+            .then((response) => {
+              store.dispatch(
+                groupActions.setGroupMessages({
+                  groupId: data.groupId,
+                  messages: response.data,
+                })
+              );
+              // Force a re-render of the groups list
+              store.dispatch(
+                groupActions.setGroups(
+                  Object.values(store.getState().groups.groups)
+                )
+              );
+            })
+            .catch((error) => {
+              console.error("Error fetching messages:", error);
+            });
+        }
       }
     }
   );
@@ -287,6 +395,14 @@ export const initializeSocket = (username: string) => {
         event: data.event,
       })
     );
+    
+    // Log event update
+    if (data.event) {
+      console.log(`📅 Event "${data.event.title}" updated for group: ${data.groupId}`);
+    } else {
+      console.log(`📅 Event removed from group: ${data.groupId}`);
+    }
+    
     toast.success("Event updated successfully");
   });
 
@@ -300,8 +416,6 @@ export const initializeSocket = (username: string) => {
     }) => {
       // Update the group with the new expenses
       if (data.groupId && data.expenses) {
-        console.log("Received expense-added event:", data);
-
         const currentState = store.getState();
         const group = currentState.groups.groups[data.groupId];
 
@@ -319,6 +433,9 @@ export const initializeSocket = (username: string) => {
 
           // Only update if there are new expenses to add
           if (newExpenses.length > 0) {
+            // Log new expenses added
+            console.log(`💰 ${newExpenses.length} new expense(s) added to group: ${data.groupId}`);
+            
             // Add new expenses
             const updatedExpenses = [...currentExpenses, ...newExpenses];
 
@@ -333,10 +450,6 @@ export const initializeSocket = (username: string) => {
                 keepEventOpen: data.keepEventOpen,
               })
             );
-
-            console.log("Updated Redux store with new expenses:", newExpenses);
-          } else {
-            console.log("No new expenses to add (duplicates filtered out)");
           }
         }
       }
@@ -567,6 +680,9 @@ export const initializeSocket = (username: string) => {
         const group = currentState.groups.groups[data.groupId];
 
         if (group && group.currentEvent) {
+          // Log expenses update
+          console.log(`💰 ${data.expenses.length} expenses updated in group: ${data.groupId}`);
+          
           // Update the entire expenses array
           store.dispatch(
             groupActions.setGroupEvent({
@@ -578,8 +694,6 @@ export const initializeSocket = (username: string) => {
               keepEventOpen: true,
             })
           );
-
-          console.log("Updated expenses from server:", data.expenses);
         }
       }
     }
@@ -599,6 +713,22 @@ export const initializeSocket = (username: string) => {
       try {
         const currentUsername = store.getState().user.username;
         if (currentUsername) {
+          // Create a unique key for this invite
+          const inviteKey = `group-invite-${data.id}-${data.groupId}`;
+          
+          // Check if we've already processed this invite
+          if (processedNotifications.has(inviteKey)) {
+            console.log(`Skipping duplicate group invite: ${inviteKey}`);
+            return;
+          }
+          
+          // Mark this invite as processed
+          processedNotifications.add(inviteKey);
+          
+          // Log the invite for debugging
+          console.log(`👥 Received group invite to ${data.groupName} from ${data.invitedBy}`);
+          
+          // Add the invite to Redux
           store.dispatch(
             addGroupInvite({
               username: currentUsername,
@@ -611,6 +741,10 @@ export const initializeSocket = (username: string) => {
             })
           );
 
+          // Show a unique toast notification
+          const notificationKey = `group-invite-${data.groupId}-${data.invitedBy}-${Date.now().toString().slice(0, -3)}`;
+          showUniqueToast(notificationKey, `${data.invitedBy} invited you to join ${data.groupName}`);
+
           // Initialize invite status
           store.dispatch(
             setInviteStatus({
@@ -618,9 +752,6 @@ export const initializeSocket = (username: string) => {
               status: "loading",
             })
           );
-
-          // Show a notification
-          toast.success(`You've been invited to join ${data.groupName}`);
         }
       } catch (error) {
         console.error("Error processing group invite:", error);
@@ -685,7 +816,10 @@ export const initializeSocket = (username: string) => {
         });
 
         store.dispatch(setSentRequests(updatedRequests));
-        toast.success(`${data.recipient} accepted your friend request`);
+        
+        // Use unique toast to prevent duplicates
+        const notificationKey = `sent-request-accepted-by-${data.recipient}-${Date.now().toString().slice(0, -3)}`;
+        showUniqueToast(notificationKey, `${data.recipient} accepted your friend request`);
       }
     }
   );
@@ -709,6 +843,10 @@ export const initializeSocket = (username: string) => {
         });
 
         store.dispatch(setSentRequests(updatedRequests));
+        
+        // Use unique toast to prevent duplicates
+        const notificationKey = `friend-request-declined-by-${data.recipient}-${Date.now().toString().slice(0, -3)}`;
+        showUniqueToast(notificationKey, `${data.recipient} declined your friend request`, 'error');
       }
     }
   );
@@ -980,8 +1118,36 @@ export const updateExistingExpenses = (groupId: string) => {
 
 // Add this function for group room management
 export const sendSocketEvent = (eventData: any) => {
-  console.log(`Sending socket event: ${eventData.type}`, eventData);
-  const socket = getSocket();
+  if (!socket.connected) {
+    console.warn("Socket not connected, event not sent:", eventData.type);
+    return;
+  }
+  
+  // Log important user actions with emojis for better visibility
+  switch (eventData.type) {
+    case 'friend-request-sent':
+      console.log(`👋 Friend request sent to: ${eventData.recipient}`);
+      break;
+    case 'friend-request-accepted':
+      console.log(`✅ Friend request accepted: ${eventData.sender}`);
+      break;
+    case 'friend-request-declined':
+      console.log(`❌ Friend request declined: ${eventData.sender}`);
+      break;
+    case 'group-invite':
+      console.log(`👥 Group invite sent to: ${eventData.username} for group: ${eventData.groupId}`);
+      break;
+    case 'group-join':
+      console.log(`🎉 User joined group: ${eventData.groupId}`);
+      break;
+    case 'event-update':
+      console.log(`📅 Event updated for group: ${eventData.groupId}`);
+      break;
+    case 'expense-added':
+      console.log(`💰 Expense added to group: ${eventData.groupId}`);
+      break;
+  }
+  
   socket.emit(eventData.type, eventData);
 };
 

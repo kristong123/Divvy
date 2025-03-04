@@ -1,5 +1,5 @@
 import { AppDispatch } from "../store/store";
-import { setUser, forceProfileRefresh } from "../store/slice/userSlice";
+import { setUser } from "../store/slice/userSlice";
 import { groupActions } from "../store/slice/groupSlice";
 import axios from "axios";
 import { BASE_URL } from "../config/api";
@@ -7,6 +7,7 @@ import { store } from "../store/store";
 import { setMessages, setLoading } from "../store/slice/chatSlice";
 import { setFriends } from "../store/slice/friendsSlice";
 import { addGroupInvite } from "../store/slice/groupSlice";
+import { initializeSocket } from "./socketService";
 
 // Update UserData interface
 interface UserData {
@@ -102,47 +103,54 @@ export const login = async (
   dispatch: AppDispatch
 ): Promise<UserData> => {
   try {
-    // Login logic
-    const response = await axios.post<UserData>(`${BASE_URL}/api/auth/login`, {
+    console.log(`🔑 Authenticating user: ${username}`);
+    
+    const response = await axios.post(`${BASE_URL}/api/auth/login`, {
       username,
       password,
     });
-
-    // Add a timestamp to prevent caching
-    const profilePicture = response.data.profilePicture
+    
+    // Add a timestamp to the profile picture URL to prevent caching
+    const profilePictureWithTimestamp = response.data.profilePicture
       ? `${response.data.profilePicture}?t=${Date.now()}`
       : null;
+    
+    const userData: UserData = {
+      username: response.data.username,
+      profilePicture: profilePictureWithTimestamp,
+      venmoUsername: response.data.venmoUsername || null,
+      token: response.data.token || '',
+    };
 
-    // Store token and user data with venmoUsername
-    localStorage.setItem("token", response.data.token);
+    // Store user data in Redux
+    dispatch(setUser({
+      username: userData.username,
+      profilePicture: userData.profilePicture,
+      venmoUsername: userData.venmoUsername,
+    }));
 
-    // Dispatch user data including venmoUsername from login response
-    dispatch(
-      setUser({
-        username: response.data.username,
-        profilePicture: profilePicture,
-        venmoUsername: response.data.venmoUsername,
-      })
-    );
+    console.log(`✅ Authentication successful for: ${username}`);
+    
+    // Initialize socket connection
+    initializeSocket(userData.username);
 
-    // Force a refresh of the profile picture
-    if (profilePicture) {
-      dispatch(forceProfileRefresh());
-    }
-
-    // Load additional user data
-    await loadUserData(username, dispatch);
-
-    return response.data;
+    return userData;
   } catch (error) {
-    console.error("Login error:", error);
+    console.error('❌ Authentication failed:', error);
+    
+    // Add more detailed error logging
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Server response:', error.response.data);
+      console.error('Status code:', error.response.status);
+    }
+    
     throw error;
   }
 };
 
 export const logout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("username");
+  console.log('👋 User logged out');
+  
   // Clear Redux store
   store.dispatch(groupActions.setGroups([]));
   store.dispatch(groupActions.setGroupMessages({ groupId: "", messages: [] }));

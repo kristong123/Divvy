@@ -1,13 +1,16 @@
-import React, { useRef } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import clsx from 'clsx';
-import { RootState } from '../../store/store';
-import { updateProfilePicture } from '../../store/slice/userSlice';
-import axios from 'axios';
-import { BASE_URL } from '../../config/api';
-import { toast } from 'react-hot-toast';
-import ProfileAvatar from '../shared/ProfileAvatar';
-import { updateProfilePictureSocket } from '../../services/socketService';
+import React, { useRef } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import clsx from "clsx";
+import { RootState } from "../../store/store";
+import {
+  updateProfilePicture,
+  forceProfileRefresh,
+} from "../../store/slice/userSlice";
+import axios from "axios";
+import { BASE_URL } from "../../config/api";
+import { toast } from "react-hot-toast";
+import ProfileAvatar from "../shared/ProfileAvatar";
+import { updateProfilePictureSocket } from "../../services/socketService";
 
 const ProfilePicture: React.FC = () => {
   const dispatch = useDispatch();
@@ -16,69 +19,82 @@ const ProfilePicture: React.FC = () => {
 
   const container = clsx(
     // Layout
-    'relative',
+    "relative",
     // Size
-    'w-fit',
+    "w-fit",
     // Interactive
-    'cursor-pointer'
+    "cursor-pointer"
   );
 
   const overlay = clsx(
     // Position
-    'absolute inset-0',
+    "absolute inset-0",
     // Layout
-    'flex items-center justify-center',
+    "flex items-center justify-center",
     // Appearance
-    'bg-black bg-opacity-50 rounded-full',
+    "bg-black bg-opacity-50 rounded-full",
     // Visibility
-    'opacity-0 group-hover:opacity-100',
+    "opacity-0 group-hover:opacity-100",
     // Transitions
-    'transition-opacity'
+    "transition-opacity"
   );
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const loadingToast = toast.loading('Uploading profile picture...');
+    const loadingToast = toast.loading("Uploading profile picture...");
 
     try {
       const formData = new FormData();
-      formData.append('image', file);
-      formData.append('username', username || '');
+      formData.append("image", file);
+      formData.append("username", username || "");
 
       const response = await axios.post(
         `${BASE_URL}/api/user/profile-picture`,
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+            "Content-Type": "multipart/form-data",
+          },
         }
       );
-      
-      dispatch(updateProfilePicture({ username: username || '', imageUrl: response.data.url }));
-      
-      updateProfilePictureSocket(username || '', response.data.url);
-      
-      const avatarElements = document.querySelectorAll(`[data-username="${username}"]`);
-      avatarElements.forEach(el => {
-        const img = el.querySelector('img');
+
+      const imageUrlWithTimestamp = response.data.url.includes("?")
+        ? response.data.url
+        : response.data.url + "?t=" + Date.now();
+
+      dispatch(
+        updateProfilePicture({
+          username: username || "",
+          imageUrl: imageUrlWithTimestamp,
+        })
+      );
+
+      dispatch(forceProfileRefresh());
+
+      updateProfilePictureSocket(username || "", imageUrlWithTimestamp);
+
+      const avatarElements = document.querySelectorAll(
+        `[data-username="${username}"]`
+      );
+      avatarElements.forEach((el) => {
+        const img = el.querySelector("img");
         if (img) {
           const currentSrc = img.src;
-          img.src = currentSrc.includes('?') 
-            ? currentSrc.split('?')[0] + '?t=' + Date.now() 
-            : currentSrc + '?t=' + Date.now();
+          img.src = currentSrc.includes("?")
+            ? currentSrc.split("?")[0] + "?t=" + Date.now()
+            : currentSrc + "?t=" + Date.now();
         }
       });
-      
-      toast.success('Profile picture updated!', {
-        id: loadingToast
+
+      toast.success("Profile picture updated!", {
+        id: loadingToast,
       });
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload image', {
-        id: loadingToast
+      console.error("Upload error:", error);
+      toast.error("Failed to upload image", {
+        id: loadingToast,
       });
     }
   };
@@ -90,10 +106,7 @@ const ProfilePicture: React.FC = () => {
   return (
     <div className={container} onClick={handleClick}>
       <div className="group">
-        <ProfileAvatar
-          username={username}
-          size={70}
-        />
+        <ProfileAvatar username={username} size={70} />
         <div className={overlay}>
           <span className="text-white text-xs">Edit</span>
         </div>

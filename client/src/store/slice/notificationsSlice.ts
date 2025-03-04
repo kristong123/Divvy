@@ -46,15 +46,10 @@ export const notificationsSlice = createSlice({
       state.unreadCount += 1;
     },
     markAsRead: (state, action: PayloadAction<string>) => {
-      // Only mark as read if it's the last clicked notification
-      const lastClickedId = window.localStorage.getItem('lastClickedNotificationId');
-      
-      if (lastClickedId === action.payload) {
-        const notification = state.notifications.find(n => n.id === action.payload);
-        if (notification && !notification.read) {
-          notification.read = true;
-          state.unreadCount -= 1;
-        }
+      const notification = state.notifications.find(n => n.id === action.payload);
+      if (notification && !notification.read) {
+        notification.read = true;
+        state.unreadCount -= 1;
       }
     },
     markAllAsRead: (state) => {

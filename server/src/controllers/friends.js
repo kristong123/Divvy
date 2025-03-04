@@ -62,13 +62,27 @@ exports.getPendingRequests = async (req, res) => {
       .where('status', '==', 'pending')
       .get();
 
-    const requests = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Create an array to hold the requests with profile pictures
+    const requests = [];
+
+    // Process each request and fetch the sender's profile picture
+    for (const doc of snapshot.docs) {
+      const requestData = doc.data();
+
+      // Get the sender's profile data to include their profile picture
+      const senderDoc = await db.collection('users').doc(requestData.sender).get();
+      const senderData = senderDoc.exists ? senderDoc.data() : {};
+
+      requests.push({
+        id: doc.id,
+        ...requestData,
+        profilePicture: senderData.profilePicture || null
+      });
+    }
 
     res.json(requests);
   } catch (error) {
+    console.error('Error fetching pending requests:', error);
     res.status(500).json({ error: 'Failed to fetch pending requests' });
   }
 };
@@ -82,13 +96,27 @@ exports.getSentRequests = async (req, res) => {
       .where('status', '==', 'pending')
       .get();
 
-    const requests = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Create an array to hold the requests with profile pictures
+    const requests = [];
+
+    // Process each request and fetch the recipient's profile picture
+    for (const doc of snapshot.docs) {
+      const requestData = doc.data();
+
+      // Get the recipient's profile data to include their profile picture
+      const recipientDoc = await db.collection('users').doc(requestData.recipient).get();
+      const recipientData = recipientDoc.exists ? recipientDoc.data() : {};
+
+      requests.push({
+        id: doc.id,
+        ...requestData,
+        profilePicture: recipientData.profilePicture || null
+      });
+    }
 
     res.json(requests);
   } catch (error) {
+    console.error('Error fetching sent requests:', error);
     res.status(500).json({ error: 'Failed to fetch sent requests' });
   }
 };

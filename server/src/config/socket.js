@@ -354,8 +354,23 @@ const initializeSocket = (server) => {
                     timestamp: new Date(),
                     status: 'sent',
                     type: 'group-invite',
-                    groupId: groupId
+                    groupId: groupId,
+                    groupName: groupData.name,
+                    invitedBy
                 };
+
+                // Check if the friends document exists, create it if it doesn't
+                const friendsDocRef = db.collection('friends').doc(chatId);
+                const friendsDoc = await friendsDocRef.get();
+
+                if (!friendsDoc.exists) {
+                    // Create the friends document if it doesn't exist
+                    await friendsDocRef.set({
+                        users: [invitedBy, username],
+                        createdAt: new Date(),
+                        status: 'accepted'
+                    });
+                }
 
                 // Save the invite to the messages subcollection
                 await db.collection('friends')
@@ -364,24 +379,29 @@ const initializeSocket = (server) => {
                     .doc(inviteId)
                     .set(inviteMessage);
 
-                // Also save additional metadata to a dedicated collection for easier querying
-                await db.collection('groupInvites').add({
-                    id: inviteId,
-                    groupId,
-                    username,
-                    invitedBy,
-                    groupName: groupData.name,
-                    timestamp: new Date(),
-                    status: 'pending'
-                });
-
                 // Emit the invite to the recipient with additional metadata
                 io.to(username).emit('group-invite', {
                     id: inviteId,
                     groupId,
                     groupName: groupData.name,
-                    invitedBy,
-                    timestamp: new Date().toISOString()
+                    invitedBy
+                });
+
+                // Also emit a new message event to both users
+                io.to(username).emit('new-message', {
+                    chatId,
+                    message: {
+                        ...inviteMessage,
+                        timestamp: inviteMessage.timestamp.toISOString()
+                    }
+                });
+
+                io.to(invitedBy).emit('new-message', {
+                    chatId,
+                    message: {
+                        ...inviteMessage,
+                        timestamp: inviteMessage.timestamp.toISOString()
+                    }
                 });
 
             } catch (error) {

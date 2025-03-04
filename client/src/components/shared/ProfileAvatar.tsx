@@ -15,34 +15,50 @@ const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   // Get data from Redux store
   const groups = useSelector((state: RootState) => state.groups.groups);
   const friends = useSelector((state: RootState) => state.friends.friends);
+  const currentUser = useSelector((state: RootState) => state.user);
 
   // Find profile picture based on username
   const imageUrl = useMemo(() => {
+    // First check if this is the current user
+    if (username === currentUser?.username && currentUser?.profilePicture) {
+      return currentUser.profilePicture;
+    }
+
     // Check in groups first
-    for (const groupId in groups) {
-      const user = groups[groupId].users.find((u) => u.username === username);
-      if (user?.profilePicture) {
-        return user.profilePicture;
+    if (groups) {
+      for (const groupId in groups) {
+        const group = groups[groupId];
+        if (group && Array.isArray(group.users)) {
+          const user = group.users.find((u) => u && u.username === username);
+          if (user?.profilePicture) {
+            return user.profilePicture;
+          }
+        }
       }
     }
 
     // Then check in friends list
-    const friend = friends.find((f) => f.username === username);
-    if (friend?.profilePicture) {
-      return friend.profilePicture;
+    if (Array.isArray(friends)) {
+      const friend = friends.find((f) => f && f.username === username);
+      if (friend?.profilePicture) {
+        return friend.profilePicture;
+      }
     }
 
     return null;
-  }, [username, groups, friends]);
+  }, [username, groups, friends, currentUser]);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const handleImageError = (
+    e: React.SyntheticEvent<HTMLImageElement, Event>
+  ) => {
     e.currentTarget.src = "";
     toast.error(`Failed to load ${username}'s profile picture`);
   };
 
   const getInitials = (name: string) => {
-    const parts = name.split(' ');
-    return parts.map(part => part.charAt(0)).join('');
+    if (!name) return "?";
+    const parts = name.split(" ");
+    return parts.map((part) => part.charAt(0)).join("");
   };
 
   return (
@@ -56,7 +72,7 @@ const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           key={imageUrl}
           src={imageUrl}
           alt={username}
-          className="w-[90%] h-[90%] object-cover rounded-full"
+          className="absolute inset-0 m-auto w-[90%] h-[90%] object-cover rounded-full"
           onError={handleImageError}
         />
       ) : (

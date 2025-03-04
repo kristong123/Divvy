@@ -1,19 +1,21 @@
-import React, { useState } from 'react';
-import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import axios from 'axios';
-import clsx from 'clsx';
-import { useAppDispatch } from '../store/hooks'; // Type-safe dispatch
-import { setUser, forceProfileRefresh } from '../store/slice/userSlice';
-import { useNavigate } from 'react-router-dom'; // Add this
-import { BASE_URL } from '../config/api';
-import { toast } from 'react-hot-toast';
+import React, { useState } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import axios from "axios";
+import clsx from "clsx";
+import { useAppDispatch } from "../store/hooks"; // Type-safe dispatch
+import { useNavigate } from "react-router-dom"; // Add this
+import { BASE_URL } from "../config/api";
+import { toast } from "react-hot-toast";
+import { login } from "../services/auth";
 
 const Login: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -21,72 +23,53 @@ const Login: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validation
-    if (!username.trim()) {
-      toast.error('Username cannot be empty');
-      return;
-    }
-    if (!password.trim()) {
-      toast.error('Password cannot be empty');
-      return;
-    }
+    setLoading(true);
+    setError("");
 
     try {
-      const response = await axios.post(`${BASE_URL}/api/auth/login`, {
-        username,
-        password
-      });
-      
-      // Add a timestamp to the profile picture URL to prevent caching
-      const profilePicture = response.data.profilePicture 
-        ? `${response.data.profilePicture}?t=${Date.now()}` 
-        : null;
-      
-      // Store the user data in Redux
-      dispatch(setUser({ 
-        username: response.data.username,
-        profilePicture: profilePicture,
-        venmoUsername: response.data.venmoUsername || null
-      }));
-      
-      // Also dispatch the force refresh action to ensure the image is updated
-      if (profilePicture) {
-        dispatch(forceProfileRefresh());
-      }
-      
-      navigate('/');
-    } catch (_error) {
-      console.error('Login error:', _error);
-      toast.error('Login failed');
+      // Log login attempt with emoji for better visibility
+      console.log(`🔑 Login attempt for user: ${username}`);
+
+      await login(username, password, dispatch);
+
+      // Log successful login
+      console.log(`✅ User logged in successfully: ${username}`);
+
+      // Navigate to dashboard on successful login
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("Invalid username or password");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSignUp = async () => {
     // Validation
     if (!username.trim()) {
-      toast.error('Username cannot be empty');
+      toast.error("Username cannot be empty");
       return;
     }
     if (!password.trim()) {
-      toast.error('Password cannot be empty');
+      toast.error("Password cannot be empty");
       return;
     }
 
     try {
       await axios.post(`${BASE_URL}/api/auth/signup`, {
         username,
-        password
+        password,
       });
-      toast.success('Account created! Please log in');
+      toast.success("Account created! Please log in");
     } catch (_error) {
-      console.error('Sign up failed:', _error);
-      toast.error('Sign up failed');
+      console.error("Sign up failed:", _error);
+      toast.error("Sign up failed");
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       if (e.shiftKey) {
         handleSignUp();
       } else {
@@ -97,87 +80,87 @@ const Login: React.FC = () => {
 
   const container = clsx(
     // Layout
-    'col min-h-screen',
+    "col min-h-screen",
     // Alignment
-    'items-center justify-center',
+    "items-center justify-center",
     // Typography
-    'text-black'
+    "text-black"
   );
 
   const formContainer = clsx(
     // Layout
-    'col',
+    "col",
     // Alignment
-    'justify-center'
+    "justify-center"
   );
 
   const title = clsx(
     // Typography
-    'text-4xl font-bold text-white text-center',
+    "text-4xl font-bold text-white text-center",
     // Spacing
-    'mb-4'
+    "mb-4"
   );
 
   const inputLabel = clsx(
     // Typography
-    'block text-white text-sm font-bold',
+    "block text-white text-sm font-bold",
     // Spacing
-    'mb-2'
+    "mb-2"
   );
 
   const baseInput = clsx(
     // Layout
-    'w-full',
+    "w-full",
     // Spacing
-    'px-3 py-2',
+    "px-3 py-2",
     // Border
-    'border rounded-lg',
+    "border rounded-lg",
     // Focus
-    'focus:outline-none focus:ring-2 focus:ring-light1',
+    "focus:outline-none focus:ring-2 focus:ring-light1",
     // Transitions
-    'transition-all duration-300 ease-smooth',
+    "transition-all duration-300 ease-smooth",
     // Hover
-    'hover:border-dark2'
+    "hover:border-dark2"
   );
 
   const passwordContainer = clsx(
     // Layout
-    'relative',
+    "relative",
     // Spacing
-    'mb-6'
+    "mb-6"
   );
 
   const passwordToggle = clsx(
     // Position
-    'absolute inset-y-0 right-0 px-3',
+    "absolute inset-y-0 right-0 px-3",
     // Layout
-    'flex items-center',
+    "flex items-center",
     // Typography
-    'text-gray-600',
+    "text-gray-600",
     // Hover
-    'hover:text-gray-800'
+    "hover:text-gray-800"
   );
 
   const loginButton = clsx(
     // Layout
-    'w-full',
+    "w-full",
     // Spacing
-    'py-2',
+    "py-2",
     // Appearance
-    'bg-dark2 text-white rounded-lg',
+    "bg-dark2 text-white rounded-lg",
     // Effects
-    'hover:shadow-md',
+    "hover:shadow-md",
     // Transitions
-    'transition-all duration-300 ease-smooth'
+    "transition-all duration-300 ease-smooth"
   );
 
   const signupButton = clsx(
     // Typography
-    'text-white font-bold',
+    "text-white font-bold",
     // Spacing
-    'mt-3',
+    "mt-3",
     // Transitions
-    'transition-all duration-300 ease-smooth'
+    "transition-all duration-300 ease-smooth"
   );
 
   return (
@@ -185,8 +168,16 @@ const Login: React.FC = () => {
       <div className={formContainer}>
         <h1 className={title}>Divvy</h1>
 
+        {error && (
+          <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
+            {error}
+          </div>
+        )}
+
         <div className="mb-4">
-          <label htmlFor="username" className={inputLabel}>Username</label>
+          <label htmlFor="username" className={inputLabel}>
+            Username
+          </label>
           <input
             id="username"
             type="text"
@@ -199,14 +190,16 @@ const Login: React.FC = () => {
         </div>
 
         <div className={passwordContainer}>
-          <label htmlFor="password" className={inputLabel}>Password</label>
+          <label htmlFor="password" className={inputLabel}>
+            Password
+          </label>
           <div className="relative">
             <input
               id="password"
-              type={showPassword ? 'text' : 'password'}
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={clsx(baseInput, 'pr-10')}
+              className={clsx(baseInput, "pr-10")}
               placeholder="Enter your password"
               onKeyDown={handleKeyDown}
             />
@@ -224,8 +217,12 @@ const Login: React.FC = () => {
           </div>
         </div>
 
-        <button onClick={handleLogin} className={loginButton}>
-          Log In
+        <button
+          onClick={handleLogin}
+          className={loginButton}
+          disabled={loading}
+        >
+          {loading ? "Logging in..." : "Log In"}
         </button>
 
         <button onClick={handleSignUp} className={signupButton}>

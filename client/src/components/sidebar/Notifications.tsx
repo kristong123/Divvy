@@ -29,7 +29,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
     // Height - make it responsive to parent container
     "h-full max-h-[calc(100vh-250px)]",
     // Scrollbar styling
-    'scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent'
+    "scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
   );
 
   const title = clsx(
@@ -110,8 +110,6 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
 
   const handleNotificationClick = (notification: any) => {
     if (!notification.read) {
-      window.localStorage.setItem("lastClickedNotificationId", notification.id);
-
       dispatch(
         markNotificationAsRead({
           username: currentUser,
@@ -120,8 +118,9 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
       );
     }
 
-    if (notification.data?.groupId && onNotificationClick) {
-      onNotificationClick(notification.data.groupId, notification.type);
+    // Handle navigation based on notification type
+    if (notification.data?.groupId) {
+      onNotificationClick?.(notification.data.groupId, notification.type);
     }
   };
 

@@ -1,12 +1,16 @@
-import React, { useEffect } from 'react';
-import clsx from 'clsx';
-import { useDispatch, useSelector } from 'react-redux';
-import axios from 'axios';
-import { BASE_URL } from '../../config/api';
-import { toast } from 'react-hot-toast';
-import { removeGroupInvite, setInviteStatus, InviteStatus } from '../../store/slice/groupSlice';
-import { RootState } from '../../store/store';
-import { getSocket } from '../../services/socketService';
+import React, { useEffect, useState, useCallback } from "react";
+import clsx from "clsx";
+import { useDispatch, useSelector } from "react-redux";
+import axios from "axios";
+import { BASE_URL } from "../../config/api";
+import { toast } from "react-hot-toast";
+import {
+  removeGroupInvite,
+  setInviteStatus,
+  InviteStatus,
+} from "../../store/slice/groupSlice";
+import { RootState } from "../../store/store";
+import { getSocket, showUniqueToast } from "../../services/socketService";
 
 interface GroupInviteProps {
   id: string;
@@ -17,45 +21,138 @@ interface GroupInviteProps {
   onAccept: (inviteId: string) => void;
 }
 
-const GroupInvite: React.FC<GroupInviteProps> = ({ 
-  id, 
-  groupId, 
-  groupName, 
+const GroupInvite: React.FC<GroupInviteProps> = ({
+  id,
+  groupId,
+  groupName,
   invitedBy,
-  onAccept 
+  onAccept,
 }) => {
   const dispatch = useDispatch();
   const currentUser = useSelector((state: RootState) => state.user.username);
-  
+
+  // Determine if the current user is the sender of the invite
+  const isSender = currentUser === invitedBy;
+
   // Use a safe default value and add a null check
-  const inviteStatus = useSelector(
-    (state: RootState) => (state.groups.inviteStatus && id ? state.groups.inviteStatus[id] : 'loading')
+  const inviteStatus = useSelector((state: RootState) =>
+    state.groups.inviteStatus && id ? state.groups.inviteStatus[id] : "loading"
   ) as InviteStatus;
 
-  // Check group status initially and store in Redux
-  useEffect(() => {
-    const checkGroupStatus = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/api/groups/${groupId}/status?username=${currentUser}`);
-        
-        let status: InviteStatus = 'valid';
-        if (!response.data.exists) {
-          status = 'invalid';
-        } else if (response.data.isMember) {
-          status = 'already_member';
-        }
-        
-        dispatch(setInviteStatus({ inviteId: id, status }));
-      } catch (error) {
-        console.error('Error checking group status:', error);
-        dispatch(setInviteStatus({ inviteId: id, status: 'invalid' }));
-      }
-    };
+  // Add a state to track failed status checks
+  const [statusCheckFailed, setStatusCheckFailed] = useState(false);
 
-    if (inviteStatus === 'loading') {
-      checkGroupStatus();
+  // Keep track of invites we've already checked
+  const [checkedInvites, setCheckedInvites] = useState<Set<string>>(new Set());
+
+  // Function to check if user is already a member of the group
+  const checkGroupMembership =
+    useCallback(async (): Promise<InviteStatus | null> => {
+      try {
+        console.log(`Checking group status for group ${groupId}`);
+        const groupResponse = await axios.get(
+          `${BASE_URL}/api/groups/${groupId}/status?username=${currentUser}`
+        );
+
+        if (!groupResponse.data.exists) {
+          return "invalid";
+        } else if (groupResponse.data.isMember) {
+          return "already_member";
+        }
+        return "valid";
+      } catch (error) {
+        console.error("Error checking group membership:", error);
+        return null;
+      }
+    }, [groupId, currentUser]);
+
+  // Check the invite status from the server
+  const checkInviteStatus = useCallback(async () => {
+    // Skip if we've already checked this invite
+    if (id && checkedInvites.has(id)) {
+      console.log(
+        `Skipping duplicate check for invite ${id} - already checked`
+      );
+      return;
     }
-  }, [groupId, currentUser, dispatch, id, inviteStatus]);
+
+    // Mark this invite as checked
+    if (id) {
+      setCheckedInvites((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(id);
+        return newSet;
+      });
+    }
+
+    try {
+      // Skip server check if we've already tried and failed
+      if (statusCheckFailed) {
+        console.log(
+          `Skipping server status check for invite ${id} due to previous failures`
+        );
+        // Set to valid if not already set
+        if (inviteStatus === "loading") {
+          dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+        }
+        return;
+      }
+
+      try {
+        // Fetch the invite status from the database
+        console.log(`Fetching invite status for invite ${id}`);
+        const response = await axios.get(
+          `${BASE_URL}/api/groups/invites/${id}/status?username=${currentUser}`
+        );
+
+        if (response.data && response.data.status) {
+          // If the server has a saved status, use it
+          console.log(`Server returned invite status: ${response.data.status}`);
+          dispatch(
+            setInviteStatus({
+              inviteId: id,
+              status: response.data.status,
+            })
+          );
+          return;
+        }
+      } catch (statusError) {
+        console.error("Error fetching invite status:", statusError);
+        // Mark status check as failed to avoid repeated failures
+        setStatusCheckFailed(true);
+      }
+
+      // If we get here, either there's no saved status or there was an error
+      // Check if the user is already a member of the group
+      const status = await checkGroupMembership();
+      if (status) {
+        console.log(`Setting invite status to: ${status}`);
+        dispatch(setInviteStatus({ inviteId: id, status }));
+      }
+    } catch (error) {
+      console.error("Error checking invite status:", error);
+      // Only set to invalid if not already accepted or declined
+      if (inviteStatus !== "accepted" && inviteStatus !== "declined") {
+        // Set to valid instead of invalid to allow the user to try accepting/declining
+        dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+      }
+    }
+  }, [
+    id,
+    checkedInvites,
+    statusCheckFailed,
+    inviteStatus,
+    dispatch,
+    currentUser,
+    checkGroupMembership,
+  ]);
+
+  // Check invite status when component mounts or when inviteStatus changes to loading
+  useEffect(() => {
+    if (inviteStatus === "loading") {
+      checkInviteStatus();
+    }
+  }, [inviteStatus, checkInviteStatus]);
 
   // Listen for socket events that might affect the invite status
   useEffect(() => {
@@ -64,177 +161,269 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     // Group was deleted
     const handleGroupDeleted = (data: { groupId: string }) => {
       if (data.groupId === groupId) {
-        dispatch(setInviteStatus({ inviteId: id, status: 'invalid' }));
+        // Only update if not already accepted or declined
+        if (inviteStatus !== "accepted" && inviteStatus !== "declined") {
+          dispatch(setInviteStatus({ inviteId: id, status: "invalid" }));
+        }
       }
     };
 
     // User was added to the group
     const handleUserAddedToGroup = (data: { groupId: string }) => {
       if (data.groupId === groupId) {
-        dispatch(setInviteStatus({ inviteId: id, status: 'already_member' }));
+        // Only update if not already accepted or declined
+        if (inviteStatus !== "accepted" && inviteStatus !== "declined") {
+          dispatch(setInviteStatus({ inviteId: id, status: "already_member" }));
+        }
       }
     };
 
     // User was removed from the group
     const handleUserRemovedFromGroup = (data: { groupId: string }) => {
-      if (data.groupId === groupId && 
-          inviteStatus !== 'declined' && 
-          inviteStatus !== 'accepted') {
-        dispatch(setInviteStatus({ inviteId: id, status: 'valid' }));
+      if (
+        data.groupId === groupId &&
+        inviteStatus !== "declined" &&
+        inviteStatus !== "accepted"
+      ) {
+        dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
       }
     };
 
-    socket.on('group-deleted', handleGroupDeleted);
-    socket.on('user-added-to-group', handleUserAddedToGroup);
-    socket.on('user-removed-from-group', handleUserRemovedFromGroup);
+    socket.on("group-deleted", handleGroupDeleted);
+    socket.on("user-added-to-group", handleUserAddedToGroup);
+    socket.on("user-removed-from-group", handleUserRemovedFromGroup);
 
     return () => {
-      socket.off('group-deleted', handleGroupDeleted);
-      socket.off('user-added-to-group', handleUserAddedToGroup);
-      socket.off('user-removed-from-group', handleUserRemovedFromGroup);
+      socket.off("group-deleted", handleGroupDeleted);
+      socket.off("user-added-to-group", handleUserAddedToGroup);
+      socket.off("user-removed-from-group", handleUserRemovedFromGroup);
     };
   }, [groupId, inviteStatus, dispatch, id]);
 
   const container = clsx(
     // Layout
-    'flex flex-col',
+    "flex flex-col",
     // Spacing
-    'p-3',
+    "p-3",
     // Appearance
-    'bg-gray-100 rounded-xl',
+    "bg-gray-100 rounded-xl",
     // Width
-    'w-fit'
+    "w-fit"
   );
 
   const title = clsx(
     // Typography
-    'text-sm font-semibold text-black'
+    "text-sm font-semibold text-black"
   );
 
   const description = clsx(
     // Typography
-    'text-sm text-gray-600'
+    "text-sm text-gray-600"
   );
 
   const buttonContainer = clsx(
     // Layout
-    'flex gap-2 mt-2'
+    "flex gap-2 mt-2"
   );
 
   const acceptButton = clsx(
     // Layout
-    'px-3 py-1',
+    "px-3 py-1",
     // Appearance
-    inviteStatus === 'valid' 
-      ? 'bg-[#57E3DC] cursor-pointer'
-      : 'bg-gray-300 cursor-not-allowed',
+    inviteStatus === "valid"
+      ? "bg-[#57E3DC] cursor-pointer"
+      : "bg-gray-300 cursor-not-allowed",
     // Typography
-    'text-sm text-white font-medium',
+    "text-sm text-white font-medium",
     // Border
-    'rounded-md'
+    "rounded-md"
   );
 
   const declineButton = clsx(
     // Layout
-    'px-3 py-1',
+    "px-3 py-1",
     // Appearance
-    inviteStatus === 'valid'
-      ? 'bg-gray-300 cursor-pointer'
-      : 'bg-gray-200 cursor-not-allowed',
+    inviteStatus === "valid"
+      ? "bg-gray-300 cursor-pointer"
+      : "bg-gray-200 cursor-not-allowed",
     // Typography
-    'text-sm text-gray-700 font-medium',
+    "text-sm text-gray-700 font-medium",
     // Border
-    'rounded-md'
+    "rounded-md"
   );
 
   const handleAccept = async () => {
-    if (inviteStatus !== 'valid') return;
-    
+    if (inviteStatus !== "valid") {
+      console.log(`Cannot accept invite with status: ${inviteStatus}`);
+      return;
+    }
+
     try {
-      dispatch(setInviteStatus({ inviteId: id, status: 'accepted' }));
-      await axios.post(`${BASE_URL}/api/groups/join`, {
+      // Update local state first for immediate UI feedback
+      console.log(`Setting invite status to accepted for invite ${id}`);
+      dispatch(setInviteStatus({ inviteId: id, status: "accepted" }));
+
+      // Make the API call to join the group and update invite status
+      console.log(`Sending join request for group ${groupId}, invite ${id}`);
+      const response = await axios.post(`${BASE_URL}/api/groups/join`, {
         groupId,
-        username: currentUser
+        username: currentUser,
+        inviteId: id,
+        inviteStatus: "accepted", // Explicitly send the status to update in the database
       });
-      
-      onAccept(id);
-      toast.success(`You joined ${groupName}`);
+
+      // Only call onAccept if the API call was successful
+      if (response.status === 200) {
+        console.log(`Successfully joined group ${groupId}`);
+        try {
+          onAccept(id);
+        } catch (callbackError) {
+          console.error("Error in onAccept callback:", callbackError);
+          // Don't revert status on callback errors
+        }
+
+        // Don't show a toast notification here - it will be shown by the socket event handler
+        console.log(`✅ Successfully joined group: ${groupName}`);
+      }
     } catch (error) {
-      dispatch(setInviteStatus({ inviteId: id, status: 'valid' }));
-      toast.error('Failed to join group');
+      console.error("Failed to join group:", error);
+
+      // Log more detailed error information
+      if (axios.isAxiosError(error) && error.response) {
+        console.error("Server response:", error.response.data);
+        console.error("Status code:", error.response.status);
+      }
+
+      // Revert to valid status
+      dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+      toast.error("Failed to join group");
     }
   };
 
-  const handleDecline = () => {
-    if (inviteStatus !== 'valid') return;
-    
-    dispatch(setInviteStatus({ inviteId: id, status: 'declined' }));
-    dispatch(removeGroupInvite({ 
-      username: invitedBy,
-      inviteId: id 
-    }));
-    
-    toast.success(`Declined invitation to ${groupName}`);
+  const handleDecline = async () => {
+    if (inviteStatus !== "valid") {
+      console.log(`Cannot decline invite with status: ${inviteStatus}`);
+      return;
+    }
+
+    try {
+      // Update local state first for immediate UI feedback
+      console.log(`Setting invite status to declined for invite ${id}`);
+      dispatch(setInviteStatus({ inviteId: id, status: "declined" }));
+
+      // Make API call to update invite status in the database
+      console.log(`Sending decline request for invite ${id}`);
+      await axios.post(`${BASE_URL}/api/groups/invites/decline`, {
+        inviteId: id,
+        username: currentUser,
+        inviteStatus: "declined", // Explicitly send the status to update in the database
+      });
+
+      // Remove from Redux store
+      console.log(`Removing invite ${id} from Redux store`);
+      dispatch(
+        removeGroupInvite({
+          username: currentUser,
+          inviteId: id,
+        })
+      );
+
+      // Use a unique key for the toast notification
+      const notificationKey = `decline-invite-${id}-${Date.now()
+        .toString()
+        .slice(0, -3)}`;
+      showUniqueToast(notificationKey, `Declined invitation to ${groupName}`);
+      console.log(`✅ Successfully declined invitation to ${groupName}`);
+    } catch (error) {
+      console.error("Failed to decline invite:", error);
+
+      // Log more detailed error information
+      if (axios.isAxiosError(error) && error.response) {
+        console.error("Server response:", error.response.data);
+        console.error("Status code:", error.response.status);
+      }
+
+      // Revert to valid status if the API call fails
+      dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+      toast.error("Failed to decline invitation");
+    }
   };
 
   // Get status message based on invite status
   const getStatusMessage = () => {
     switch (inviteStatus) {
-      case 'loading':
-        return 'Checking invite status...';
-      case 'invalid':
-        return 'This group no longer exists';
-      case 'already_member':
-        return 'You are already a member of this group';
-      case 'accepted':
-        return `You accepted the invitation to ${groupName}`;
-      case 'declined':
-        return `You declined the invitation to ${groupName}`;
-      case 'valid':
+      case "loading":
+        return `Loading invite status...`;
+      case "invalid":
+        return `This invite is no longer valid`;
+      case "accepted":
+        return `You've accepted this invite`;
+      case "declined":
+        return `You've declined this invite`;
+      case "already_member":
+        return `You're already a member of ${groupName}`;
+      case "valid":
+        return `You've been invited to join ${groupName}`;
+      default:
+        // Don't update state during render - use useEffect instead
         return `You've been invited to join ${groupName}`;
     }
   };
 
+  // Update status if needed via useEffect
+  useEffect(() => {
+    if (
+      id &&
+      inviteStatus !== "loading" &&
+      inviteStatus !== "valid" &&
+      inviteStatus !== "accepted" &&
+      inviteStatus !== "declined" &&
+      !statusCheckFailed
+    ) {
+      dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+    }
+  }, [id, inviteStatus, statusCheckFailed, dispatch]);
+
   // Get button text based on status
   const getAcceptButtonText = () => {
     switch (inviteStatus) {
-      case 'accepted':
-        return 'Accepted';
-      case 'already_member':
-        return 'Already Joined';
+      case "accepted":
+        return "Accepted";
+      case "already_member":
+        return "Already Joined";
       default:
-        return 'Accept';
+        return "Accept";
     }
   };
 
   const getDeclineButtonText = () => {
-    return inviteStatus === 'declined' ? 'Declined' : 'Decline';
+    return inviteStatus === "declined" ? "Declined" : "Decline";
   };
 
   return (
     <div className={container}>
       <span className={title}>Group Invite</span>
-      <p className={description}>
-        {getStatusMessage()}
-      </p>
-      <div className={buttonContainer}>
-        <button 
-          className={acceptButton}
-          onClick={handleAccept}
-          disabled={inviteStatus !== 'valid'}
-        >
-          {getAcceptButtonText()}
-        </button>
-        <button 
-          className={declineButton}
-          onClick={handleDecline}
-          disabled={inviteStatus !== 'valid'}
-        >
-          {getDeclineButtonText()}
-        </button>
-      </div>
+      <p className={description}>{getStatusMessage()}</p>
+      {!isSender && (
+        <div className={buttonContainer}>
+          <button
+            className={acceptButton}
+            onClick={handleAccept}
+            disabled={inviteStatus !== "valid"}
+          >
+            {getAcceptButtonText()}
+          </button>
+          <button
+            className={declineButton}
+            onClick={handleDecline}
+            disabled={inviteStatus !== "valid"}
+          >
+            {getDeclineButtonText()}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-export default GroupInvite; 
+export default GroupInvite;

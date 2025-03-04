@@ -144,8 +144,9 @@ export const groupSlice = createSlice({
       }>
     ) => {
       const { groupId, expense, keepEventOpen } = action.payload;
-
-      console.log("Adding expense to Redux store:", expense);
+      
+      // Log expense addition with emoji
+      console.log(`💰 Adding expense: ${expense.item} ($${expense.amount}) to group: ${groupId}`);
 
       if (state.groups[groupId] && state.groups[groupId].currentEvent) {
         state.groups[groupId].currentEvent!.expenses = [
@@ -160,11 +161,6 @@ export const groupSlice = createSlice({
         if (keepEventOpen) {
           state.groups[groupId].keepEventOpen = true;
         }
-
-        console.log(
-          "Updated expenses:",
-          state.groups[groupId].currentEvent!.expenses
-        );
       }
     },
     updateGroupUser: (
@@ -214,14 +210,9 @@ export const groupSlice = createSlice({
       const { inviteId, status } = action.payload;
       state.inviteStatus[inviteId] = status;
     },
-    batchSetInviteStatuses: (
-      state,
-      action: PayloadAction<{ [inviteId: string]: InviteStatus }>
-    ) => {
-      state.inviteStatus = { ...state.inviteStatus, ...action.payload };
-    },
     removeInviteStatus: (state, action: PayloadAction<string>) => {
-      delete state.inviteStatus[action.payload];
+      const inviteId = action.payload;
+      delete state.inviteStatus[inviteId];
     },
     markGroupInvitesInvalid: (state, action: PayloadAction<string>) => {
       const groupId = action.payload;
@@ -259,7 +250,6 @@ export const {
   addGroupInvite,
   removeGroupInvite,
   setInviteStatus,
-  batchSetInviteStatuses,
   removeInviteStatus,
   markGroupInvitesInvalid,
   markUserInvitesAsMember,

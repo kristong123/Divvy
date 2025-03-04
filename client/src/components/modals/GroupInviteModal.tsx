@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
 import Modal from "../shared/Modal";
 import ProfileAvatar from "../shared/ProfileAvatar";
@@ -30,11 +30,13 @@ const GroupInviteModal: React.FC<GroupInviteModalProps> = ({
     (state: RootState) => state.groups.groups[groupId]?.users || []
   );
 
-  // Filter out friends who are already in the group
-  const availableFriends = friends.filter(
-    (friend) =>
-      !groupMembers.some((member) => member.username === friend.username)
-  );
+  // Memoize the filtered friends list to prevent unnecessary rerenders
+  const availableFriends = useMemo(() => {
+    return friends.filter(
+      (friend) =>
+        !groupMembers.some((member) => member.username === friend.username)
+    );
+  }, [friends, groupMembers]);
 
   const handleToggleFriend = (username: string) => {
     setSelectedFriends((prev) =>

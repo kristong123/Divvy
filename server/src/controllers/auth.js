@@ -2,18 +2,27 @@ const { db } = require("../config/firebase");
 
 exports.login = async (req, res) => {
   try {
+    console.log('Login request received:', req.body);
     const { username, password } = req.body;
+
+    if (!username || !password) {
+      console.log('Missing username or password');
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
 
     // Get user document directly by username
     const userDoc = await db.collection('users').doc(username).get();
 
     if (!userDoc.exists) {
+      console.log(`User not found: ${username}`);
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
     const userData = userDoc.data();
+    console.log(`User found: ${username}, validating password`);
 
     if (userData.password === password) {
+      console.log(`Login successful for user: ${username}`);
       const responseData = {
         username: username,
         profilePicture: userData?.profilePicture || null,
@@ -22,6 +31,7 @@ exports.login = async (req, res) => {
       };
       res.status(200).json(responseData);
     } else {
+      console.log(`Invalid password for user: ${username}`);
       res.status(401).json({ message: 'Invalid username or password' });
     }
   } catch (error) {
@@ -32,12 +42,19 @@ exports.login = async (req, res) => {
 
 exports.signup = async (req, res) => {
   try {
+    console.log('Signup request received:', req.body);
     const { username, password } = req.body;
+
+    if (!username || !password) {
+      console.log('Missing username or password');
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
 
     // Check if username exists
     const userDoc = await db.collection('users').doc(username).get();
 
     if (userDoc.exists) {
+      console.log(`Username already exists: ${username}`);
       return res.status(400).json({ message: 'Username already exists' });
     }
 
@@ -51,6 +68,7 @@ exports.signup = async (req, res) => {
     };
 
     await db.collection('users').doc(username).set(newUser);
+    console.log(`User created successfully: ${username}`);
 
     res.status(201).json({
       message: 'Sign-up successful',

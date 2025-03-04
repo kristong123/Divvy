@@ -417,7 +417,7 @@ const sendGroupInvite = async (req, res) => {
         }
 
         // Create a unique ID for this invite
-        const inviteId = groupId + '_' + Date.now();
+        const inviteId = `invite_${groupId}_${Date.now()}`;
 
         // Get socket instance
         const io = getIO();
@@ -435,9 +435,10 @@ const sendGroupInvite = async (req, res) => {
 
         // Create a message object for the direct chat
         const message = {
+            id: inviteId,
             senderId: invitedBy,
             senderName: invitedBy,
-            content: `Invited you to join ${groupData.name}`,
+            content: `${invitedBy} invited you to join ${groupData.name}`,
             timestamp: new Date(),
             type: 'group-invite',
             groupId,
@@ -446,16 +447,29 @@ const sendGroupInvite = async (req, res) => {
             status: 'sent'
         };
 
-        // Save the message to the messages collection
-        const messageRef = await db.collection('messages').add({
-            chatId,
-            ...message
-        });
+        // Check if the friends document exists, create it if it doesn't
+        const friendsDocRef = db.collection('friends').doc(chatId);
+        const friendsDoc = await friendsDocRef.get();
 
-        // Update the message with its ID
+        if (!friendsDoc.exists) {
+            // Create the friends document if it doesn't exist
+            await friendsDocRef.set({
+                users: [invitedBy, username],
+                createdAt: new Date(),
+                status: 'accepted'
+            });
+        }
+
+        // Save the message to the friends collection's messages subcollection
+        await db.collection('friends')
+            .doc(chatId)
+            .collection('messages')
+            .doc(inviteId)
+            .set(message);
+
+        // Update the message with its ID for the socket event
         const messageWithId = {
             ...message,
-            id: messageRef.id,
             timestamp: message.timestamp.toISOString()
         };
 
