@@ -1,4 +1,4 @@
-import { MessageData } from "./messageTypes";
+import { Message } from "./messageTypes";
 
 export interface GroupMember {
   username: string;
@@ -42,13 +42,13 @@ export interface Group {
   createdAt: string;
   updatedAt: string;
   currentEvent?: Event | null;
-  messages?: MessageData[];
+  messages?: Message[];
   keepEventOpen?: boolean;
 }
 
 export interface GroupState {
   groups: { [key: string]: Group };
-  messages: { [key: string]: MessageData[] };
+  messages: { [key: string]: Message[] };
   loading: boolean;
   error: string | null;
 }
