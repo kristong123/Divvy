@@ -12,7 +12,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO with existing corsOptions
 initializeSocket(server);
 
-// Use existing CORS config
+// Use the corsOptions configuration
 app.use(cors(corsOptions));
 
 // Parse JSON bodies
