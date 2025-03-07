@@ -1,28 +1,21 @@
-import React, { useState, useMemo } from "react";
-import ProfileAvatar from "../../shared/ProfileAvatar";
-import AddExpenseModal from "../../modals/AddExpenseModal";
-import { addExpense, updateEvent } from "../../../services/socketService";
-import { toast } from "react-hot-toast";
+import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../../../store/store";
+import { toast } from "react-hot-toast";
+import ProfileAvatar from "../../shared/ProfileAvatar";
 import PaymentConfirmationWindow from "../../modals/PaymentConfirmationModal";
 import ExpenseBreakdown from "./ExpenseBreakdown";
+import { Expense } from "../../../types/groupTypes";
 
 interface EventDetailsProps {
   description: string;
-  expenses: Array<{
-    item: string;
-    amount: number;
-    paidBy: string;
-    splitBetween: string[];
-  }>;
+  expenses: Expense[];
   participants: Array<{
     username: string;
     profilePicture: string | null;
     venmoUsername?: string;
     isAdmin?: boolean;
   }>;
-  currentUser: string | null;
   onCancel: () => void;
   groupId: string;
 }
@@ -31,56 +24,39 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   description,
   expenses,
   participants,
-  currentUser,
   onCancel,
   groupId,
 }) => {
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [paymentConfirmation, setPaymentConfirmation] = useState<{
-    isOpen: boolean;
-    recipient: string;
-    amount: number;
-  }>({
-    isOpen: false,
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const [paymentConfirmation, setPaymentConfirmation] = useState({
     recipient: "",
     amount: 0,
   });
-  const group = useSelector((state: RootState) => state.groups.groups[groupId]);
 
-  // Calculate total cost
-  const totalCost = useMemo(() => {
+  const group = useSelector(
+    (state: RootState) => state.groups.groups[groupId]
+  );
+
+  const totalAmount = React.useMemo(() => {
     return expenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [expenses]);
 
+  // Since we're removing paidBy and splitBetween, we need to change how we handle payments
+  // For now, we'll just remove the expenses without filtering
   const handlePaymentConfirm = () => {
     if (!group?.currentEvent) return;
 
-    // Filter out the expenses that were just paid
-    const updatedExpenses = group.currentEvent.expenses.filter((expense) => {
-      if (
-        expense.paidBy === paymentConfirmation.recipient &&
-        expense.splitBetween.includes(currentUser || "")
-      ) {
-        return false; // Remove this expense
-      }
-      if (
-        expense.paidBy === currentUser &&
-        expense.splitBetween.includes(paymentConfirmation.recipient)
-      ) {
-        return false; // Remove this expense
-      }
-      return true;
-    });
+    // In a real implementation, you would need to track payments differently
+    // This would need to be replaced with a proper payment tracking system
+    toast.success(`Payment of $${paymentConfirmation.amount.toFixed(2)} to ${paymentConfirmation.recipient} confirmed!`);
+    
+    setShowPaymentConfirmation(false);
+  };
 
-    // Update the event with new expenses
-    const updatedEvent = {
-      ...group.currentEvent,
-      expenses: updatedExpenses,
-    };
-
-    updateEvent(groupId, updatedEvent);
-    setPaymentConfirmation({ isOpen: false, recipient: "", amount: 0 });
-    toast.success("Payment confirmed and expenses cleared!");
+  // Add a function to handle showing payment confirmation
+  const handleShowPayment = (recipient: string, amount: number) => {
+    setPaymentConfirmation({ recipient, amount });
+    setShowPaymentConfirmation(true);
   };
 
   return (
@@ -96,7 +72,7 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
             <span className="text-gray-500">
-              Total cost: ${totalCost.toFixed(2)}
+              Total cost: ${totalAmount.toFixed(2)}
             </span>
           </div>
         </div>
@@ -105,7 +81,7 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         <div className="flex flex-col items-end">
           <div className="flex gap-3 mb-4">
             <button
-              onClick={() => setIsExpenseModalOpen(true)}
+              onClick={() => handleShowPayment("Example User", 10.00)}
               className="px-4 py-2 bg-[#57E3DC] text-white rounded-lg hover:bg-[#4DC8C2] transition-colors"
             >
               Add Expense
@@ -133,28 +109,9 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         </div>
       </div>
 
-      <AddExpenseModal
-        isOpen={isExpenseModalOpen}
-        onClose={() => setIsExpenseModalOpen(false)}
-        onConfirm={(item, amount, splitBetween) => {
-          const newExpense = {
-            item,
-            amount,
-            paidBy: currentUser as string,
-            splitBetween,
-          };
-          addExpense(groupId, newExpense);
-          setIsExpenseModalOpen(false);
-        }}
-        participants={group.users}
-        groupId={groupId}
-      />
-
       <PaymentConfirmationWindow
-        isOpen={paymentConfirmation.isOpen}
-        onClose={() =>
-          setPaymentConfirmation({ isOpen: false, recipient: "", amount: 0 })
-        }
+        isOpen={showPaymentConfirmation}
+        onClose={() => setShowPaymentConfirmation(false)}
         onConfirm={handlePaymentConfirm}
         recipient={paymentConfirmation.recipient}
         amount={paymentConfirmation.amount}

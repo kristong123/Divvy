@@ -1195,20 +1195,19 @@ export const addExpense = (
   }
 ) => {
   const socket = getSocket();
-  const currentUser = store.getState().user.username;
 
   console.log(`Adding expense: ${expense.item} for $${expense.amount}`);
 
   // If there's only one person to split with, create a single expense
   if (expense.splitBetween.length === 1) {
     const expenseData = {
-      // Use itemName consistently
-      itemName: expense.item, // Convert from item to itemName
+      // Convert to the new Expense format
+      itemName: expense.item,
       amount: expense.amount,
-      addedBy: expense.paidBy, // Use paidBy as addedBy to track who paid
+      addedBy: expense.paidBy,
       date: new Date().toISOString(),
       // Additional metadata for server processing
-      _debtor: expense.splitBetween[0], // Store who this expense is for
+      _debtor: expense.splitBetween[0],
     };
 
     console.log("Sending expense data to server:", expenseData);
@@ -1228,13 +1227,13 @@ export const addExpense = (
   // Create and send an expense for each person in the splitBetween array
   expense.splitBetween.forEach((person) => {
     const expenseData = {
-      // Use itemName consistently
-      itemName: expense.item, // Convert from item to itemName
-      amount: amountPerPerson, // Divide the amount by the number of people
-      addedBy: expense.paidBy, // Use paidBy as addedBy to track who paid
+      // Convert to the new Expense format
+      itemName: expense.item,
+      amount: amountPerPerson,
+      addedBy: expense.paidBy,
       date: new Date().toISOString(),
       // Additional metadata for server processing
-      _debtor: person, // Store who this specific expense is for
+      _debtor: person,
     };
 
     console.log(`Sending split expense for ${person}:`, expenseData);

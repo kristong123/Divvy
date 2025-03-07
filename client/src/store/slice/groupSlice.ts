@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Message } from "../../types/messageTypes";
-import { Group, Event, Expense } from "../../types/groupTypes";
+import { Group, Event } from "../../types/groupTypes";
 
 interface GroupInvite {
   id: string;
@@ -185,7 +185,7 @@ export const groupSlice = createSlice({
       state,
       action: PayloadAction<{
         groupId: string;
-        expense: Expense;
+        expense: any; // Use any for the input to handle legacy code
         keepEventOpen?: boolean;
       }>
     ) => {
@@ -193,17 +193,24 @@ export const groupSlice = createSlice({
 
       // Log expense addition with emoji
       console.log(
-        `💰 Adding expense: ${expense.item} ($${expense.amount}) to group: ${groupId}`
+        `💰 Adding expense: ${expense.itemName || expense.item} ($${
+          expense.amount
+        }) to group: ${groupId}`
       );
 
       if (state.groups[groupId] && state.groups[groupId].currentEvent) {
+        // Create a new expense object that conforms to the Expense interface
+        const newExpense = {
+          id: expense.id || `temp-${Date.now()}`,
+          itemName: expense.itemName || expense.item || "Expense",
+          amount: expense.amount,
+          addedBy: expense.addedBy || expense.paidBy || "Unknown",
+          date: expense.date || new Date().toISOString(),
+        };
+
         state.groups[groupId].currentEvent!.expenses = [
           ...state.groups[groupId].currentEvent!.expenses,
-          {
-            ...expense,
-            id: expense.id || `temp-${Date.now()}`,
-            splitBetween: expense.splitBetween || [],
-          },
+          newExpense,
         ];
 
         if (keepEventOpen) {
