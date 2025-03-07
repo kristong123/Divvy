@@ -9,13 +9,10 @@ export interface GroupMember {
 
 export interface Expense {
   id: string;
-  item: string;
+  itemName: string;
   amount: number;
-  paidBy: string;
   addedBy: string;
   date?: string;
-  splitBetween: string[];
-  createdAt?: any;
 }
 
 export interface Event {

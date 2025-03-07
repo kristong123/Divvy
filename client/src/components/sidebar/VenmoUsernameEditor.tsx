@@ -4,6 +4,7 @@ import { RootState } from '../../store/store';
 import { toast } from 'react-hot-toast';
 import { updateVenmoUsername as emitVenmoUpdate } from '../../services/socketService';
 import VenmoIcon from '../shared/VenmoIcon';
+import AutoScalingInput from '../shared/AutoScalingInput';
 
 const VenmoUsernameEditor: React.FC = () => {
   const { username, venmoUsername, isLoggedIn } = useSelector((state: RootState) => {
@@ -26,11 +27,11 @@ const VenmoUsernameEditor: React.FC = () => {
     setIsEditing(true);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewVenmoUsername(e.target.value);
+  const handleChange = (value: string) => {
+    setNewVenmoUsername(value);
   };
 
-  const handleBlur = async () => {
+  const handleSave = async () => {
     setIsEditing(false);
     const trimmedUsername = newVenmoUsername.trim();
     
@@ -46,22 +47,22 @@ const VenmoUsernameEditor: React.FC = () => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleBlur();
-    }
+  const handleCancel = () => {
+    setIsEditing(false);
+    setNewVenmoUsername(venmoUsername || '');
   };
 
   return (
     <div className="flex items-center w-fit">
       {isEditing ? (
-        <input
-          type="text"
+        <AutoScalingInput
           value={newVenmoUsername}
           onChange={handleChange}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyPress}
-          className="border-b border-gray-300 focus:outline-none text-black w-28"
+          onSave={handleSave}
+          onCancel={handleCancel}
+          minWidth={80}
+          className="text-black"
+          placeholder="Venmo username"
           autoFocus
         />
       ) : (

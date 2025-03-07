@@ -568,6 +568,9 @@ exports.joinGroup = async (req, res) => {
 
     const groupData = groupDoc.data();
 
+    // Get socket instance early - use it throughout the function
+    const io = getIO();
+
     // Check if user is the admin/creator of the group
     if (username === groupData.admin) {
       console.log(`[joinGroup] User ${username} is the admin, cannot accept own invite`);
@@ -579,8 +582,47 @@ exports.joinGroup = async (req, res) => {
     // Check if user is already in group
     if (groupData.users.includes(username)) {
       console.log(`[joinGroup] User ${username} is already in group ${groupId}`);
-      return res.status(400).json({
-        message: 'You are already a member of this group'
+
+      // Even though the user is already in the group, we should still update the invite status
+      // and return success to ensure the UI updates correctly
+      if (inviteId) {
+        try {
+          await updateInviteStatus(inviteId, inviteStatus || 'accepted', username, groupId, io);
+        } catch (inviteError) {
+          console.error('[joinGroup] Error updating invite status:', inviteError);
+          // Continue with the response even if updating the invite fails
+        }
+      }
+
+      // Get user details for response
+      const userPromises = groupData.users.map(async (username) => {
+        const userDoc = await db.collection("users").doc(username).get();
+        const userData = userDoc.data();
+        return {
+          username,
+          profilePicture: userData?.profilePicture || null,
+          isAdmin: username === groupData.admin
+        };
+      });
+
+      const users = await Promise.all(userPromises);
+
+      // Return success with the current group data
+      return res.status(200).json({
+        id: groupId,
+        name: groupData.name,
+        users,
+        admin: groupData.admin,
+        createdBy: groupData.createdBy,
+        createdAt: groupData.createdAt,
+        updatedAt: groupData.updatedAt,
+        currentEvent: groupData.currentEvent || {
+          id: "",
+          title: "",
+          date: "",
+          description: "",
+          expenses: []
+        }
       });
     }
 
@@ -591,53 +633,38 @@ exports.joinGroup = async (req, res) => {
     });
 
     // Add system message for user joining
-    await groupRef.collection('messages').add({
+    const systemMessage = {
       content: `${username} joined the group`,
       senderId: 'system',
       senderName: 'System',
       timestamp: new Date(),
       type: 'system'
+    };
+
+    // Add to database
+    const systemMessageRef = await groupRef.collection('messages').add(systemMessage);
+
+    // Get the message ID
+    const systemMessageId = systemMessageRef.id;
+
+    // Emit system message to all users in the group
+    [...groupData.users, username].forEach(user => {
+      io.to(user).emit('system-message', {
+        groupId,
+        message: {
+          ...systemMessage,
+          id: systemMessageId,
+          chatId: groupId,
+          timestamp: systemMessage.timestamp.toISOString(),
+          status: 'sent'
+        }
+      });
     });
 
     // Update invite status in the database if inviteId is provided
     if (inviteId) {
       try {
-        console.log(`[joinGroup] Updating invite status for invite ${inviteId} to ${inviteStatus || 'accepted'}`);
-
-        // Get all friends collections
-        const friendsCollections = await db.collection('friends').get();
-        let inviteFound = false;
-
-        // Manually search through each friends collection's messages
-        for (const friendDoc of friendsCollections.docs) {
-          const messagesCollection = friendDoc.ref.collection('messages');
-          const messagesQuery = await messagesCollection.where('id', '==', inviteId).get();
-
-          if (!messagesQuery.empty) {
-            // Update each matching invite message
-            const batch = db.batch();
-            messagesQuery.docs.forEach(doc => {
-              const data = doc.data();
-              // Only update if it's a group invite
-              if (data.type === 'group-invite') {
-                console.log(`[joinGroup] Found invite message at path: ${doc.ref.path}`);
-                batch.update(doc.ref, {
-                  status: inviteStatus || 'accepted'
-                });
-                inviteFound = true;
-              }
-            });
-
-            if (inviteFound) {
-              await batch.commit();
-              console.log(`[joinGroup] Successfully updated invite status`);
-            }
-          }
-        }
-
-        if (!inviteFound) {
-          console.log(`[joinGroup] No invite found with ID: ${inviteId}`);
-        }
+        await updateInviteStatus(inviteId, inviteStatus || 'accepted', username, groupId, io);
       } catch (inviteError) {
         console.error('[joinGroup] Error updating invite status:', inviteError);
         // Continue with the join process even if updating the invite fails
@@ -669,9 +696,6 @@ exports.joinGroup = async (req, res) => {
       description: "",
       expenses: []
     };
-
-    // Get socket instance
-    const io = getIO();
 
     // Emit event to all users in the group
     updatedData.users.forEach(user => {
@@ -706,6 +730,68 @@ exports.joinGroup = async (req, res) => {
     res.status(500).json({ message: 'Failed to join group' });
   }
 };
+
+// Helper function to update invite status
+async function updateInviteStatus(inviteId, status, username, groupId, io) {
+  console.log(`[updateInviteStatus] Updating invite status for invite ${inviteId} to ${status}`);
+
+  // Get all friends collections
+  const friendsCollections = await db.collection('friends').get();
+  let inviteFound = false;
+  let extractedGroupId = groupId;
+
+  // Manually search through each friends collection's messages
+  for (const friendDoc of friendsCollections.docs) {
+    const messagesCollection = friendDoc.ref.collection('messages');
+    const messagesQuery = await messagesCollection.where('id', '==', inviteId).get();
+
+    if (!messagesQuery.empty) {
+      // Update each matching invite message
+      const batch = db.batch();
+      messagesQuery.docs.forEach(doc => {
+        const data = doc.data();
+        // Only update if it's a group invite
+        if (data.type === 'group-invite') {
+          console.log(`[updateInviteStatus] Found invite message at path: ${doc.ref.path}`);
+          batch.update(doc.ref, {
+            status: status
+          });
+          inviteFound = true;
+
+          // Extract groupId from the message if not provided
+          if (!extractedGroupId && data.groupId) {
+            extractedGroupId = data.groupId;
+          }
+        }
+      });
+
+      if (inviteFound) {
+        await batch.commit();
+        console.log(`[updateInviteStatus] Successfully updated invite status`);
+
+        // Use the provided io instance or get a new one if not provided
+        const socketIo = io || getIO();
+
+        // Emit an event to notify the client that the invite status has changed
+        if (username && extractedGroupId) {
+          socketIo.to(username).emit('invite-status-updated', {
+            inviteId,
+            status: status,
+            groupId: extractedGroupId
+          });
+        } else {
+          console.log(`[updateInviteStatus] Warning: Could not emit event, missing username or groupId`);
+        }
+      }
+    }
+  }
+
+  if (!inviteFound) {
+    console.log(`[updateInviteStatus] No invite found with ID: ${inviteId}`);
+  }
+
+  return inviteFound;
+}
 
 exports.setGroupEvent = async (req, res) => {
   try {
@@ -890,36 +976,17 @@ exports.declineGroupInvite = async (req, res) => {
     }
 
     try {
-      // Get all friends collections
-      const friendsCollections = await db.collection('friends').get();
-      let inviteFound = false;
+      // Get socket instance
+      const io = getIO();
 
-      // Manually search through each friends collection's messages
-      for (const friendDoc of friendsCollections.docs) {
-        const messagesCollection = friendDoc.ref.collection('messages');
-        const messagesQuery = await messagesCollection.where('id', '==', inviteId).get();
-
-        if (!messagesQuery.empty) {
-          // Update each matching invite message
-          const batch = db.batch();
-          messagesQuery.docs.forEach(doc => {
-            const data = doc.data();
-            // Only update if it's a group invite
-            if (data.type === 'group-invite') {
-              console.log(`[declineGroupInvite] Found invite message at path: ${doc.ref.path}`);
-              batch.update(doc.ref, {
-                status: inviteStatus || 'declined'
-              });
-              inviteFound = true;
-            }
-          });
-
-          if (inviteFound) {
-            await batch.commit();
-            console.log(`[declineGroupInvite] Successfully updated invite status to declined`);
-          }
-        }
-      }
+      // Use the updateInviteStatus helper function
+      const inviteFound = await updateInviteStatus(
+        inviteId,
+        inviteStatus || 'declined',
+        username,
+        null, // We don't know the groupId yet, but it will be extracted in the function
+        io
+      );
 
       if (!inviteFound) {
         console.log(`[declineGroupInvite] No invite found with ID: ${inviteId}`);

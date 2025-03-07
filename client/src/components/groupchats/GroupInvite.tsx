@@ -18,7 +18,7 @@ interface GroupInviteProps {
   groupName: string;
   invitedBy: string;
   messageId?: string;
-  onAccept: (inviteId: string) => void;
+  onAccept?: (inviteId: string) => void;
 }
 
 const GroupInvite: React.FC<GroupInviteProps> = ({
@@ -132,7 +132,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     } catch (error) {
       console.error("Error checking invite status:", error);
       // Only set to invalid if not already accepted or declined
-      if (inviteStatus !== "accepted" && inviteStatus !== "declined") {
+      if (inviteStatus !== "accepted" && inviteStatus !== "declined" && inviteStatus !== "sent") {
         // Set to valid instead of invalid to allow the user to try accepting/declining
         dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
       }
@@ -226,11 +226,15 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     "flex gap-2 mt-2"
   );
 
+  // Determine if the invite is interactive based on its status
+  // Allow interaction for both "valid" and "sent" statuses
+  const isInteractive = inviteStatus === "valid" || inviteStatus === "sent";
+
   const acceptButton = clsx(
     // Layout
     "px-3 py-1",
     // Appearance
-    inviteStatus === "valid"
+    isInteractive
       ? "bg-[#57E3DC] cursor-pointer"
       : "bg-gray-300 cursor-not-allowed",
     // Typography
@@ -243,7 +247,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     // Layout
     "px-3 py-1",
     // Appearance
-    inviteStatus === "valid"
+    isInteractive
       ? "bg-gray-300 cursor-pointer"
       : "bg-gray-200 cursor-not-allowed",
     // Typography
@@ -253,7 +257,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   );
 
   const handleAccept = async () => {
-    if (inviteStatus !== "valid") {
+    if (!isInteractive) {
       console.log(`Cannot accept invite with status: ${inviteStatus}`);
       return;
     }
@@ -276,7 +280,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
       if (response.status === 200) {
         console.log(`Successfully joined group ${groupId}`);
         try {
-          onAccept(id);
+          onAccept && onAccept(id);
         } catch (callbackError) {
           console.error("Error in onAccept callback:", callbackError);
           // Don't revert status on callback errors
@@ -301,7 +305,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   };
 
   const handleDecline = async () => {
-    if (inviteStatus !== "valid") {
+    if (!isInteractive) {
       console.log(`Cannot decline invite with status: ${inviteStatus}`);
       return;
     }
@@ -364,25 +368,20 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
         return `You're already a member of ${groupName}`;
       case "valid":
         return `You've been invited to join ${groupName}`;
+      case "sent":
+        return `You've been invited to join ${groupName}`;
       default:
         // Don't update state during render - use useEffect instead
         return `You've been invited to join ${groupName}`;
     }
   };
 
-  // Update status if needed via useEffect
+  // Force a status check if the component renders with an undefined status
   useEffect(() => {
-    if (
-      id &&
-      inviteStatus !== "loading" &&
-      inviteStatus !== "valid" &&
-      inviteStatus !== "accepted" &&
-      inviteStatus !== "declined" &&
-      !statusCheckFailed
-    ) {
-      dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+    if (inviteStatus === undefined) {
+      dispatch(setInviteStatus({ inviteId: id, status: "loading" }));
     }
-  }, [id, inviteStatus, statusCheckFailed, dispatch]);
+  }, [id, inviteStatus, dispatch]);
 
   // Get button text based on status
   const getAcceptButtonText = () => {
@@ -409,14 +408,14 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
           <button
             className={acceptButton}
             onClick={handleAccept}
-            disabled={inviteStatus !== "valid"}
+            disabled={!isInteractive}
           >
             {getAcceptButtonText()}
           </button>
           <button
             className={declineButton}
             onClick={handleDecline}
-            disabled={inviteStatus !== "valid"}
+            disabled={!isInteractive}
           >
             {getDeclineButtonText()}
           </button>

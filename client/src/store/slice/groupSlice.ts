@@ -15,7 +15,8 @@ export type InviteStatus =
   | "already_member"
   | "accepted"
   | "declined"
-  | "loading";
+  | "loading"
+  | "sent";
 
 interface LocalGroupState {
   groups: { [key: string]: Group };
@@ -40,6 +41,32 @@ export const groupSlice = createSlice({
   initialState,
   reducers: {
     addGroup: (state, action: PayloadAction<Group>) => {
+      // If the group already exists, we need to merge the users carefully to avoid duplicates
+      const existingGroup = state.groups[action.payload.id];
+
+      // Deduplicate users if provided
+      let mergedUsers = action.payload.users;
+
+      if (existingGroup && Array.isArray(mergedUsers)) {
+        // Create a map of usernames to avoid duplicates
+        const uniqueUsers = new Map();
+
+        // First add existing users to the map
+        if (existingGroup.users) {
+          existingGroup.users.forEach((user) => {
+            uniqueUsers.set(user.username, user);
+          });
+        }
+
+        // Then add new users, overwriting existing ones if they have the same username
+        mergedUsers.forEach((user) => {
+          uniqueUsers.set(user.username, user);
+        });
+
+        // Convert map values back to array
+        mergedUsers = Array.from(uniqueUsers.values());
+      }
+
       const newGroup = {
         ...action.payload,
         messages: state.groups[action.payload.id]?.messages || [],
@@ -47,6 +74,8 @@ export const groupSlice = createSlice({
           action.payload.currentEvent ||
           state.groups[action.payload.id]?.currentEvent ||
           null,
+        // Use deduplicated users
+        users: mergedUsers,
       };
 
       state.groups[action.payload.id] = newGroup;
@@ -81,9 +110,26 @@ export const groupSlice = createSlice({
       action: PayloadAction<Partial<Group> & { id: string }>
     ) => {
       if (state.groups[action.payload.id]) {
+        // If users array is provided, deduplicate it based on username
+        let updatedUsers = action.payload.users;
+        if (updatedUsers) {
+          // Create a map of usernames to avoid duplicates
+          const uniqueUsers = new Map();
+          updatedUsers.forEach((user) => {
+            // Only add if not already in the map
+            if (!uniqueUsers.has(user.username)) {
+              uniqueUsers.set(user.username, user);
+            }
+          });
+          // Convert map values back to array
+          updatedUsers = Array.from(uniqueUsers.values());
+        }
+
         state.groups[action.payload.id] = {
           ...state.groups[action.payload.id],
           ...action.payload,
+          // Use deduplicated users if available
+          users: updatedUsers || state.groups[action.payload.id].users,
         };
       }
     },
@@ -144,9 +190,11 @@ export const groupSlice = createSlice({
       }>
     ) => {
       const { groupId, expense, keepEventOpen } = action.payload;
-      
+
       // Log expense addition with emoji
-      console.log(`💰 Adding expense: ${expense.item} ($${expense.amount}) to group: ${groupId}`);
+      console.log(
+        `💰 Adding expense: ${expense.item} ($${expense.amount}) to group: ${groupId}`
+      );
 
       if (state.groups[groupId] && state.groups[groupId].currentEvent) {
         state.groups[groupId].currentEvent!.expenses = [

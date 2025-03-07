@@ -32,6 +32,10 @@ const initializeSocket = (server) => {
                     message.id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 }
 
+                // Create a unique key for this message to prevent duplicates
+                const messageKey = `${chatId}_${message.content}_${message.timestamp || new Date().toISOString()}`;
+                console.log(`Processing private message: ${messageKey}`);
+
                 // Store the message in the messages subcollection
                 await db.collection('friends')
                     .doc(chatId)
@@ -39,26 +43,26 @@ const initializeSocket = (server) => {
                     .doc(message.id)
                     .set({
                         ...message,
-                        timestamp: new Date()
+                        timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
 
                 // Get the usernames from the chatId
                 const [user1, user2] = chatId.split('_');
 
+                // Prepare the message with a consistent timestamp
+                const messageToSend = {
+                    ...message,
+                    timestamp: new Date().toISOString()
+                };
+
                 // Emit to both users with the simplified message structure
                 io.to(user1).emit('new-message', {
                     chatId,
-                    message: {
-                        ...message,
-                        timestamp: new Date().toISOString()
-                    }
+                    message: messageToSend
                 });
                 io.to(user2).emit('new-message', {
                     chatId,
-                    message: {
-                        ...message,
-                        timestamp: new Date().toISOString()
-                    }
+                    message: messageToSend
                 });
 
             } catch (error) {
@@ -254,6 +258,15 @@ const initializeSocket = (server) => {
             try {
                 const { groupId, message } = data;
 
+                // Ensure the message has an ID
+                if (!message.id) {
+                    message.id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                }
+
+                // Create a unique key for this message to prevent duplicates
+                const messageKey = `${groupId}_${message.content}_${message.timestamp || new Date().toISOString()}`;
+                console.log(`Processing group message: ${messageKey}`);
+
                 // Get group data to find all members
                 const groupRef = db.collection('groupChats').doc(groupId);
                 const groupDoc = await groupRef.get();
@@ -274,29 +287,32 @@ const initializeSocket = (server) => {
                     senderId: message.senderId,
                     senderName: message.senderId,
                     senderProfile: senderData?.profilePicture || null,
-                    timestamp: new Date(),
-                    system: false
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    system: message.system || false,
+                    type: message.type || (message.system ? 'system' : 'user')
                 });
 
                 // Update group's last message
                 await groupRef.update({
                     lastMessage: message.content,
-                    lastMessageTime: new Date(),
-                    updatedAt: new Date()
+                    lastMessageTime: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                // Create the message object to broadcast
+                // Create the message object to broadcast with a consistent timestamp
                 const messageToSend = {
                     id: messageRef.id,
                     ...message,
                     senderName: message.senderId,
                     senderProfile: senderData?.profilePicture || null,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    system: message.system || false,
+                    type: message.type || (message.system ? 'system' : 'user')
                 };
 
                 // Broadcast to all group members
                 groupData.users.forEach(username => {
-                    io.to(username).emit('new-group-message', {
+                    io.to(typeof username === 'string' ? username : username.username).emit('new-group-message', {
                         groupId,
                         message: messageToSend
                     });
@@ -429,6 +445,20 @@ const initializeSocket = (server) => {
 
                 const groupData = groupDoc.data();
 
+                // Check if user is already in the group
+                if (groupData.users.includes(username)) {
+                    console.log(`User ${username} is already in group ${groupId}, skipping add`);
+
+                    // Still notify the user that they've joined (for UI updates)
+                    io.to(username).emit('group-invite-accepted', {
+                        groupId,
+                        username,
+                        profilePicture: userData?.profilePicture || null
+                    });
+
+                    return;
+                }
+
                 // Add user to group while preserving existing data
                 await groupRef.update({
                     users: [...groupData.users, username],
@@ -437,14 +467,35 @@ const initializeSocket = (server) => {
                 });
 
                 // Add system message
-                await groupRef.collection('messages').add({
+                const systemMessage = {
                     content: `${username} joined the group`,
                     senderId: 'system',
                     timestamp: new Date(),
-                    system: true
+                    system: true,
+                    type: 'system'
+                };
+
+                // Add to database
+                const systemMessageRef = await groupRef.collection('messages').add(systemMessage);
+
+                // Get the message ID
+                const systemMessageId = systemMessageRef.id;
+
+                // Notify all members about the system message
+                [...groupData.users, username].forEach(member => {
+                    io.to(member).emit('system-message', {
+                        groupId,
+                        message: {
+                            ...systemMessage,
+                            id: systemMessageId,
+                            chatId: groupId,
+                            timestamp: systemMessage.timestamp.toISOString(),
+                            status: 'sent'
+                        }
+                    });
                 });
 
-                // Notify all members
+                // Notify all members about the user joining
                 const notificationData = {
                     groupId,
                     username,
@@ -520,7 +571,7 @@ const initializeSocket = (server) => {
                 // Create a new expense object with an ID
                 const newExpense = {
                     id: Date.now().toString(),
-                    item: expense.item,
+                    itemName: expense.itemName || "Expense", // Use only itemName
                     amount: expense.amount,
                     paidBy: expense.paidBy,
                     addedBy: expense.paidBy,
@@ -528,6 +579,13 @@ const initializeSocket = (server) => {
                     date: expense.date || new Date().toISOString(),
                     createdAt: new Date().toISOString()
                 };
+
+                console.log("Creating new expense with data:", {
+                    id: newExpense.id,
+                    itemName: newExpense.itemName,
+                    amount: newExpense.amount,
+                    addedBy: newExpense.addedBy
+                });
 
                 // Update the group document with the new expense
                 await groupRef.update({
@@ -659,6 +717,8 @@ const initializeSocket = (server) => {
             try {
                 const { groupId, expense } = data;
 
+                console.log(`Updating expense with ID: ${expense.id}`);
+
                 // Get the group
                 const groupRef = db.collection('groupChats').doc(groupId);
                 const groupDoc = await groupRef.get();
@@ -671,9 +731,20 @@ const initializeSocket = (server) => {
 
                 // Find and update the expense in the current event
                 if (groupData.currentEvent) {
+                    // Find the existing expense
+                    const existingExpense = groupData.currentEvent.expenses.find(exp => exp.id === expense.id);
+
+                    if (!existingExpense) {
+                        console.log(`Expense with ID ${expense.id} not found`);
+                        return;
+                    }
+
+                    // We're now doing change detection on the client side
+                    // so we can assume any update that reaches here has actual changes
+                    console.log(`Updating expense ${expense.id}...`);
+
                     const updatedExpenses = groupData.currentEvent.expenses.map(exp => {
-                        if (exp.id === expense.id ||
-                            (exp.item === expense.originalItem && exp.paidBy === expense.paidBy)) {
+                        if (exp.id === expense.id) {
                             return expense;
                         }
                         return exp;
@@ -694,6 +765,7 @@ const initializeSocket = (server) => {
                 }
             } catch (error) {
                 console.error('Error updating expense:', error);
+                console.error('Expense data:', data?.expense);
                 socket.emit('expense-error', { error: 'Failed to update expense' });
             }
         });
@@ -823,6 +895,11 @@ const initializeSocket = (server) => {
                 const { groupId, expense, keepEventOpen } = data;
                 console.log(`Adding expense to group ${groupId}:`, expense);
 
+                // Log if this is a split expense
+                if (expense._debtor) {
+                    console.log(`This is an expense for user: ${expense._debtor}, amount: $${expense.amount.toFixed(2)}, paid by: ${expense.addedBy}`);
+                }
+
                 // Get the group document
                 const groupRef = db.collection('groupChats').doc(groupId);
                 const groupDoc = await groupRef.get();
@@ -840,14 +917,20 @@ const initializeSocket = (server) => {
                 // Create a single expense with a unique ID
                 const newExpense = {
                     id: admin.firestore().collection('temp').doc().id,
-                    item: expense.item,
+                    itemName: expense.itemName || "Expense", // Use only itemName
                     amount: expense.amount,
-                    paidBy: expense.paidBy,
-                    addedBy: expense.addedBy,
-                    splitBetween: expense.splitBetween,
+                    addedBy: expense.addedBy, // addedBy tracks who paid
                     date: expense.date || new Date().toISOString(),
-                    createdAt: new Date().toISOString()
+                    // Store metadata as custom fields if needed for processing
+                    _debtor: expense._debtor
                 };
+
+                console.log("Creating new expense with data:", {
+                    id: newExpense.id,
+                    itemName: newExpense.itemName,
+                    amount: newExpense.amount,
+                    addedBy: newExpense.addedBy
+                });
 
                 // Update the group document with the new expense
                 await groupRef.update({
@@ -869,7 +952,7 @@ const initializeSocket = (server) => {
         // Add a new socket event handler to update existing expenses
         socket.on('update-existing-expenses', async (data) => {
             try {
-                const { groupId } = data;
+                const { groupId, useDebtorFormat } = data;
 
                 // Get the group document
                 const groupRef = db.collection('groupChats').doc(groupId);
@@ -881,17 +964,38 @@ const initializeSocket = (server) => {
 
                 if (!groupData.currentEvent || !groupData.currentEvent.expenses) return;
 
-                // Update each expense to include splitBetween if missing
+                // Update each expense to include metadata if missing
                 const updatedExpenses = groupData.currentEvent.expenses.map(expense => {
-                    if (!expense.splitBetween) {
+                    // If using the new debtor format and missing metadata
+                    if (useDebtorFormat && !expense._debtor) {
+                        // For backward compatibility, use paidBy or addedBy
+                        const payer = expense.paidBy || expense.addedBy;
+
+                        // Find a debtor (someone who isn't the payer)
+                        const debtor = groupData.users
+                            .find(user => user.username !== payer)?.username;
+
+                        return {
+                            ...expense,
+                            // Convert item to name if needed
+                            name: expense.name || expense.itemName,
+                            // Make sure addedBy is set to the payer
+                            addedBy: payer,
+                            // Add metadata
+                            _debtor: debtor || groupData.users[0]?.username // Fallback to first user
+                        };
+                    }
+                    // For backward compatibility with old format
+                    else if (!expense.splitBetween) {
                         // Add all users except the payer to splitBetween
+                        const payer = expense.paidBy || expense.addedBy;
                         const splitBetween = groupData.users
-                            .filter(user => user.username !== expense.paidBy)
+                            .filter(user => user.username !== payer)
                             .map(user => user.username);
 
                         return {
                             ...expense,
-                            splitBetween: splitBetween.length > 0 ? splitBetween : ['a'] // Fallback to 'a' if no other users
+                            splitBetween: splitBetween.length > 0 ? splitBetween : [groupData.users[0]?.username]
                         };
                     }
                     return expense;

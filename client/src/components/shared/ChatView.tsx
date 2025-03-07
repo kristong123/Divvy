@@ -25,7 +25,6 @@ import { createSelector } from "@reduxjs/toolkit";
 import * as groupActions from "../../store/slice/groupSlice";
 import { Event } from "../../types/groupTypes";
 import GroupInvite from "../groupchats/GroupInvite";
-import { setInviteStatus } from "../../store/slice/groupSlice";
 import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
@@ -42,17 +41,10 @@ interface ChatViewProps {
   };
 }
 
-interface MessageResponse {
-  id: string;
-  content: string;
-  sender: string;
-  timestamp: string;
-  chatId: string;
-}
-
 // Add interface for group data
 interface GroupJoinData {
   groupId: string;
+  username?: string; // Add username property
   group: {
     id: string;
     name: string;
@@ -330,25 +322,76 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
     const socket = getSocket();
 
+    // Clean up existing listeners first to prevent duplicates
+    socket.off("new-message");
+    socket.off("new-group-message");
+    socket.off("group-member-joined");
+    socket.off("group-updated");
+    socket.off("system-message");
+
+    // Set up message handlers
     const handleNewMessage = (data: SocketMessageEvent) => {
-      if (data.chatId === [currentUser, chat.name].sort().join("_")) {
-        dispatch(addMessage({ chatId: data.chatId, message: data.message }));
+      console.log("Received new message:", data);
+      if (data.chatId === chatId) {
+        // Create a unique key for this message
+        const messageKey = data.message.id || 
+          `${data.chatId}_${data.message.content}_${data.message.timestamp}`;
+        
+        console.log(`Processing message: ${messageKey}`);
+        
+        // Add to messages if not already there
+        if (!messages.some(msg => 
+          msg.id === data.message.id || 
+          (msg.content === data.message.content && 
+           msg.timestamp === data.message.timestamp))) {
+          dispatch(addMessage({ chatId: data.chatId, message: data.message }));
+        }
       }
     };
 
-    const handleEventUpdate = (data: {
-      groupId: string;
-      event: Event | null;
-    }) => {
+    const handleGroupMessage = (data: SocketMessageEvent) => {
+      console.log("Received new group message:", data);
       if (data.groupId === chat.id) {
-        const currentEvent = groupData?.currentEvent;
-        const newEvent = data.event;
-
-        if (JSON.stringify(currentEvent) !== JSON.stringify(newEvent)) {
+        // Create a unique key for this message
+        const messageKey = data.message.id || 
+          `${data.groupId}_${data.message.content}_${data.message.timestamp}`;
+        
+        console.log(`Processing group message: ${messageKey}`);
+        
+        // Add to messages if not already there
+        if (!messages.some(msg => 
+          msg.id === data.message.id || 
+          (msg.content === data.message.content && 
+           msg.timestamp === data.message.timestamp))) {
           dispatch(
-            groupActions.setGroupEvent({
+            groupActions.addGroupMessage({
               groupId: data.groupId,
-              event: data.event,
+              message: data.message,
+            })
+          );
+        }
+      }
+    };
+
+    // Add a specific handler for system messages
+    const handleSystemMessage = (data: { groupId: string; message: Message }) => {
+      console.log("Received system message:", data);
+      if (data.groupId === chat.id) {
+        // Create a unique key for this message
+        const messageKey = data.message.id || 
+          `${data.groupId}_${data.message.content}_${data.message.timestamp}`;
+        
+        console.log(`Processing system message: ${messageKey}`);
+        
+        // Add to messages if not already there
+        if (!messages.some(msg => 
+          msg.id === data.message.id || 
+          (msg.content === data.message.content && 
+           msg.timestamp === data.message.timestamp))) {
+          dispatch(
+            groupActions.addGroupMessage({
+              groupId: data.groupId,
+              message: data.message,
             })
           );
         }
@@ -356,34 +399,81 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     };
 
     const handleGroupJoin = (data: GroupJoinData) => {
-      if (data?.groupId === chat.id && data?.group) {
-        dispatch(
-          groupActions.updateGroup({
+      console.log("User joined group:", data);
+      if (data.groupId === chat.id && data.group) {
+        // Log the join event
+        console.log(`User ${data.username} joined group ${chat.name}`);
+        
+        // Update group data if needed
+        if (groupData) {
+          // Create a new object with the group data and ensure id is set correctly
+          const updatedGroup = {
             ...data.group,
-            currentEvent:
-              data.group.currentEvent || groupData?.currentEvent || null,
-          })
-        );
+            id: chat.id, // This will override any id in data.group
+            currentEvent: data.group.currentEvent || groupData.currentEvent,
+          };
+          
+          dispatch(groupActions.updateGroup(updatedGroup));
+          
+          // Add a system message for the user joining if not already present
+          if (data.username) {
+            const joinMessage: Message = {
+              id: `join_${data.username}_${Date.now()}`,
+              content: `${data.username} joined the group`,
+              senderId: 'system',
+              chatId: chat.id,
+              timestamp: new Date().toISOString(),
+              status: 'sent',
+              type: 'system'
+            };
+            
+            // Check if this message already exists
+            if (!messages.some(msg => 
+              msg.type === 'system' && 
+              msg.content.includes(`${data.username} joined`))) {
+              dispatch(
+                groupActions.addGroupMessage({
+                  groupId: chat.id,
+                  message: joinMessage,
+                })
+              );
+            }
+          }
+        }
       }
     };
 
-    // Create a reference to an empty function for the group-invite handler
-    const emptyHandler = () => {};
+    const handleGroupUpdate = (data: any) => {
+      console.log("Group updated:", data);
+      if (data.id === chat.id) {
+        // Refresh group data if needed
+        if (groupData) {
+          dispatch(
+            groupActions.updateGroup({
+              ...groupData,
+              currentEvent: data.currentEvent || groupData.currentEvent,
+            })
+          );
+        }
+      }
+    };
 
-    socket.on("event-updated", handleEventUpdate);
+    // Set up socket listeners
     socket.on("new-message", handleNewMessage);
-    socket.on("group-invite", emptyHandler); // Use the reference
+    socket.on("new-group-message", handleGroupMessage);
     socket.on("group-invite-accepted", handleGroupJoin);
-    socket.on("message-error", (error: MessageResponse) => {
-      console.error("Message error:", error);
-      toast.error("Failed to send message");
-    });
+    socket.on("group-member-joined", handleGroupJoin);
+    socket.on("group-updated", handleGroupUpdate);
+    socket.on("system-message", handleSystemMessage);
 
+    // Clean up on unmount or when dependencies change
     return () => {
-      socket.off("event-updated", handleEventUpdate);
       socket.off("new-message", handleNewMessage);
-      socket.off("group-invite", emptyHandler); // Use the same reference
+      socket.off("new-group-message", handleGroupMessage);
       socket.off("group-invite-accepted", handleGroupJoin);
+      socket.off("group-member-joined", handleGroupJoin);
+      socket.off("group-updated", handleGroupUpdate);
+      socket.off("system-message", handleSystemMessage);
     };
   }, [
     currentUser,
@@ -392,6 +482,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     chat.isGroup,
     dispatch,
     groupData?.currentEvent,
+    messages,
   ]);
 
   // Add this effect to automatically close event view when event is cleared
@@ -451,24 +542,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
-    }
-  };
-
-  const handleAcceptInvite = (inviteId: string) => {
-    if (inviteId && chat.name) {
-      dispatch(setInviteStatus({ inviteId, status: "accepted" }));
-
-      // Since we're now getting the invite from the message directly,
-      // we can extract the groupId from the message with this ID
-      const inviteMessage = messages.find((msg) => msg.id === inviteId);
-
-      if (inviteMessage && inviteMessage.groupId) {
-        sendSocketEvent({
-          type: "group-join",
-          groupId: inviteMessage.groupId,
-          username: currentUser,
-        });
-      }
     }
   };
 
@@ -647,8 +720,18 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                       groupId={message.groupId || ""}
                       groupName={extractedGroupName}
                       invitedBy={message.senderId}
-                      onAccept={handleAcceptInvite}
                     />
+                  </div>
+                );
+              }
+
+              // Handle system messages with plain italic text
+              if (message.type === "system" || message.senderId === "system") {
+                return (
+                  <div key={message.id || index} className="w-full my-2 flex justify-center">
+                    <span className="text-gray-500 text-sm italic px-4 py-1">
+                      {message.content}
+                    </span>
                   </div>
                 );
               }
@@ -658,24 +741,18 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   key={message.id || index}
                   className={messageContainer(isOwnMessage)}
                 >
-                  {!isOwnMessage && message.type !== "system" && (
+                  {!isOwnMessage && (
                     <ProfileAvatar username={message.senderId} size={40} />
                   )}
                   <div className={messageContent(isOwnMessage)}>
-                    {!isOwnMessage && message.type !== "system" && (
+                    {!isOwnMessage && (
                       <span className="text-gray-500 text-sm ml-2 mb-1">
                         {senderName}
                       </span>
                     )}
-                    {message.type === "system" ? (
-                      <span className="text-gray-900 text-sm italic text-center">
-                        {message.content}
-                      </span>
-                    ) : (
-                      <div className={messageStyle(isOwnMessage)}>
-                        {message.content}
-                      </div>
-                    )}
+                    <div className={messageStyle(isOwnMessage)}>
+                      {message.content}
+                    </div>
                   </div>
                 </div>
               );
