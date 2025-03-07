@@ -3,12 +3,12 @@ import { toast } from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
 
-interface ProfileAvatarProps {
+interface ProfileFrameProps {
   username: string;
   size?: number; // Use numeric size instead of preset sizes
 }
 
-const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
+const ProfileFrame: React.FC<ProfileFrameProps> = ({
   username,
   size = 32, // Default size of 32px
 }) => {
@@ -63,14 +63,18 @@ const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   return (
     <div
-      className="relative flex items-center justify-center rounded-full overflow-hidden bg-gradient-to-br from-dark2 to-light1"
+      className="relative flex items-center justify-center rounded-full shadow-md overflow-hidden bg-gradient-to-br from-dark2 to-light1"
       style={{ width: `${size}px`, height: `${size}px` }}
       data-username={username}
     >
       {imageUrl ? (
         <img
           key={imageUrl}
-          src={imageUrl}
+          src={
+            imageUrl.includes("?")
+              ? imageUrl.split("?")[0] + "?t=" + Date.now()
+              : imageUrl + "?t=" + Date.now()
+          }
           alt={username}
           className="absolute inset-0 m-auto w-[90%] h-[90%] object-cover rounded-full"
           onError={handleImageError}
@@ -84,4 +88,4 @@ const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   );
 };
 
-export default ProfileAvatar;
+export default ProfileFrame;

@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom"; // Add this
 import { BASE_URL } from "../config/api";
 import { toast } from "react-hot-toast";
 import { login } from "../services/auth";
+import { useEnterKeyHandler } from "../utils/keyboardUtils";
 
 const Login: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -21,8 +22,10 @@ const Login: React.FC = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setError("");
 
@@ -68,15 +71,16 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      if (e.shiftKey) {
-        handleSignUp();
-      } else {
-        handleLogin(e);
+  // Use our custom hook for Enter key handling (login only)
+  useEnterKeyHandler(
+    true,
+    () => {
+      if (!loading) {
+        handleLogin();
       }
-    }
-  };
+    },
+    loading
+  );
 
   const container = clsx(
     // Layout
@@ -185,7 +189,6 @@ const Login: React.FC = () => {
             onChange={(e) => setUsername(e.target.value)}
             className={baseInput}
             placeholder="Enter your username"
-            onKeyDown={handleKeyDown}
           />
         </div>
 
@@ -201,7 +204,6 @@ const Login: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               className={clsx(baseInput, "pr-10")}
               placeholder="Enter your password"
-              onKeyDown={handleKeyDown}
             />
             <button
               type="button"

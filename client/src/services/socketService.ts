@@ -38,6 +38,8 @@ import {
   removeGroupInvite,
   InviteStatus,
 } from "../store/slice/groupSlice";
+import { forceRefreshGroupImages } from "./imageUploadService";
+import { Dispatch, AnyAction } from 'redux';
 
 const socket = io(SOCKET_URL);
 
@@ -488,8 +490,6 @@ export const initializeSocket = (username: string) => {
     } else {
       console.log(`📅 Event removed from group: ${data.groupId}`);
     }
-
-    toast.success("Event updated successfully");
   });
 
   // Update the expense-added event handler
@@ -580,7 +580,9 @@ export const initializeSocket = (username: string) => {
   );
 
   // Inside initializeSocket function, add these event listeners
-  socket.on("expense-updated", (data: { groupId: string; expense: any }) => {
+  socket.on("expense-updated", (data: { groupId: string; expense: Expense }) => {
+    console.log("Expense updated:", data);
+    
     // Get the current event from the store
     const state = store.getState();
     const group = state.groups.groups[data.groupId];
@@ -794,8 +796,8 @@ export const initializeSocket = (username: string) => {
       id: string;
       groupId: string;
       groupName: string;
-      invitedBy: string;
-      timestamp: string;
+      senderId: string;
+      timestamp?: string;
     }) => {
       // Store the invite in Redux with proper error handling
       try {
@@ -815,7 +817,7 @@ export const initializeSocket = (username: string) => {
 
           // Log the invite for debugging
           console.log(
-            `👥 Received group invite to ${data.groupName} from ${data.invitedBy}`
+            `👥 Received group invite to ${data.groupName} from ${data.senderId}`
           );
 
           // Add the invite to Redux
@@ -826,18 +828,18 @@ export const initializeSocket = (username: string) => {
                 id: data.id,
                 groupId: data.groupId,
                 groupName: data.groupName,
-                invitedBy: data.invitedBy,
+                invitedBy: data.senderId,
               },
             })
           );
 
           // Show a unique toast notification
           const notificationKey = `group-invite-${data.groupId}-${
-            data.invitedBy
+            data.senderId
           }-${Date.now().toString().slice(0, -3)}`;
           showUniqueToast(
             notificationKey,
-            `${data.invitedBy} invited you to join ${data.groupName}`
+            `${data.senderId} invited you to join ${data.groupName}`
           );
 
           // Initialize invite status
@@ -1003,9 +1005,6 @@ export const initializeSocket = (username: string) => {
 
       // Update the current user's profile picture if it's their update
       if (currentUser === data.username) {
-        // Call the function directly instead of dispatching it
-        updateProfilePictureSocket(data.username, data.imageUrl);
-
         // Then dispatch the Redux action separately
         store.dispatch(
           updateProfilePicture({
@@ -1028,13 +1027,136 @@ export const initializeSocket = (username: string) => {
     }
   );
 
+  // Add this socket event handler in the initializeSocket function after the other event handlers
+  socket.on("group-updated", (data: { 
+    groupId: string; 
+    name?: string;
+    imageUrl?: string;
+    updatedBy?: string;
+  }) => {
+    console.log(`🔄 Group ${data.groupId} updated via direct message:`, data);
+    
+    if (data.groupId) {
+      // Create update object with only the fields that were updated
+      const updateObj: any = { id: data.groupId };
+      if (data.name) {
+        updateObj.name = data.name;
+        console.log(`Setting group name to: ${data.name}`);
+      }
+      if (data.imageUrl) {
+        updateObj.imageUrl = data.imageUrl;
+        console.log(`Setting image URL to: ${data.imageUrl}`);
+      }
+      
+      // Update the group in the Redux store
+      store.dispatch(
+        groupActions.updateGroup(updateObj)
+      );
+      
+      // Force a re-render of the groups list by dispatching setGroups
+      const currentGroups = store.getState().groups.groups;
+      store.dispatch(groupActions.setGroups(Object.values(currentGroups)));
+      
+      // Show a toast notification
+      let message = "";
+      if (data.name && data.imageUrl) {
+        message = data.updatedBy 
+          ? `Group name and image updated by ${data.updatedBy}`
+          : "Group name and image updated";
+      } else if (data.name) {
+        message = `Group name updated to "${data.name}"`;
+      } else if (data.imageUrl) {
+        message = data.updatedBy 
+          ? `Group image updated by ${data.updatedBy}`
+          : "Group image updated";
+      }
+      
+      if (message) {
+        showUniqueToast(
+          `group-update-${data.groupId}`,
+          message
+        );
+      }
+      
+      // If there's an image update, force refresh all group images with this ID
+      if (data.imageUrl) {
+        console.log(`Forcing refresh of all images for group ${data.groupId} via direct message`);
+        // Use the imported function directly
+        forceRefreshGroupImages(data.groupId, data.imageUrl);
+      }
+    }
+  });
+
+  // Add this socket event handler for the broadcast event
+  socket.on("broadcast-group-update", (data: { 
+    groupId: string; 
+    name?: string; 
+    imageUrl?: string;
+    updatedBy: string; 
+    members: string[] 
+  }) => {
+    console.log(`🔄 Received broadcast group update for ${data.groupId}:`, data);
+    
+    // Process for all users, regardless of membership
+    const currentUser = store.getState().user.username;
+    
+    // Check if this update is relevant to this user
+    const isRelevant = data.members.includes(currentUser);
+    console.log(`Update is relevant to current user: ${isRelevant}`);
+    
+    if (isRelevant) {
+      console.log(`Updating group ${data.groupId} for user ${currentUser}`);
+      
+      // Create update object with only the fields that were updated
+      const updateObj: Partial<Group> & { id: string } = { id: data.groupId };
+      if (data.name) updateObj.name = data.name;
+      if (data.imageUrl) {
+        updateObj.imageUrl = data.imageUrl;
+        console.log(`Setting image URL to: ${data.imageUrl}`);
+      }
+      
+      // Update the group in the Redux store
+      store.dispatch(
+        groupActions.updateGroup(updateObj)
+      );
+      
+      // Force a re-render of the groups list by dispatching setGroups
+      const currentGroups = store.getState().groups.groups;
+      store.dispatch(groupActions.setGroups(Object.values(currentGroups)));
+      
+      // Show a toast notification only for other users
+      if (data.updatedBy !== currentUser) {
+        let message = "";
+        if (data.name && data.imageUrl) {
+          message = `Group name and image updated by ${data.updatedBy}`;
+        } else if (data.name) {
+          message = `Group name updated to "${data.name}" by ${data.updatedBy}`;
+        } else if (data.imageUrl) {
+          message = `Group image updated by ${data.updatedBy}`;
+        }
+        
+        showUniqueToast(
+          `group-update-${data.groupId}`,
+          message
+        );
+      }
+    }
+    
+    // If there's an image update, force refresh all group images with this ID
+    // Do this regardless of membership to ensure all instances are updated
+    if (data.imageUrl) {
+      console.log(`Forcing refresh of all images for group ${data.groupId}`);
+      // Use the imported function directly
+      forceRefreshGroupImages(data.groupId, data.imageUrl);
+    }
+  });
+
   return () => {
     socket.off("new-message");
     socket.off("new-group-message");
     socket.off("new-friend-request");
     socket.off("friend-request-sent-success");
     socket.off("friend-added");
-    socket.off("request-accepted");
     socket.off("request-declined");
     socket.off("friend-request-removed");
     socket.off("sent-request-accepted");
@@ -1051,80 +1173,202 @@ export const initializeSocket = (username: string) => {
     socket.off("notification");
     socket.off("notification-marked-read");
     socket.off("all-notifications-marked-read");
+    socket.off("profile-picture-updated");
+    socket.off("group-updated");
+    socket.off("broadcast-group-update");
+    socket.off("system-message");
     socket.emit("leave", username);
   };
 };
 
-export const sendMessage = async (messageData: Message): Promise<Message> => {
+/**
+ * Sends a message to either a direct chat or a group chat
+ * @param messageData The message data or individual message properties
+ * @param options Additional options for message sending
+ * @returns The created message object or null if a similar message exists
+ * 
+ * @example
+ * // Send a regular message
+ * sendMessage({
+ *   chatId: "chat_123",
+ *   content: "Hello!",
+ *   senderId: "user1",
+ *   type: "text"
+ * });
+ * 
+ * @example
+ * // Send a system message
+ * sendMessage({
+ *   chatId: "group_123",
+ *   content: "User joined the group",
+ *   senderId: "system",
+ *   type: "text"
+ * }, {
+ *   dispatch: dispatch,
+ *   checkExisting: (content) => messages.some(msg => msg.senderId === "system" && msg.content === content)
+ * });
+ */
+export const sendMessage = async (
+  messageData: Partial<Message> & {
+    chatId: string;
+    content: string;
+    senderId: string;
+  },
+  options?: {
+    dispatch?: Dispatch<AnyAction>;
+    checkExisting?: (content: string) => boolean;
+  }
+): Promise<Message | null> => {
   try {
+    // Create a mutable copy of the message data
+    const mutableData = { ...messageData };
+    
+    // Determine if this is a group chat by checking if the chatId starts with 'group_'
+    // or if it's explicitly passed as a group chat in the options
+    const isGroupChat = mutableData.chatId.startsWith('group_');
+    
+    // Extract the actual group ID if this is a group chat
+    const actualChatId = isGroupChat 
+      ? mutableData.chatId.replace('group_', '')
+      : mutableData.chatId;
+    
+    // Set default type if not provided
+    if (!mutableData.type) {
+      mutableData.type = 'text';
+    }
+    
+    // Check if a similar message already exists (for group messages)
+    if (isGroupChat && options?.checkExisting && options.checkExisting(mutableData.content)) {
+      console.log(`Similar message already exists: ${mutableData.content}`);
+      return null;
+    }
+    
     // Add timestamp if not present
-    if (!messageData.timestamp) {
-      messageData.timestamp = new Date().toISOString();
+    if (!mutableData.timestamp) {
+      mutableData.timestamp = new Date().toISOString();
     }
-
-    // Add a temporary ID to track this message if not present
-    if (!messageData.id) {
-      const tempId = `temp-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 9)}`;
-      messageData.id = tempId;
+    
+    // Add a unique ID if not present
+    if (!mutableData.id) {
+      const idPrefix = mutableData.senderId === 'system' ? 'system' : mutableData.type;
+      mutableData.id = `${idPrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     }
-
+    
+    // Set status if not present
+    if (!mutableData.status) {
+      mutableData.status = 'sent';
+    }
+    
+    // Create the full message object
+    const fullMessage: Message = {
+      id: mutableData.id!,
+      content: mutableData.content,
+      senderId: mutableData.senderId,
+      chatId: isGroupChat ? actualChatId : mutableData.chatId, // Use actualChatId for group chats
+      timestamp: mutableData.timestamp!,
+      status: mutableData.status!,
+      type: mutableData.type!
+    };
+    
+    // Add attachments if they exist
+    if (mutableData.attachments) {
+      fullMessage.attachments = mutableData.attachments;
+    }
+    
     // Create a unique key for this message to prevent duplicates
-    const messageKey = `${messageData.chatId}_${messageData.content}_${messageData.timestamp}`;
-
+    const messageKey = `${fullMessage.chatId}_${fullMessage.content}_${fullMessage.timestamp}`;
+    
     // Check if we've already processed this message in the last few seconds
     if (processedMessageIds.has(messageKey)) {
       console.log(`Skipping duplicate message send: ${messageKey}`);
-      return messageData;
+      return fullMessage;
     }
-
+    
     // Add to processed set to prevent duplicates
     processedMessageIds.add(messageKey);
-    processedMessageIds.add(messageData.id);
-
+    processedMessageIds.add(fullMessage.id);
+    
+    // Get socket instance
+    const socket = getSocket();
+    
     // Add message to store immediately for real-time updates
-    if (messageData.chatId.startsWith("group_")) {
-      const groupId = messageData.chatId.replace("group_", "");
-      store.dispatch(
+    if (isGroupChat) {
+      const dispatch = options?.dispatch || store.dispatch;
+      dispatch(
         groupActions.addGroupMessage({
-          groupId,
-          message: messageData,
+          groupId: actualChatId,
+          message: fullMessage,
         })
       );
+      
+      // Emit the message via socket for group chats
+      socket.emit("group-message", {
+        groupId: actualChatId,
+        message: fullMessage,
+      });
+      
+      // Log the message for group chat
+      console.log(`Message sent to group ${actualChatId}: ${fullMessage.content}`);
     } else {
+      // For direct messages, ensure we're using the correct friendship ID
+      // Extract the usernames from the chatId (which might not be sorted)
+      const users = fullMessage.chatId.split('_');
+      
+      // If the chatId doesn't contain an underscore, it might be a single username
+      // In that case, use the current user as the sender and the chatId as the recipient
+      let sender = fullMessage.senderId;
+      let recipient = users.length === 2 ? users.find(u => u !== sender) : fullMessage.chatId;
+      
+      // Create the correct friendship ID by sorting the usernames
+      const friendshipId = [sender, recipient].sort().join('_');
+      
+      // Create a new message object with the updated chatId instead of modifying the existing one
+      const messageWithCorrectChatId = {
+        ...fullMessage,
+        chatId: friendshipId
+      };
+      
+      // Update the Redux store with the correct chatId
       store.dispatch(
         addMessage({
-          chatId: messageData.chatId,
-          message: messageData,
+          chatId: friendshipId,
+          message: messageWithCorrectChatId,
         })
       );
-    }
-
-    // Emit the message via socket
-    const socket = getSocket();
-    if (messageData.chatId.startsWith("group_")) {
-      socket.emit("group-message", {
-        groupId: messageData.chatId.replace("group_", ""),
-        message: messageData,
+      
+      socket.emit("direct-message", {
+        chatId: friendshipId,
+        message: messageWithCorrectChatId,
       });
-    } else {
-      socket.emit("private-message", {
-        chatId: messageData.chatId,
-        message: messageData,
-      });
+      
+      // Log the message for direct chat
+      console.log(`Message sent to chat ${friendshipId}: ${fullMessage.content}`);
+      
+      // Schedule cleanup of processed message ID
+      setTimeout(() => {
+        processedMessageIds.delete(fullMessage.id);
+      }, 5000); // 5 second cooldown
+      
+      // Return the message with the correct chatId
+      return messageWithCorrectChatId;
     }
-
-    // Remove from processed set after a delay to allow showing the same message again later
+    
+    // Schedule cleanup of processed message ID
     setTimeout(() => {
-      processedMessageIds.delete(messageKey);
+      processedMessageIds.delete(fullMessage.id);
     }, 5000); // 5 second cooldown
-
-    return messageData;
+    
+    // Return the original message for group chats
+    return fullMessage;
   } catch (error) {
     console.error("Error sending message:", error);
     throw error;
   }
+};
+
+// Helper function to generate a friendship ID
+export const generateFriendshipId = (user1: string, user2: string): string => {
+  return [user1, user2].sort().join('_');
 };
 
 // Helper function for sending friend requests
@@ -1132,21 +1376,35 @@ export const sendFriendRequest = (data: {
   sender: string;
   recipient: string;
 }) => {
-  socket.emit("friend-request-sent", data);
+  const friendshipId = generateFriendshipId(data.sender, data.recipient);
+  socket.emit("friend-request-sent", {
+    ...data,
+    friendshipId
+  });
 };
 
+// Helper function for accepting friend requests
 export const acceptFriendRequest = (data: {
   sender: string;
   recipient: string;
 }) => {
-  socket.emit("friend-request-accepted", data);
+  const friendshipId = generateFriendshipId(data.sender, data.recipient);
+  socket.emit("friend-request-accepted", {
+    ...data,
+    friendshipId
+  });
 };
 
+// Helper function for declining friend requests
 export const declineFriendRequest = (data: {
   sender: string;
   recipient: string;
 }) => {
-  socket.emit("friend-request-declined", data);
+  const friendshipId = generateFriendshipId(data.sender, data.recipient);
+  socket.emit("friend-request-declined", {
+    ...data,
+    friendshipId
+  });
 };
 
 // Add error handler
@@ -1159,13 +1417,32 @@ socket.on("message-error", (error: SocketErrorEvent) => {
 export const sendGroupInvite = (data: {
   groupId: string;
   username: string;
-  invitedBy: string;
+  senderId: string;
 }) => {
-  if (!data.invitedBy) {
-    console.error("No invitedBy provided for group invite");
+  if (!data.senderId) {
+    console.error("No senderId provided for group invite");
     return;
   }
   socket.emit("group-invite", data);
+};
+
+// Helper function to format a date in YYYY-MM-DD format
+const formatDateToYYYYMMDD = (dateString?: string): string => {
+  // If the date is already in YYYY-MM-DD format, return it as is
+  if (dateString && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return dateString;
+  }
+  
+  // Parse the date string or use current date
+  const date = dateString ? new Date(dateString) : new Date();
+  
+  // Get the UTC values to avoid timezone issues
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  
+  // Return in YYYY-MM-DD format
+  return `${year}-${month}-${day}`;
 };
 
 // Add helper functions for emitting event updates
@@ -1173,15 +1450,20 @@ export const updateEvent = (
   groupId: string,
   event: Omit<Event, "updatedAt"> | null
 ) => {
+  // Ensure the date is in the correct format
+  const formattedEvent = event
+    ? {
+        ...event,
+        id: event.id || Date.now().toString(),
+        expenses: event.expenses || [],
+        // Ensure the date is in YYYY-MM-DD format using our helper function
+        date: event.date ? formatDateToYYYYMMDD(event.date) : formatDateToYYYYMMDD(),
+      }
+    : null;
+
   socket.emit("event-update", {
     groupId,
-    event: event
-      ? {
-          ...event,
-          id: event.id || Date.now().toString(),
-          expenses: event.expenses || [],
-        }
-      : null,
+    event: formattedEvent,
   });
 };
 
@@ -1198,38 +1480,27 @@ export const addExpense = (
 
   console.log(`Adding expense: ${expense.item} for $${expense.amount}`);
 
-  // If there's only one person to split with, create a single expense
-  if (expense.splitBetween.length === 1) {
-    const expenseData = {
-      // Convert to the new Expense format
-      itemName: expense.item,
-      amount: expense.amount,
-      addedBy: expense.paidBy,
-      date: new Date().toISOString(),
-      // Additional metadata for server processing
-      _debtor: expense.splitBetween[0],
-    };
+  // Filter out the payer from splitBetween to avoid creating an expense where payer owes themselves
+  const filteredSplitBetween = expense.splitBetween.filter(
+    (person) => person !== expense.paidBy
+  );
 
-    console.log("Sending expense data to server:", expenseData);
-
-    // Send to server
-    socket.emit("add-expense", {
-      groupId,
-      expense: expenseData,
-      keepEventOpen: true,
-    });
+  // If no one is left after filtering, return early
+  if (filteredSplitBetween.length === 0) {
+    console.log("No valid debtors after filtering out the payer");
     return;
   }
 
-  // For multiple people, create separate expenses for each person
+  // Calculate the amount per person based on the ORIGINAL split list
+  // This ensures the math is correct even when the payer is included in the split
   const amountPerPerson = expense.amount / expense.splitBetween.length;
 
-  // Create and send an expense for each person in the splitBetween array
-  expense.splitBetween.forEach((person) => {
+  // Create and send an expense for each person in the filtered splitBetween array
+  filteredSplitBetween.forEach((person) => {
     const expenseData = {
       // Convert to the new Expense format
       itemName: expense.item,
-      amount: amountPerPerson,
+      amount: amountPerPerson, // Split amount equally among all participants
       addedBy: expense.paidBy,
       date: new Date().toISOString(),
       // Additional metadata for server processing
@@ -1294,7 +1565,7 @@ export const updateVenmoUsername = async (
   }
 };
 
-export const updateExpense = (groupId: string, updatedExpense: any) => {
+export const updateExpense = (groupId: string, updatedExpense: Expense) => {
   const socket = getSocket();
   socket.emit("update-expense", {
     groupId,
@@ -1304,7 +1575,7 @@ export const updateExpense = (groupId: string, updatedExpense: any) => {
 
 export const removeExpense = (
   groupId: string,
-  expense: any,
+  expense: Expense,
   itemIndex?: number
 ) => {
   const socket = getSocket();
@@ -1353,40 +1624,15 @@ export const updateExistingExpenses = (groupId: string) => {
 };
 
 // Add this function for group room management
-export const sendSocketEvent = (eventData: any) => {
-  if (!socket.connected) {
-    console.warn("Socket not connected, event not sent:", eventData.type);
-    return;
-  }
+interface SocketEventData {
+  type: string;
+  payload: unknown;
+  [key: string]: unknown;
+}
 
-  // Log important user actions with emojis for better visibility
-  switch (eventData.type) {
-    case "friend-request-sent":
-      console.log(`👋 Friend request sent to: ${eventData.recipient}`);
-      break;
-    case "friend-request-accepted":
-      console.log(`✅ Friend request accepted: ${eventData.sender}`);
-      break;
-    case "friend-request-declined":
-      console.log(`❌ Friend request declined: ${eventData.sender}`);
-      break;
-    case "group-invite":
-      console.log(
-        `👥 Group invite sent to: ${eventData.username} for group: ${eventData.groupId}`
-      );
-      break;
-    case "group-join":
-      console.log(`🎉 User joined group: ${eventData.groupId}`);
-      break;
-    case "event-update":
-      console.log(`📅 Event updated for group: ${eventData.groupId}`);
-      break;
-    case "expense-added":
-      console.log(`💰 Expense added to group: ${eventData.groupId}`);
-      break;
-  }
-
-  socket.emit(eventData.type, eventData);
+export const sendSocketEvent = (eventData: SocketEventData) => {
+  const socket = getSocket();
+  socket.emit(eventData.type, eventData.payload);
 };
 
 // Add this to your socket service
@@ -1400,5 +1646,94 @@ export const updateProfilePictureSocket = (
     socket.emit("profile-picture-updated", { username, imageUrl });
   } catch (error) {
     console.error("Error updating profile picture:", error);
+  }
+};
+
+// Add a function to update the group name
+export const updateGroupName = async (groupId: string, name: string, username: string) => {
+  try {
+    // Make API call to update the group name
+    const response = await axios.put(`${BASE_URL}/api/groups/${groupId}/update`, {
+      adminId: username, // Using adminId parameter for backward compatibility
+      name
+    });
+
+    if (response.status === 200) {
+      // Get the current group data to get the members
+      const currentState = store.getState();
+      const groupData = currentState.groups.groups[groupId];
+      
+      // Get all users in the group
+      const members = groupData?.users?.map(user => user.username) || [];
+      
+      // Update the Redux store immediately for the current user
+      store.dispatch(
+        groupActions.updateGroup({
+          id: groupId,
+          name
+        })
+      );
+      
+      // Force a re-render of the groups list by dispatching setGroups
+      const updatedGroups = store.getState().groups.groups;
+      store.dispatch(groupActions.setGroups(Object.values(updatedGroups)));
+
+      // Emit socket event to notify other users
+      // Use a different event name that will be broadcast to all users
+      socket.emit("broadcast-group-update", {
+        groupId,
+        name,
+        updatedBy: username,
+        members
+      });
+
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error updating group name:", error);
+    throw error;
+  }
+};
+
+// Add this function to update group images
+export const updateGroupImage = async (groupId: string, imageUrl: string, username: string) => {
+  try {
+    // Get the current group data to get the members
+    const currentState = store.getState();
+    const groupData = currentState.groups.groups[groupId];
+    
+    if (!groupData) {
+      console.error("Group not found in store:", groupId);
+      return false;
+    }
+    
+    // Get all users in the group
+    const members = groupData.users.map(user => user.username);
+    
+    // Update the Redux store immediately for the current user
+    store.dispatch(
+      groupActions.updateGroup({
+        id: groupId,
+        imageUrl
+      })
+    );
+    
+    // Force a re-render of the groups list by dispatching setGroups
+    const updatedGroups = store.getState().groups.groups;
+    store.dispatch(groupActions.setGroups(Object.values(updatedGroups)));
+    
+    // Emit socket event to notify other users
+    socket.emit("broadcast-group-update", {
+      groupId,
+      imageUrl,
+      updatedBy: username,
+      members
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error updating group image:", error);
+    throw error;
   }
 };

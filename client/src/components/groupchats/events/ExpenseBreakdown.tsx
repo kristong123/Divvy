@@ -1,14 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../../store/store";
-import ProfileAvatar from "../../shared/ProfileAvatar";
+import ProfileFrame from "../../shared/ProfileFrame";
 import { toast } from "react-hot-toast";
 import VenmoIcon from "../../shared/VenmoIcon";
-import AutoScalingInput from "../../shared/AutoScalingInput";
-import {
-  removeExpense,
-  updateExpense,
-} from "../../../services/socketService";
+import ClickInput from "../../shared/ClickInput";
+import { removeExpense, updateExpense } from "../../../services/socketService";
 import { X } from "lucide-react";
 import { store } from "../../../store/store";
 import { groupActions } from "../../../store/slice/groupSlice";
@@ -54,8 +51,8 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
         owesTo: Record<string, number>;
         isOwedBy: Record<
           string,
-          { 
-            total: number; 
+          {
+            total: number;
             items: Array<{
               id: string;
               itemName: string;
@@ -96,30 +93,34 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
   // Function to get the latest Venmo username for a user
   const getLatestVenmoUsername = (username: string): string | undefined => {
     // First check in the current group members
-    const groupMember = groupMembers.find(u => u.username === username);
+    const groupMember = groupMembers.find((u) => u.username === username);
     if (groupMember?.venmoUsername) {
       return groupMember.venmoUsername;
     }
-    
+
     // If not found or null, try to find in other groups
     const allGroups = store.getState().groups.groups;
     for (const groupId in allGroups) {
       const group = allGroups[groupId];
-      const user = group.users.find(u => u.username === username);
+      const user = group.users.find((u) => u.username === username);
       if (user?.venmoUsername) {
         return user.venmoUsername;
       }
     }
-    
+
     return undefined;
   };
 
   // Function to fetch the latest user data directly from the API
-  const fetchLatestUserData = async (username: string): Promise<string | undefined> => {
+  const fetchLatestUserData = async (
+    username: string
+  ): Promise<string | undefined> => {
     try {
       const response = await axios.get(`${BASE_URL}/api/users/${username}`);
       if (response.data && response.data.venmoUsername) {
-        console.log(`Fetched latest Venmo username for ${username}: ${response.data.venmoUsername}`);
+        console.log(
+          `Fetched latest Venmo username for ${username}: ${response.data.venmoUsername}`
+        );
         return response.data.venmoUsername;
       }
       return undefined;
@@ -156,7 +157,8 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
           // For backward compatibility, assume the expense is for all group members
           return {
             ...exp,
-            _debtor: groupMembers.find(m => m.username !== exp.addedBy)?.username
+            _debtor: groupMembers.find((m) => m.username !== exp.addedBy)
+              ?.username,
           };
         }
         return exp;
@@ -187,8 +189,8 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
         owesTo: Record<string, number>;
         isOwedBy: Record<
           string,
-          { 
-            total: number; 
+          {
+            total: number;
             items: Array<{
               id: string;
               itemName: string;
@@ -216,7 +218,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
       // If this expense has a debtor, process it directly
       if ((expense as any)._debtor) {
         const debtor = (expense as any)._debtor;
-        
+
         // Skip if payer or debtor doesn't exist in summary
         if (!summary[payer] || !summary[debtor]) {
           return;
@@ -232,7 +234,8 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
 
         // Update what debtor owes to payer
         summary[debtor].owed += expense.amount;
-        summary[debtor].owesTo[payer] = (summary[debtor].owesTo[payer] || 0) + expense.amount;
+        summary[debtor].owesTo[payer] =
+          (summary[debtor].owesTo[payer] || 0) + expense.amount;
 
         // Update what payer is owed by debtor
         if (!summary[payer].isOwedBy[debtor]) {
@@ -249,9 +252,13 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
       }
 
       // For backward compatibility, handle expenses with _splitBetween
-      if ((expense as any)._splitBetween && (expense as any)._splitBetween.length > 0) {
+      if (
+        (expense as any)._splitBetween &&
+        (expense as any)._splitBetween.length > 0
+      ) {
         // Calculate amount per person
-        const amountPerPerson = expense.amount / (expense as any)._splitBetween.length;
+        const amountPerPerson =
+          expense.amount / (expense as any)._splitBetween.length;
 
         // For each person in _splitBetween, create a debt relationship
         (expense as any)._splitBetween.forEach((debtor: string) => {
@@ -325,9 +332,10 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
     if (!editingState) return;
 
     const { payerId, debtorId, itemIndex, field, value } = editingState;
-    
+
     // Get the expense from the summary
-    const expenseItem = expenseSummary[payerId]?.isOwedBy[debtorId]?.items[itemIndex];
+    const expenseItem =
+      expenseSummary[payerId]?.isOwedBy[debtorId]?.items[itemIndex];
     if (!expenseItem) {
       toast.error("Couldn't find the expense to update");
       return;
@@ -355,65 +363,63 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
         console.log("Empty item name, skipping update");
         return; // Exit without showing toast or updating
       }
-      
+
       // Access itemName directly
       const itemName = originalExpense.itemName;
-      
+
       if (value === itemName) {
         console.log("Item name unchanged, skipping update");
         return; // Exit without showing toast or updating
       }
-      
+
       // Create updated expense object with new name
       const updatedExpense = {
         ...originalExpense,
         id: originalExpense.id,
-        itemName: value
+        itemName: value,
       };
 
       // Update the expense
       updateExpense(groupId, {
         ...updatedExpense,
-        originalItem: originalExpense.itemName,
         addedBy: originalExpense.addedBy,
       });
-      
+
       toast.success(`Item name updated`);
       return;
     }
-    
+
     if (field === "amount") {
       // If the value is empty, don't update
       if (!value.trim()) {
         console.log("Empty amount, skipping update");
         return; // Exit without showing toast or updating
       }
-      
+
       const newAmount = parseFloat(value);
       if (isNaN(newAmount)) {
         toast.error("Invalid amount");
         return;
       }
-      
+
       if (newAmount === originalExpense.amount) {
         console.log("Amount unchanged, skipping update");
         return; // Exit without showing toast or updating
       }
-      
+
       // Create updated expense object with new amount
       const updatedExpense = {
         ...originalExpense,
         id: originalExpense.id,
-        amount: newAmount
+        amount: newAmount,
       };
 
       // Update the expense
       updateExpense(groupId, {
         ...updatedExpense,
-        originalItem: originalExpense.itemName,
         addedBy: originalExpense.addedBy,
       });
-      
+
       toast.success(`Amount updated`);
       return;
     }
@@ -477,29 +483,39 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
               <div className="flex flex-row flex-wrap gap-3">
                 {userOwes.map((debt) => {
                   return (
-                    <div 
-                      key={debt.to} 
+                    <div
+                      key={debt.to}
                       className="bg-white text-black rounded-2xl p-2 shadow-md flex items-center cursor-pointer hover:bg-gray-50 transition-colors"
                       onClick={async () => {
                         // Use our helper function to get the latest Venmo username
-                        let freshVenmoUsername = getLatestVenmoUsername(debt.to);
-                        
+                        let freshVenmoUsername = getLatestVenmoUsername(
+                          debt.to
+                        );
+
                         if (!freshVenmoUsername) {
                           // If not found in Redux, try fetching directly from the API
                           toast.loading("Checking for Venmo username...");
-                          freshVenmoUsername = await fetchLatestUserData(debt.to);
+                          freshVenmoUsername = await fetchLatestUserData(
+                            debt.to
+                          );
                           toast.dismiss();
                         }
-                        
+
                         if (freshVenmoUsername) {
-                          const url = `https://venmo.com/${freshVenmoUsername}?txn=pay&amount=${(debt.amount as number).toFixed(2)}&note=Payment for ${group?.currentEvent?.title || "expenses"}`;
-                          window.open(url, '_blank', 'noopener,noreferrer');
+                          const url = `https://venmo.com/${freshVenmoUsername}?txn=pay&amount=${(
+                            debt.amount as number
+                          ).toFixed(2)}&note=Payment for ${
+                            group?.currentEvent?.title || "expenses"
+                          }`;
+                          window.open(url, "_blank", "noopener,noreferrer");
                         } else {
-                          toast.error(`${debt.to} hasn't set their Venmo username yet`);
+                          toast.error(
+                            `${debt.to} hasn't set their Venmo username yet`
+                          );
                         }
                       }}
                     >
-                      <ProfileAvatar username={debt.to} size={32} />
+                      <ProfileFrame username={debt.to} size={32} />
                       <div className="flex flex-col items-center mx-2 flex-grow">
                         <span className="text-sm">{debt.to}</span>
                         <span className="ml-auto text-sm font-medium text-dark1">
@@ -532,7 +548,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                   className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 w-fit h-fit"
                 >
                   <div className="flex items-center mb-3">
-                    <ProfileAvatar username={payer} size={32} />
+                    <ProfileFrame username={payer} size={32} />
                     <span className="text-black ml-2 font-medium">{payer}</span>
                     <span className="ml-auto text-sm text-gray-500">
                       paid ${(data as any).paid.toFixed(2)}
@@ -548,7 +564,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                           className="bg-gray-50 rounded-lg p-3 border border-gray-100"
                         >
                           <div className="flex items-center mb-2">
-                            <ProfileAvatar username={debtor} size={24} />
+                            <ProfileFrame username={debtor} size={24} />
                             <span className="text-gray-700 ml-2 text-sm">
                               {debtor}
                             </span>
@@ -566,14 +582,14 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                                 >
                                   {/* Bullet point */}
                                   <div className="w-1.5 h-1.5 rounded-full bg-dark1 mr-2 flex-shrink-0"></div>
-                                  
+
                                   {/* Item name */}
                                   {editingState &&
                                   editingState.payerId === payer &&
                                   editingState.debtorId === debtor &&
                                   editingState.itemIndex === idx &&
                                   editingState.field === "name" ? (
-                                    <AutoScalingInput
+                                    <ClickInput
                                       value={editingState.value}
                                       onChange={(value) =>
                                         setEditingState({
@@ -613,7 +629,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                                   editingState.debtorId === debtor &&
                                   editingState.itemIndex === idx &&
                                   editingState.field === "amount" ? (
-                                    <AutoScalingInput
+                                    <ClickInput
                                       value={editingState.value}
                                       onChange={(value) =>
                                         setEditingState({
@@ -680,4 +696,3 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
 };
 
 export default ExpenseBreakdown;
-

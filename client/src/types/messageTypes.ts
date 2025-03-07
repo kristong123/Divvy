@@ -1,3 +1,10 @@
+export interface Attachment {
+  url: string;
+  type: 'image' | 'file' | 'video';
+  name?: string;
+  size?: number;
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -5,8 +12,8 @@ export interface Message {
   content: string;
   timestamp: string;
   status: string;
-  type?: "group-invite" | "system" | string;
-  groupId?: string;
+  type: "group-invite" | string;
+  attachments?: Attachment[];
 }
 
 export interface SocketMessageEvent {

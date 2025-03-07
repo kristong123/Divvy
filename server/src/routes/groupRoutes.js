@@ -16,8 +16,10 @@ const {
     getUserGroups,
     getGroupInvites,
     declineGroupInvite,
-    getInviteStatus
+    getInviteStatus,
+    updateGroupImage
 } = require("../controllers/groups");
+const { upload } = require("../utils/multer");
 
 const router = express.Router();
 
@@ -51,5 +53,8 @@ router.get("/:groupId/status", checkGroupStatus);
 
 // Add this route to fetch group invites
 router.get('/invites/:username', getGroupInvites);
+
+// Add the route for uploading group images
+router.post("/:groupId/image", upload.single('image'), updateGroupImage);
 
 module.exports = router;

@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../../../store/store";
-import { toast } from "react-hot-toast";
-import ProfileAvatar from "../../shared/ProfileAvatar";
-import PaymentConfirmationWindow from "../../modals/PaymentConfirmationModal";
+import ProfileFrame from "../../shared/ProfileFrame";
+import AddExpenseModal from "../../modals/AddExpenseModal";
 import ExpenseBreakdown from "./ExpenseBreakdown";
 import { Expense } from "../../../types/groupTypes";
+import { addExpense as addExpenseSocket } from "../../../services/socketService";
 
 interface EventDetailsProps {
   description: string;
@@ -27,44 +27,56 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   onCancel,
   groupId,
 }) => {
-  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
-  const [paymentConfirmation, setPaymentConfirmation] = useState({
-    recipient: "",
-    amount: 0,
-  });
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
 
-  const group = useSelector(
-    (state: RootState) => state.groups.groups[groupId]
-  );
+  const currentUser = useSelector((state: RootState) => state.user.username);
 
   const totalAmount = React.useMemo(() => {
-    return expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  }, [expenses]);
+    return expenses.reduce((sum, expense) => {
+      // Skip expenses where the current user is both the payer and debtor
+      if (
+        expense.addedBy === currentUser &&
+        (expense as any)._debtor === currentUser
+      ) {
+        return sum;
+      }
+      return sum + expense.amount;
+    }, 0);
+  }, [expenses, currentUser]);
 
-  // Since we're removing paidBy and splitBetween, we need to change how we handle payments
-  // For now, we'll just remove the expenses without filtering
-  const handlePaymentConfirm = () => {
-    if (!group?.currentEvent) return;
+  // Add a function to handle expense addition
+  const handleAddExpense = (
+    item: string,
+    amount: number,
+    splitBetween: string[]
+  ) => {
+    // Create the expense object
+    const expense = {
+      item,
+      amount,
+      paidBy: currentUser,
+      splitBetween:
+        splitBetween.length > 0
+          ? splitBetween
+          : participants.map((p) => p.username),
+    };
 
-    // In a real implementation, you would need to track payments differently
-    // This would need to be replaced with a proper payment tracking system
-    toast.success(`Payment of $${paymentConfirmation.amount.toFixed(2)} to ${paymentConfirmation.recipient} confirmed!`);
-    
-    setShowPaymentConfirmation(false);
-  };
+    // Only use socket service to handle expenses - don't dispatch to Redux
+    // This prevents duplicate expenses
+    addExpenseSocket(groupId, expense);
 
-  // Add a function to handle showing payment confirmation
-  const handleShowPayment = (recipient: string, amount: number) => {
-    setPaymentConfirmation({ recipient, amount });
-    setShowPaymentConfirmation(true);
+    // Close the modal (toast is handled in the modal component)
+    setShowAddExpenseModal(false);
   };
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Description */}
-      <div className="bg-white rounded-xl p-6 shadow-md mb-6">
-        <p className="text-gray-600 whitespace-pre-wrap">{description}</p>
-      </div>
+      {/* Description - only show if there is a description */}
+      {description && description.trim() !== "" && (
+        <div className="bg-white rounded-xl p-6 shadow-md mb-6">
+          <p className="text-gray-600 whitespace-pre-wrap">{description}</p>
+        </div>
+      )}
 
       {/* Header Section */}
       <div className="flex justify-between items-start mb-8">
@@ -81,7 +93,7 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         <div className="flex flex-col items-end">
           <div className="flex gap-3 mb-4">
             <button
-              onClick={() => handleShowPayment("Example User", 10.00)}
+              onClick={() => setShowAddExpenseModal(true)}
               className="px-4 py-2 bg-[#57E3DC] text-white rounded-lg hover:bg-[#4DC8C2] transition-colors"
             >
               Add Expense
@@ -99,7 +111,7 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
                 key={participant.username}
                 className="flex flex-col items-center"
               >
-                <ProfileAvatar username={participant.username} size={32} />
+                <ProfileFrame username={participant.username} size={32} />
                 <span className="text-xs text-gray-600">
                   {participant.username}
                 </span>
@@ -109,12 +121,12 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         </div>
       </div>
 
-      <PaymentConfirmationWindow
-        isOpen={showPaymentConfirmation}
-        onClose={() => setShowPaymentConfirmation(false)}
-        onConfirm={handlePaymentConfirm}
-        recipient={paymentConfirmation.recipient}
-        amount={paymentConfirmation.amount}
+      <AddExpenseModal
+        isOpen={showAddExpenseModal}
+        onClose={() => setShowAddExpenseModal(false)}
+        onConfirm={handleAddExpense}
+        participants={participants}
+        groupId={groupId}
       />
 
       <div className="mt-6">

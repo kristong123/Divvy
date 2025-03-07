@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
 import Modal from "../shared/Modal";
-import ProfileAvatar from "../shared/ProfileAvatar";
+import ProfileFrame from "../shared/ProfileFrame";
 import { RootState } from "../../store/store";
 import clsx from "clsx";
 
@@ -114,7 +114,7 @@ const GroupInviteModal: React.FC<GroupInviteModalProps> = ({
                 onClick={() => handleToggleFriend(friend.username)}
               >
                 <div className="flex items-center">
-                  <ProfileAvatar username={friend.username} size={40} />
+                  <ProfileFrame username={friend.username} size={40} />
                   <span className="ml-2 mr-1 text-black">
                     {friend.username}
                   </span>

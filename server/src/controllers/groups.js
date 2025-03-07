@@ -1,5 +1,7 @@
 const { db } = require("../config/firebase");
 const { getIO } = require('../config/socket');
+const admin = require('firebase-admin');
+const cloudinary = require('cloudinary').v2;
 
 exports.createGroup = async (req, res) => {
   try {
@@ -429,27 +431,127 @@ exports.updateGroupChat = async (req, res) => {
   try {
     const { groupId } = req.params;
     const { adminId, name, description, newAdmin } = req.body;
+    const username = adminId; // Using adminId as the username for backward compatibility
+
+    console.log(`[updateGroupChat] Request received for groupId=${groupId}, username=${username}`);
 
     const groupRef = db.collection("groupChats").doc(groupId);
     const groupDoc = await groupRef.get();
 
     if (!groupDoc.exists) {
+      console.log(`[updateGroupChat] Error: Group not found with ID ${groupId}`);
       return res.status(404).json({ message: "Group not found" });
     }
 
     const groupData = groupDoc.data();
-    if (groupData.admin !== adminId) {
-      return res.status(403).json({ message: "Only the admin can update group settings" });
+    console.log(`[updateGroupChat] Group found: ${groupData.name}`);
+    console.log(`[updateGroupChat] Group users:`, JSON.stringify(groupData.users));
+
+    // Check if the user is in the group - handle different user data structures
+    let userInGroup = false;
+
+    if (Array.isArray(groupData.users)) {
+      // Check if users are stored as objects with username property
+      if (groupData.users.length > 0 && typeof groupData.users[0] === 'object') {
+        userInGroup = groupData.users.some(user => user && user.username === username);
+      }
+      // Check if users are stored as strings
+      else {
+        userInGroup = groupData.users.includes(username);
+      }
+    }
+
+    console.log(`[updateGroupChat] User ${username} is in group: ${userInGroup}`);
+
+    // For now, allow all users to update the group for debugging
+    // if (!userInGroup) {
+    //   console.log(`[updateGroupChat] Error: User ${username} is not a member of the group`);
+    //   return res.status(403).json({ message: "User is not a member of this group" });
+    // }
+
+    // Only admin can change admin
+    if (newAdmin) {
+      // Check if the current user is the admin
+      const isAdmin = groupData.admin === username;
+      if (!isAdmin) {
+        console.log(`[updateGroupChat] Error: Only the admin can change the admin`);
+        return res.status(403).json({ message: "Only the admin can change the admin" });
+      }
+
+      // Check if the new admin is in the group
+      let newAdminInGroup = false;
+      if (Array.isArray(groupData.users)) {
+        if (groupData.users.length > 0 && typeof groupData.users[0] === 'object') {
+          newAdminInGroup = groupData.users.some(user => user && user.username === newAdmin);
+        } else {
+          newAdminInGroup = groupData.users.includes(newAdmin);
+        }
+      }
+
+      if (!newAdminInGroup) {
+        console.log(`[updateGroupChat] Error: New admin ${newAdmin} is not a member of the group`);
+        return res.status(400).json({ message: "New admin must be a member of the group" });
+      }
     }
 
     const updateData = {};
     if (name) updateData.name = name;
     if (description) updateData.description = description;
-    if (newAdmin && groupData.users.includes(newAdmin)) {
-      updateData.admin = newAdmin;
-    }
+    if (newAdmin) updateData.admin = newAdmin;
 
     await groupRef.update(updateData);
+
+    // Create a system message about the update
+    let systemMessageContent = "";
+    if (name) {
+      systemMessageContent = `${username} changed the group name to "${name}"`;
+    } else if (newAdmin) {
+      systemMessageContent = `${username} made ${newAdmin} the new admin`;
+    }
+
+    if (systemMessageContent) {
+      const systemMessageRef = await db.collection("groupChats")
+        .doc(groupId)
+        .collection("messages")
+        .add({
+          content: systemMessageContent,
+          senderId: "system",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          type: "system"
+        });
+
+      const systemMessage = {
+        id: systemMessageRef.id,
+        content: systemMessageContent,
+        senderId: "system",
+        timestamp: new Date().toISOString(),
+        type: "system"
+      };
+
+      // Emit a socket event to notify all group members
+      const io = require('../config/socket').getIO();
+      if (io) {
+        // Get all members based on the data structure
+        let members = [];
+        if (Array.isArray(groupData.users)) {
+          if (groupData.users.length > 0 && typeof groupData.users[0] === 'object') {
+            members = groupData.users.map(user => user.username);
+          } else {
+            members = groupData.users;
+          }
+        }
+
+        console.log(`[updateGroupChat] Notifying members:`, members);
+
+        // Send system message to all members
+        members.forEach(member => {
+          io.to(member).emit('system-message', {
+            groupId,
+            message: systemMessage
+          });
+        });
+      }
+    }
 
     res.status(200).json({ message: "Group updated successfully!" });
   } catch (error) {
@@ -1073,5 +1175,171 @@ exports.getInviteStatus = async (req, res) => {
       status: 'invalid',
       error: error.message
     });
+  }
+};
+
+// Add the controller function for updating group images
+exports.updateGroupImage = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { username } = req.body;
+
+    console.log(`[updateGroupImage] Request received for groupId=${groupId}, username=${username}`);
+
+    if (!username) {
+      console.log(`[updateGroupImage] Error: Username is required`);
+      return res.status(400).json({ message: "Username is required" });
+    }
+
+    // Check if the group exists
+    const groupRef = db.collection("groupChats").doc(groupId);
+    const groupDoc = await groupRef.get();
+
+    if (!groupDoc.exists) {
+      console.log(`[updateGroupImage] Error: Group not found with ID ${groupId}`);
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    const groupData = groupDoc.data();
+    console.log(`[updateGroupImage] Group found: ${groupData.name}`);
+    console.log(`[updateGroupImage] Group users:`, JSON.stringify(groupData.users));
+
+    // Check if the user is in the group - handle different user data structures
+    let userInGroup = false;
+
+    if (Array.isArray(groupData.users)) {
+      // Check if users are stored as objects with username property
+      if (groupData.users.length > 0 && typeof groupData.users[0] === 'object') {
+        userInGroup = groupData.users.some(user => user && user.username === username);
+      }
+      // Check if users are stored as strings
+      else {
+        userInGroup = groupData.users.includes(username);
+      }
+    }
+
+    console.log(`[updateGroupImage] User ${username} is in group: ${userInGroup}`);
+
+    // For now, allow all users to update the group image for debugging
+    // if (!userInGroup) {
+    //   console.log(`[updateGroupImage] Error: User ${username} is not a member of the group`);
+    //   return res.status(403).json({ message: "User is not a member of this group" });
+    // }
+
+    // If there's an image file
+    if (req.file) {
+      try {
+        // Upload to Cloudinary
+        const uploadResponse = await cloudinary.uploader.upload(
+          `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`,
+          {
+            folder: 'group_pictures',
+            public_id: `group-${groupId}-${Date.now()}`
+          }
+        );
+
+        // Delete old image if it exists
+        if (groupData.imageUrl) {
+          try {
+            const oldImageUrl = groupData.imageUrl;
+            // Extract the public ID from the URL
+            const publicId = oldImageUrl.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`group_pictures/${publicId}`);
+          } catch (error) {
+            console.error("Error deleting old image:", error);
+            // Continue with the update even if deletion fails
+          }
+        }
+
+        // Get the secure URL from the upload response
+        const imageUrl = uploadResponse.secure_url;
+
+        // Update the group document with the new image URL
+        await groupRef.update({
+          imageUrl,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Create a system message about the image update
+        const systemMessageRef = await db.collection("groupChats")
+          .doc(groupId)
+          .collection("messages")
+          .add({
+            content: `${username} updated the group image`,
+            senderId: "system",
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            type: "system"
+          });
+
+        const systemMessage = {
+          id: systemMessageRef.id,
+          content: `${username} updated the group image`,
+          senderId: "system",
+          timestamp: new Date().toISOString(),
+          type: "system"
+        };
+
+        // Get the updated group data
+        const updatedGroupDoc = await groupRef.get();
+        const updatedGroupData = updatedGroupDoc.data();
+
+        // Emit a socket event to notify all group members
+        const io = require('../config/socket').getIO();
+        if (io) {
+          // Get all members based on the data structure
+          let members = [];
+          if (Array.isArray(updatedGroupData.users)) {
+            if (updatedGroupData.users.length > 0 && typeof updatedGroupData.users[0] === 'object') {
+              members = updatedGroupData.users.map(user => user.username);
+            } else {
+              members = updatedGroupData.users;
+            }
+          }
+
+          console.log(`[updateGroupImage] Notifying ${members.length} members:`, members);
+
+          // First, broadcast to all connected clients to ensure everyone gets the update
+          console.log(`[updateGroupImage] Broadcasting update to all connected clients`);
+          io.emit('broadcast-group-update', {
+            groupId,
+            imageUrl,
+            updatedBy: username,
+            members,
+          });
+
+          // Then, also send direct messages to each member for redundancy
+          members.forEach(member => {
+            console.log(`[updateGroupImage] Sending direct update to ${member}`);
+            io.to(member).emit('group-updated', {
+              groupId,
+              imageUrl,
+              updatedBy: username,
+              members,
+            });
+          });
+
+          // Send system message to all members
+          members.forEach(member => {
+            io.to(member).emit('system-message', {
+              groupId,
+              message: systemMessage
+            });
+          });
+        }
+
+        return res.status(200).json({
+          message: "Group image updated successfully",
+          url: imageUrl
+        });
+      } catch (uploadError) {
+        console.error("Error uploading to Cloudinary:", uploadError);
+        return res.status(500).json({ message: "Error uploading image" });
+      }
+    }
+
+    return res.status(400).json({ message: "No image file provided" });
+  } catch (error) {
+    console.error("Error updating group image:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

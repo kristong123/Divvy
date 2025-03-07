@@ -1,8 +1,6 @@
 const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
-const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
-const upload = multer().single('image');
 
 // Check if two users are friends
 const areUsersFriends = async (user1, user2) => {
@@ -54,74 +52,67 @@ const sendMessage = async (req, res) => {
 // Send a message with an image
 const sendImageMessage = async (req, res) => {
     try {
-        upload(req, res, async (err) => {
-            if (err) {
-                console.error('Multer error:', err);
-                return res.status(400).json({ message: 'File upload error' });
-            }
+        const { chatId, senderId, receiverId } = req.body;
+        const file = req.file;
 
-            const { chatId, senderId, receiverId } = req.body;
-            const file = req.file;
+        if (!file) {
+            return res.status(400).json({ message: 'No image uploaded' });
+        }
 
-            if (!file) {
-                return res.status(400).json({ message: 'No image uploaded' });
-            }
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        if (!allowedTypes.includes(file.mimetype)) {
+            return res.status(400).json({ message: 'Invalid file type. Only JPEG, PNG and GIF are allowed.' });
+        }
 
-            // Validate file type
-            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-            if (!allowedTypes.includes(file.mimetype)) {
-                return res.status(400).json({ message: 'Invalid file type. Only JPEG, PNG and GIF are allowed.' });
-            }
+        try {
+            // Upload image to Cloudinary
+            const uploadResponse = await cloudinary.uploader.upload(
+                `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+                {
+                    folder: 'chat_images',
+                    resource_type: 'image'
+                }
+            );
 
-            try {
-                // Upload image to Cloudinary
-                const uploadResponse = await cloudinary.uploader.upload(
-                    `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-                    {
-                        folder: 'chat_images',
-                        resource_type: 'image'
-                    }
-                );
-
-                // Add message to friends collection
-                const messageRef = await db.collection('friends')
-                    .doc(chatId)
-                    .collection('messages')
-                    .add({
-                        type: 'image',
-                        imageUrl: uploadResponse.secure_url,
-                        senderId,
-                        receiverId,
-                        timestamp: new Date(),
-                        status: 'sent'
-                    });
-
-                const message = {
-                    id: messageRef.id,
+            // Add message to friends collection
+            const messageRef = await db.collection('friends')
+                .doc(chatId)
+                .collection('messages')
+                .add({
                     type: 'image',
                     imageUrl: uploadResponse.secure_url,
                     senderId,
                     receiverId,
-                    timestamp: new Date().toISOString(),
+                    timestamp: new Date(),
                     status: 'sent'
-                };
-
-                // Emit to both users
-                const io = getIO();
-                io.to(receiverId).to(senderId).emit('new-message', {
-                    chatId,
-                    message
                 });
 
-                res.status(200).json(message);
-            } catch (error) {
-                console.error('Upload error:', error);
-                res.status(500).json({ message: error.message });
-            }
-        });
+            const message = {
+                id: messageRef.id,
+                type: 'image',
+                imageUrl: uploadResponse.secure_url,
+                senderId,
+                receiverId,
+                timestamp: new Date().toISOString(),
+                status: 'sent'
+            };
+
+            // Emit to both users
+            const io = getIO();
+            io.to(receiverId).to(senderId).emit('new-message', {
+                chatId,
+                message
+            });
+
+            res.status(200).json(message);
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            return res.status(500).json({ message: 'Failed to upload image' });
+        }
     } catch (error) {
-        console.error('Error sending image message:', error);
-        res.status(500).json({ message: 'Failed to send image message' });
+        console.error('Error processing image message:', error);
+        return res.status(500).json({ message: 'Failed to send image message' });
     }
 };
 
@@ -284,4 +275,12 @@ const rejectMessageRequest = async (req, res) => {
     }
 };
 
-module.exports = { sendMessage, getMessages, markMessagesAsRead, deleteMessage, acceptMessageRequest, rejectMessageRequest };
+module.exports = {
+    sendMessage,
+    sendImageMessage,
+    getMessages,
+    markMessagesAsRead,
+    deleteMessage,
+    acceptMessageRequest,
+    rejectMessageRequest
+};

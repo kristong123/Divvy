@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import clsx from 'clsx';
-import { RootState } from '../../store/store';
-import { fetchFriends } from '../../store/slice/friendsSlice';
-import { AppDispatch } from '../../store/store';
-import ProfileAvatar from '../shared/ProfileAvatar';
+import { useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import clsx from "clsx";
+import { RootState } from "../../store/store";
+import { fetchFriends } from "../../store/slice/friendsSlice";
+import { AppDispatch } from "../../store/store";
+import ProfileFrame from "../shared/ProfileFrame";
 
 interface FriendsProps {
   onChatSelect: (chatId: string) => void;
@@ -18,41 +18,41 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
 
   const container = clsx(
     // Spacing
-    'p-4 pt-0'
+    "p-4 pt-0"
   );
 
   const title = clsx(
     // Typography
-    'text-sm font-bold text-black'
+    "text-sm font-bold text-black"
   );
 
   const friendsList = clsx(
     // Spacing
-    'mt-2',
+    "mt-2",
     // Height and overflow
-    'max-h-[calc(100vh-250px)]',
-    'overflow-y-auto',
+    "max-h-[calc(100vh-250px)]",
+    "overflow-y-auto",
     // Scrollbar styling
-    'scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent'
+    "scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
   );
 
   const friendItem = clsx(
     // Layout
-    'row',
+    "row",
     // Typography
-    'text-sm text-black',
+    "text-sm text-black",
     // Spacing
-    'mb-2'
+    "mb-2"
   );
 
   const avatarContainer = clsx(
     // Layout
-    'flex items-center'
+    "flex items-center"
   );
 
   const friendName = clsx(
     // Spacing
-    'ml-2'
+    "ml-2"
   );
 
   useEffect(() => {
@@ -70,16 +70,13 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
       <p className={title}>Friends</p>
       <div className={friendsList}>
         {friends.map((friend) => (
-          <div 
-            key={friend.username} 
-            className={clsx(friendItem, 'cursor-pointer')}
+          <div
+            key={friend.username}
+            className={clsx(friendItem, "cursor-pointer")}
             onClick={() => onChatSelect(friend.username)}
           >
             <div className={avatarContainer}>
-              <ProfileAvatar
-                username={friend.username}
-                size={32}
-              />
+              <ProfileFrame username={friend.username} size={32} />
               <span className={friendName}>{friend.username}</span>
             </div>
           </div>

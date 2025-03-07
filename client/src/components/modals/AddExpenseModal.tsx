@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import clsx from "clsx";
 import Modal from "../shared/Modal";
-import ProfileAvatar from "../shared/ProfileAvatar";
+import ProfileFrame from "../shared/ProfileFrame";
 import { toast } from "react-hot-toast";
 import { store } from "../../store/store";
+import { preventEnterKeySubmission } from "../../utils/keyboardUtils";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -88,6 +89,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           placeholder="What was it for?"
           value={item}
           onChange={(e) => setItem(e.target.value)}
+          onKeyDown={preventEnterKeySubmission}
           className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           autoFocus
         />
@@ -97,6 +99,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           placeholder="Amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={preventEnterKeySubmission}
           className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
@@ -124,7 +127,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                     : "border-gray-200 bg-white"
                 )}
               >
-                <ProfileAvatar username={participant.username} size={32} />
+                <ProfileFrame username={participant.username} size={32} />
                 <span className="text-sm text-black">
                   {participant.username}
                 </span>

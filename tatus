@@ -1,0 +1,13 @@
+[1mdiff --git a/server/index.js b/server/index.js[m
+[1mindex 93be4d0..46319fc 100644[m
+[1m--- a/server/index.js[m
+[1m+++ b/server/index.js[m
+[36m@@ -12,7 +12,7 @@[m [mconst server = http.createServer(app);[m
+ // Initialize Socket.IO with existing corsOptions[m
+ initializeSocket(server);[m
+ [m
+[31m-// Use existing CORS config[m
+[32m+[m[32m// Use the corsOptions configuration[m
+ app.use(cors(corsOptions));[m
+ [m
+ // Parse JSON bodies[m

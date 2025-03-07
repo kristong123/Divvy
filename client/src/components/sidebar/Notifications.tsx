@@ -4,7 +4,7 @@ import { RootState, AppDispatch } from "../../store/store";
 import clsx from "clsx";
 import { markNotificationAsRead } from "../../store/slice/notificationsSlice";
 import { clearAllNotifications } from "../../services/socketService";
-import ProfileAvatar from "../shared/ProfileAvatar";
+import ProfileFrame from "../shared/ProfileFrame";
 import { formatDistanceToNow } from "date-fns";
 import { fetchUserNotifications } from "../../services/socketService";
 
@@ -176,7 +176,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
               >
                 <div className={notificationHeader}>
                   {notification.data?.senderProfile && (
-                    <ProfileAvatar
+                    <ProfileFrame
                       username={notification.data.sender || "User"}
                       size={32}
                     />

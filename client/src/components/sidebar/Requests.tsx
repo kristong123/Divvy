@@ -10,7 +10,7 @@ import {
   setPendingRequests,
   removePendingRequest,
 } from "../../store/slice/friendsSlice";
-import ProfileAvatar from "../shared/ProfileAvatar";
+import ProfileFrame from "../shared/ProfileFrame";
 import {
   sendFriendRequest as sendFriendRequestSocket,
   acceptFriendRequest as acceptFriendRequestSocket,
@@ -354,7 +354,7 @@ const Requests: React.FC = () => {
                       className={avatarImage}
                       onError={(e) => {
                         e.currentTarget.src = "";
-                        // Fallback to ProfileAvatar if image fails to load
+                        // Fallback to ProfileFrame if image fails to load
                         e.currentTarget.style.display = "none";
                         e.currentTarget.parentElement?.nextElementSibling?.classList.remove(
                           "hidden"
@@ -364,7 +364,7 @@ const Requests: React.FC = () => {
                   </div>
                 ) : null}
                 <div className={request.profilePicture ? "hidden" : ""}>
-                  <ProfileAvatar username={request.sender} size={32} />
+                  <ProfileFrame username={request.sender} size={32} />
                 </div>
                 <span className={usernameStyle}>{request.sender}</span>
               </div>
@@ -411,7 +411,7 @@ const Requests: React.FC = () => {
                       className={avatarImage}
                       onError={(e) => {
                         e.currentTarget.src = "";
-                        // Fallback to ProfileAvatar if image fails to load
+                        // Fallback to ProfileFrame if image fails to load
                         e.currentTarget.style.display = "none";
                         e.currentTarget.parentElement?.nextElementSibling?.classList.remove(
                           "hidden"
@@ -421,7 +421,7 @@ const Requests: React.FC = () => {
                   </div>
                 ) : null}
                 <div className={request.profilePicture ? "hidden" : ""}>
-                  <ProfileAvatar username={request.recipient} size={32} />
+                  <ProfileFrame username={request.recipient} size={32} />
                 </div>
                 <span className={usernameStyle}>{request.recipient}</span>
                 <span className={statusText}>{request.status}</span>

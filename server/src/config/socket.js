@@ -23,7 +23,7 @@ const initializeSocket = (server) => {
             }
         });
 
-        socket.on('private-message', async (data) => {
+        socket.on('direct-message', async (data) => {
             try {
                 const { chatId, message } = data;
 
@@ -34,20 +34,43 @@ const initializeSocket = (server) => {
 
                 // Create a unique key for this message to prevent duplicates
                 const messageKey = `${chatId}_${message.content}_${message.timestamp || new Date().toISOString()}`;
-                console.log(`Processing private message: ${messageKey}`);
+                console.log(`Processing direct message: ${messageKey}`);
+
+                // Extract the usernames from the message
+                const sender = message.senderId;
+                const recipient = chatId.split('_').find(user => user !== sender);
+
+                if (!sender || !recipient) {
+                    console.error('Invalid message format: missing sender or recipient');
+                    socket.emit('message-error', { error: 'Invalid message format' });
+                    return;
+                }
+
+                // Create the correct friendship ID by sorting the usernames
+                const friendshipId = [sender, recipient].sort().join('_');
+
+                // Check if the friendship document exists
+                const friendshipRef = db.collection('friends').doc(friendshipId);
+                const friendshipDoc = await friendshipRef.get();
+
+                // Create the friendship document if it doesn't exist
+                if (!friendshipDoc.exists) {
+                    console.log(`Creating new friendship document: ${friendshipId}`);
+                    await friendshipRef.set({
+                        users: [sender, recipient],
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        status: 'accepted'
+                    });
+                }
 
                 // Store the message in the messages subcollection
-                await db.collection('friends')
-                    .doc(chatId)
+                await friendshipRef
                     .collection('messages')
                     .doc(message.id)
                     .set({
                         ...message,
                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
-
-                // Get the usernames from the chatId
-                const [user1, user2] = chatId.split('_');
 
                 // Prepare the message with a consistent timestamp
                 const messageToSend = {
@@ -56,17 +79,17 @@ const initializeSocket = (server) => {
                 };
 
                 // Emit to both users with the simplified message structure
-                io.to(user1).emit('new-message', {
-                    chatId,
+                io.to(sender).emit('new-message', {
+                    chatId: friendshipId,
                     message: messageToSend
                 });
-                io.to(user2).emit('new-message', {
-                    chatId,
+                io.to(recipient).emit('new-message', {
+                    chatId: friendshipId,
                     message: messageToSend
                 });
 
             } catch (error) {
-                console.error('Error sending private message:', error);
+                console.error('Error sending direct message:', error);
                 socket.emit('message-error', { error: 'Failed to send message' });
             }
         });
@@ -331,9 +354,23 @@ const initializeSocket = (server) => {
         });
 
         socket.on('group-updated', (data) => {
+            console.log('Socket: group-updated event received', data);
+
+            // Validate the data
+            if (!data.groupId || !data.members || !Array.isArray(data.members)) {
+                console.error('Invalid data for group-updated event:', data);
+                return;
+            }
+
             // Notify all group members of updates
             data.members.forEach(member => {
-                io.to(member).emit('group-updated', data);
+                console.log(`Notifying member ${member} about group update for ${data.groupId}`);
+                io.to(member).emit('group-updated', {
+                    groupId: data.groupId,
+                    name: data.name,
+                    imageUrl: data.imageUrl,
+                    updatedBy: data.updatedBy
+                });
             });
         });
 
@@ -355,42 +392,41 @@ const initializeSocket = (server) => {
                 const groupDoc = await groupRef.get();
                 const groupData = groupDoc.data();
 
-                // Create a chat ID for the direct message conversation
-                const chatId = [invitedBy, username].sort().join('_');
+                // Create the correct friendship ID by sorting the usernames
+                const friendshipId = [invitedBy, username].sort().join('_');
 
                 // Generate a unique ID for the invite
-                const inviteId = `invite_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                const inviteId = `invite_${groupId}_${Date.now()}`;
 
                 // Create the invite message with the simplified structure
                 const inviteMessage = {
                     id: inviteId,
-                    chatId: chatId,
+                    chatId: friendshipId,
                     senderId: invitedBy,
                     content: `${invitedBy} invited you to join ${groupData.name}`,
                     timestamp: new Date(),
                     status: 'sent',
                     type: 'group-invite',
                     groupId: groupId,
-                    groupName: groupData.name,
-                    invitedBy
+                    groupName: groupData.name
                 };
 
-                // Check if the friends document exists, create it if it doesn't
-                const friendsDocRef = db.collection('friends').doc(chatId);
-                const friendsDoc = await friendsDocRef.get();
+                // Check if the friendship document exists
+                const friendshipRef = db.collection('friends').doc(friendshipId);
+                const friendshipDoc = await friendshipRef.get();
 
-                if (!friendsDoc.exists) {
-                    // Create the friends document if it doesn't exist
-                    await friendsDocRef.set({
+                // Create the friendship document if it doesn't exist
+                if (!friendshipDoc.exists) {
+                    console.log(`Creating new friendship document for group invite: ${friendshipId}`);
+                    await friendshipRef.set({
                         users: [invitedBy, username],
-                        createdAt: new Date(),
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
                         status: 'accepted'
                     });
                 }
 
                 // Save the invite to the messages subcollection
-                await db.collection('friends')
-                    .doc(chatId)
+                await friendshipRef
                     .collection('messages')
                     .doc(inviteId)
                     .set(inviteMessage);
@@ -400,12 +436,12 @@ const initializeSocket = (server) => {
                     id: inviteId,
                     groupId,
                     groupName: groupData.name,
-                    invitedBy
+                    senderId: invitedBy
                 });
 
                 // Also emit a new message event to both users
                 io.to(username).emit('new-message', {
-                    chatId,
+                    chatId: friendshipId,
                     message: {
                         ...inviteMessage,
                         timestamp: inviteMessage.timestamp.toISOString()
@@ -413,7 +449,7 @@ const initializeSocket = (server) => {
                 });
 
                 io.to(invitedBy).emit('new-message', {
-                    chatId,
+                    chatId: friendshipId,
                     message: {
                         ...inviteMessage,
                         timestamp: inviteMessage.timestamp.toISOString()
@@ -1040,13 +1076,53 @@ const initializeSocket = (server) => {
             try {
                 const { username, imageUrl } = data;
 
-                // Broadcast to all connected clients
-                io.emit('profile-picture-updated', { username, imageUrl });
+                // Clean the image URL to prevent multiple timestamps
+                const cleanImageUrl = imageUrl.includes("?")
+                    ? imageUrl.split("?")[0]
+                    : imageUrl;
+
+                // Broadcast to all connected clients except the sender
+                socket.broadcast.emit('profile-picture-updated', {
+                    username,
+                    imageUrl: cleanImageUrl
+                });
 
                 console.log(`Profile picture updated for ${username}`);
             } catch (error) {
                 console.error('Error handling profile picture update:', error);
             }
+        });
+
+        // Add a handler for the broadcast-group-update event
+        socket.on('broadcast-group-update', (data) => {
+            console.log(`Broadcasting group update for ${data.groupId} to all users:`, data);
+
+            // Validate the data
+            if (!data.groupId || !data.members || !Array.isArray(data.members)) {
+                console.error('Invalid data for broadcast-group-update event:', data);
+                return;
+            }
+
+            // First, broadcast to all connected clients to ensure everyone gets the update
+            console.log(`Broadcasting to all connected clients`);
+            io.emit('broadcast-group-update', {
+                groupId: data.groupId,
+                name: data.name,
+                imageUrl: data.imageUrl,
+                updatedBy: data.updatedBy,
+                members: data.members
+            });
+
+            // Then, also send direct messages to each member for redundancy
+            data.members.forEach(member => {
+                console.log(`Sending direct update to member ${member} about group ${data.groupId}`);
+                io.to(member).emit('group-updated', {
+                    groupId: data.groupId,
+                    name: data.name,
+                    imageUrl: data.imageUrl,
+                    updatedBy: data.updatedBy
+                });
+            });
         });
     });
 

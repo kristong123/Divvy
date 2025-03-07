@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import clsx from 'clsx';
-import Sidebar from './Sidebar';
-import AddGroupButton from './groupchats/AddGroupButton';
-import GroupCard from './groupchats/GroupCard';
-import ChatView from './shared/ChatView';
-import axios from 'axios';
-import { toast } from 'react-hot-toast';
-import { useSelector, useDispatch } from 'react-redux';
-import { BASE_URL } from '../config/api';
-import { RootState } from '../store/store';
-import { groupActions } from '../store/slice/groupSlice';
+import React, { useState, useEffect, useMemo } from "react";
+import clsx from "clsx";
+import Sidebar from "./Sidebar";
+import AddGroupButton from "./groupchats/AddGroupButton";
+import GroupCard from "./groupchats/GroupCard";
+import ChatView from "./shared/ChatView";
+import axios from "axios";
+import { toast } from "react-hot-toast";
+import { useSelector, useDispatch } from "react-redux";
+import { BASE_URL } from "../config/api";
+import { RootState } from "../store/store";
+import { groupActions } from "../store/slice/groupSlice";
 
 interface GroupMember {
   username: string;
@@ -42,7 +42,7 @@ interface DirectChat {
 interface GroupResponse {
   id: string;
   name: string;
-  currentEvent: Event;  // Use the Event type from your groupSlice
+  currentEvent: Event; // Use the Event type from your groupSlice
   users: UserResponse[];
   admin: string;
   createdBy: string;
@@ -60,46 +60,48 @@ interface UserResponse {
 const Main: React.FC = () => {
   const username = useSelector((state: RootState) => state.user.username);
   const groups = useSelector((state: RootState) => state.groups.groups);
-  
-  const groupsList = useMemo(() => 
-    Object.values(groups) as GroupData[],
+
+  const groupsList = useMemo(
+    () => Object.values(groups) as GroupData[],
     [groups]
   );
   const dispatch = useDispatch();
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<{
-    type: 'group' | 'direct';
+    type: "group" | "direct";
     data: GroupData | DirectChat | null;
-  }>({ type: 'group', data: null });
+  }>({ type: "group", data: null });
 
   const titleLink = clsx(
     // Layout
-    'ml-96 mt-6',
+    "ml-96 mt-6",
     // Typography
-    'text-5xl font-bold',
-    'text-[#57E3DC]'
+    "text-5xl font-bold",
+    "text-[#57E3DC]"
   );
 
   const groupsContainer = clsx(
     // Layout
-    'flex flex-wrap',
+    "flex flex-wrap",
     // Spacing
-    'gap-4 p-10'
+    "gap-4 p-10"
   );
 
   useEffect(() => {
     const fetchGroups = async () => {
       if (username) {
         try {
-          const response = await axios.get(`${BASE_URL}/api/groups/user/${username}`);
+          const response = await axios.get(
+            `${BASE_URL}/api/groups/user/${username}`
+          );
           const groups = response.data.map((group: GroupResponse) => ({
             ...group,
-            isGroup: true
+            isGroup: true,
           }));
           dispatch(groupActions.setGroups(groups));
         } catch (_error) {
-          console.error('Failed to fetch groups:', _error);
-          toast.error('Failed to fetch groups');
+          console.error("Failed to fetch groups:", _error);
+          toast.error("Failed to fetch groups");
         }
       }
     };
@@ -112,7 +114,7 @@ const Main: React.FC = () => {
       const response = await axios.post(`${BASE_URL}/api/groups/create`, {
         name: groupName,
         createdBy: username,
-        pendingInvites: []
+        pendingInvites: [],
       });
 
       const newGroup: GroupData = {
@@ -122,74 +124,74 @@ const Main: React.FC = () => {
         users: response.data.users.map((user: UserResponse) => ({
           username: user.username,
           profilePicture: user.profilePicture,
-          isAdmin: user.isAdmin
+          isAdmin: user.isAdmin,
         })),
         admin: response.data.admin,
         createdBy: response.data.createdBy,
         createdAt: response.data.createdAt,
-        updatedAt: response.data.updatedAt
+        updatedAt: response.data.updatedAt,
       };
 
       dispatch(groupActions.addGroup(newGroup));
     } catch (error) {
-      console.error('Error creating group:', error);
-      toast.error('Failed to create group');
+      console.error("Error creating group:", error);
+      toast.error("Failed to create group");
     }
   };
 
   const handleDirectChatClick = (chatId: string, notificationType?: string) => {
     // Check if this is a group ID
-    const group = groupsList.find(g => g.id === chatId);
-    
+    const group = groupsList.find((g) => g.id === chatId);
+
     if (group) {
       // It's a group, handle it as a group click
       handleGroupClick(group, notificationType);
       return;
     }
-    
+
     // Otherwise handle as a direct chat
-    let chat = directChats.find(c => c.id === chatId);
-    
+    let chat = directChats.find((c) => c.id === chatId);
+
     // If chat doesn't exist, create it
     if (!chat) {
       chat = {
         id: chatId,
         name: chatId,
-        lastMessage: ''
+        lastMessage: "",
       };
       setDirectChats([...directChats, chat]);
     }
-    
-    setSelectedChat({ type: 'direct', data: chat });
+
+    setSelectedChat({ type: "direct", data: chat });
   };
 
   const handleGroupClick = (group: GroupData, notificationType?: string) => {
+    // Store just the ID and get the latest data from Redux when rendering
     setSelectedChat({
-      type: 'group',
+      type: "group",
       data: {
         id: group.id,
         name: group.name,
         imageUrl: group.imageUrl,
         amount: group.amount,
         isGroup: true,
-        users: group.users,
-        notificationType
-      }
+        notificationType,
+      },
     });
   };
 
   return (
     <div className="flex w-screen h-screen bg-white">
-      <Sidebar 
-        onChatSelect={handleDirectChatClick} 
-        onHomeClick={() => setSelectedChat({ type: 'group', data: null })}
+      <Sidebar
+        onChatSelect={handleDirectChatClick}
+        onHomeClick={() => setSelectedChat({ type: "group", data: null })}
       />
-      <div className='flex flex-col w-full'>
+      <div className="flex flex-col w-full">
         {!selectedChat.data ? (
           <>
             <h1 className={titleLink}>Divvy</h1>
             <div className={groupsContainer}>
-              {groupsList.map(group => (
+              {groupsList.map((group) => (
                 <GroupCard
                   key={group.id}
                   name={group.name}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
-interface AutoScalingInputProps {
+interface ClickInputProps {
   value: string;
   onChange: (value: string) => void;
   onSave?: () => void;
@@ -9,23 +9,23 @@ interface AutoScalingInputProps {
   charWidth?: number;
   className?: string;
   placeholder?: string;
-  type?: 'text' | 'number';
+  type?: "text" | "number";
   autoFocus?: boolean;
-  textAlign?: 'left' | 'right' | 'center';
+  textAlign?: "left" | "right" | "center";
 }
 
-const AutoScalingInput: React.FC<AutoScalingInputProps> = ({
+const ClickInput: React.FC<ClickInputProps> = ({
   value,
   onChange,
   onSave,
   onCancel,
   minWidth = 80,
   charWidth = 8,
-  className = '',
-  placeholder = '',
-  type = 'text',
+  className = "",
+  placeholder = "",
+  type = "text",
   autoFocus = true,
-  textAlign = 'left',
+  textAlign = "left",
 }) => {
   const [inputValue, setInputValue] = useState(value);
 
@@ -52,9 +52,9 @@ const AutoScalingInput: React.FC<AutoScalingInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && onSave) {
+    if (e.key === "Enter" && onSave) {
       onSave();
-    } else if (e.key === 'Escape' && onCancel) {
+    } else if (e.key === "Escape" && onCancel) {
       onCancel();
     }
   };
@@ -82,4 +82,4 @@ const AutoScalingInput: React.FC<AutoScalingInputProps> = ({
   );
 };
 
-export default AutoScalingInput; 
+export default ClickInput;

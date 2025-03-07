@@ -1,5 +1,5 @@
-import React from 'react';
-import clsx from 'clsx';
+import React from "react";
+import clsx from "clsx";
 
 interface GroupCardProps {
   name: string;
@@ -10,42 +10,42 @@ interface GroupCardProps {
 const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
   const card = clsx(
     // Layout
-    'w-48 h-48',
-    'flex flex-col',
-    'relative',
+    "w-48 h-48",
+    "flex flex-col",
+    "relative",
     // Spacing
-    'p-2',
+    "p-2",
     // Appearance
-    'bg-white rounded-2xl',
-    'shadow-md',
+    "bg-white rounded-2xl",
+    "shadow-md",
     // Interactive
-    'cursor-pointer'
+    "cursor-pointer"
   );
 
   const photoContainer = clsx(
     // Layout
-    'flex-1 w-full',
+    "flex-1 w-full",
     // Appearance
-    'rounded-xl',
-    'bg-gray-100',
+    "rounded-xl",
+    "bg-gray-100",
     // Spacing
-    'mb-6',
+    "mb-6",
     // Overflow
-    'overflow-hidden'
+    "overflow-hidden"
   );
 
   const image = clsx(
     // Layout
-    'w-full h-full',
+    "w-full h-full",
     // Image
-    'object-cover'
+    "object-cover"
   );
 
   const groupName = clsx(
     // Position
-    'absolute bottom-2 left-2',
+    "absolute bottom-2 left-2",
     // Typography
-    'text-sm font-bold text-black'
+    "text-sm font-bold text-black"
   );
 
   return (
@@ -58,4 +58,4 @@ const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
   );
 };
 
-export default GroupCard; 
+export default GroupCard;

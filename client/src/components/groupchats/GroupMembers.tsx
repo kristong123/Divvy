@@ -1,6 +1,6 @@
 import React from "react";
 import clsx from "clsx";
-import ProfileAvatar from "../shared/ProfileAvatar";
+import ProfileFrame from "../shared/ProfileFrame";
 
 interface Member {
   username: string;
@@ -70,7 +70,7 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
           key={`${member.username}-${index}`}
           className={memberItem}
         >
-          <ProfileAvatar username={member.username} size={32} />
+          <ProfileFrame username={member.username} size={32} />
           <span className={memberName}>
             {member.username}
             {member.username === adminUsername && (
