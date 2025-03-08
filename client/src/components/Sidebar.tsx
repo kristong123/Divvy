@@ -1,4 +1,4 @@
-import { UserRoundPlus, UsersRound, Bell, Home } from 'lucide-react';
+import { UserRoundPlus, UsersRound, Bell, Home, Moon, Sun } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { useState, useEffect } from 'react';
@@ -9,6 +9,7 @@ import Requests from './sidebar/Requests';
 import { setupFriendsListeners } from '../store/slice/friendsSlice';
 import ProfilePicture from './sidebar/ProfilePicture';
 import VenmoUsernameEditor from './sidebar/VenmoUsernameEditor';
+import { useTheme } from '../context/ThemeContext';  // Import the ThemeContext
 
 interface SidebarProps {
   onChatSelect: (chatId: string, notificationType?: string) => void;
@@ -16,95 +17,16 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
+  const { theme, toggleTheme } = useTheme();  // Use the theme context
   const currentUser = useSelector((state: RootState) => state.user.username);
   const dispatch = useDispatch<AppDispatch>();
   const [activeSection, setActiveSection] = useState<'notifications' | 'friends' | 'requests'>('friends');
   const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
   const groups = useSelector((state: RootState) => state.groups.groups);
 
-  const container = clsx(
-    // Layout
-    'flex flex-row'
-  );
-
-  const sidebar = clsx(
-    // Layout
-    'w-60',
-    // Border
-    'border-r'
-  );
-
-  const profileSection = clsx(
-    // Layout
-    'flex flex-col h-fit'
-  );
-
-  const userInfo = clsx(
-    // Layout
-    'flex flex-col',
-    // Spacing
-    'p-4',
-    // Border
-    'border-b'
-  );
-
-  const userInfoRow = clsx(
-    // Layout
-    'flex flex-row',
-    // Spacing
-    'mb-1'
-  );
-
-  const usernameStyle = clsx(
-    // Layout
-    'ml-4',
-    // Typography
-    'text-2xl font-bold text-black'
-  );
-
-  const navigationButtons = clsx(
-    // Layout
-    'flex flex-row',
-    // Spacing
-    'py-3'
-  );
-
-  const navButton = clsx(
-    // Layout
-    'm-auto',
-    // Transitions
-    'transition-all duration-300 ease-smooth',
-    // Hover
-    'hover:scale-110'
-  );
-
-  const navIcon = (isActive: boolean) => clsx(
-    // Size
-    'h-8 w-8',
-    // Color
-    isActive ? 'stroke-dark1' : 'stroke-black',
-    // Transitions
-    'transition-colors duration-300 ease-smooth'
-  );
-
-  const sectionTransition = (isVisible: boolean) => clsx(
-    // Visibility
-    isVisible ? 'opacity-100' : 'opacity-0 hidden',
-    // Transitions
-    'transition-opacity duration-300 ease-smooth'
-  );
-
-  const homeButton = clsx(
-    // Position
-    'absolute bottom-4 left-4',
-    // Layout
-    'p-2 rounded-full',
-    // Appearance
-    'bg-gradient-to-tr from-[#57E3DC] to-white',
-    // Interactive
-    'cursor-pointer hover:scale-110',
-    // Transitions
-    'transition-transform duration-300'
+  const themeButton = clsx(
+    'flex items-center gap-2 mt-4 mx-auto p-2 border rounded-lg transition-all duration-300',
+    'hover:bg-gray-200 dark:hover:bg-gray-700'
   );
 
   useEffect(() => {
@@ -135,28 +57,29 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
   };
 
   return (
-    <div className={container}>
-      <div className={sidebar}>
-        <div className={profileSection}>
-          <div className={userInfo}>
-            <div className={userInfoRow}>
+    <div className={clsx("flex flex-row", theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black")}>
+      <div className="w-60 border-r p-4">
+        <div className="flex flex-col h-fit">
+          {/* Profile Section */}
+          <div className="border-b pb-4">
+            <div className="flex items-center">
               <ProfilePicture />
-              <div className="flex flex-col my-auto">
-                <p className={usernameStyle}>
-                  {currentUser || 'Guest'}
-                </p>
+              <div className="ml-4">
+                <p className="text-2xl font-bold">{currentUser || 'Guest'}</p>
                 <VenmoUsernameEditor />
               </div>
             </div>
           </div>
-          <div className={navigationButtons}>
+
+          {/* Navigation Buttons */}
+          <div className="flex flex-row py-3">
             <button 
               onClick={() => setActiveSection('notifications')}
-              className={navButton}
+              className="m-auto transition-all duration-300 hover:scale-110"
               aria-label="Notifications"
             >
               <div className="relative">
-                <Bell className={navIcon(activeSection === 'notifications')}/>
+                <Bell className={clsx("h-8 w-8", activeSection === 'notifications' ? 'stroke-dark1' : 'stroke-black')}/>
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-dark1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -166,19 +89,34 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
             </button>
             <button 
               onClick={() => setActiveSection('friends')}
-              className={navButton}
+              className="m-auto transition-all duration-300 hover:scale-110"
             >
-              <UsersRound className={navIcon(activeSection === 'friends')}/>
+              <UsersRound className={clsx("h-8 w-8", activeSection === 'friends' ? 'stroke-dark1' : 'stroke-black')}/>
             </button>
             <button 
               onClick={() => setActiveSection('requests')}
-              className={navButton}
+              className="m-auto transition-all duration-300 hover:scale-110"
             >
-              <UserRoundPlus className={navIcon(activeSection === 'requests')}/>
+              <UserRoundPlus className={clsx("h-8 w-8", activeSection === 'requests' ? 'stroke-dark1' : 'stroke-black')}/>
             </button>
           </div>
+
+          {/* Theme Toggle Button */}
+          <button className={themeButton} onClick={toggleTheme}>
+            {theme === "light" ? (
+              <>
+                <Moon className="h-5 w-5" /> Dark Mode
+              </>
+            ) : (
+              <>
+                <Sun className="h-5 w-5" /> Light Mode
+              </>
+            )}
+          </button>
+
+          {/* Sections */}
           <div>
-            <div className={sectionTransition(activeSection === 'notifications')}>
+            <div className={clsx(activeSection === 'notifications' ? "opacity-100" : "opacity-0 hidden", "transition-opacity duration-300")}>
               <NotificationsPanel onNotificationClick={handleNotificationClick} />
             </div>
             <div className={activeSection === 'friends' ? '' : 'hidden'}>
@@ -190,8 +128,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
           </div>
         </div>
       </div>
+
+      {/* Home Button */}
       <button 
-        className={homeButton}
+        className="absolute bottom-4 left-4 p-2 rounded-full bg-gradient-to-tr from-[#57E3DC] to-white cursor-pointer hover:scale-110 transition-transform duration-300"
         onClick={onHomeClick}
       >
         <Home className="h-6 w-6 text-black" />

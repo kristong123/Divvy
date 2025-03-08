@@ -3,15 +3,34 @@
 @tailwind utilities;
 
 /* Base styles */
+/* Base styles */
+/* Base styles */
 @layer base {
   :root {
-    --sidebar-width: 9vw;
+    --background-color: #f3f4f6; /* ✅ Light Mode Default */
+    --text-color: #1f2937;
   }
 
-  body {
-    @apply bg-dark1 font-inter text-white;
+  [data-theme="dark"] {
+    --background-color: #111827; /* ✅ Dark Mode */
+    --text-color: #f9fafb;
+  }
+
+  /* ✅ Apply the theme globally but avoid overriding small divs */
+  html, body {
+    background-color: var(--background-color) !important;
+    color: var(--text-color) !important;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  /* ✅ Only apply to main sections, not every div */
+  #root, main, .page-container {
+    background-color: var(--background-color) !important;
+    color: var(--text-color) !important;
   }
 }
+
+
 
 /* Component styles */
 @layer components {
@@ -19,8 +38,26 @@
   .row {
     @apply flex flex-row;
   }
+
   .col {
     @apply flex flex-col;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background-color: var(--sidebar-bg);
+    @apply border-r transition-colors duration-300;
+  }
+
+  /* Button Styles */
+  .theme-toggle {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    @apply p-2 rounded-lg transition-all duration-300;
+  }
+
+  .theme-toggle:hover {
+    @apply bg-gray-200 dark:bg-gray-700;
   }
 }
 

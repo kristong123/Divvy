@@ -31,8 +31,12 @@ import GroupInvite from "../groupchats/GroupInvite";
 import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
+<<<<<<< Updated upstream
 import ClickInput from "./ClickInput";
 import { forceRefreshGroupImages } from "../../services/imageUploadService";
+=======
+import {useTheme} from '../../context/ThemeContext';
+>>>>>>> Stashed changes
 
 interface ChatViewProps {
   chat: {
@@ -116,6 +120,7 @@ const formatDateForDisplay = (dateString: string): string => {
 };
 
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
+  const { theme } = useTheme();
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
@@ -219,7 +224,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Layout
     "flex flex-col flex-1",
     // Appearance
-    "bg-white",
+    theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100 text-black",
     // Overflow
     "overflow-hidden"
   );
@@ -232,7 +237,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Width
     "w-full",
     // Border
-    "border-b"
+    "border-b",
+    //apperance
+    theme === "dark" ? "border-gray-700 bg-gray-800 text-white" : "border-gray-300 bg-white text-black"
   );
 
   const messagesContainer = clsx(
@@ -243,7 +250,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Overflow
     "overflow-y-auto",
     // Scrollbar
-    "scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
+    "scrollbar-thin",
+    theme === "dark" ? "scrollbar-thumb-gray-600 scrollbar-track-gray-800" : "scrollbar-thumb-gray-200 scrollbar-track-transparent"
   );
 
   const inputSection = clsx(
@@ -254,7 +262,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Border
     "border-t",
     // Appearance
-    "bg-white"
+     theme === "dark" ? "border-gray-700 bg-gray-800 text-white" : "border-gray-300 bg-white text-black"
   );
 
   const plusButton = clsx(
@@ -277,13 +285,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     "px-4 py-2 mx-3",
     // Appearance
     "rounded-full",
-    "bg-gray-100",
+    theme === "dark" ? "bg-gray-700 text-white placeholder-gray-400" : "bg-gray-100 text-black placeholder-gray-600",
     // Typography
     "text-black",
     // Focus
-    "focus:outline-none focus:bg-gray-200",
-    // Placeholder
-    "placeholder:text-gray-600"
+    "focus:outline-none focus:ring-2",
+    theme === "dark" ? "focus:ring-gray-500" : "focus:ring-gray-300"
   );
 
   const messageContainer = (isOwnMessage: boolean) =>
@@ -306,16 +313,14 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
   const messageStyle = (isOwnMessage: boolean) =>
     clsx(
-      // Layout
-      "w-fit max-w-full",
-      // Spacing
-      "px-3 py-2",
-      // Appearance
-      "bg-gray-100 rounded-xl",
-      // Typography
-      "text-black break-all",
-      // Alignment
-      isOwnMessage ? "bg-light1" : "bg-gray-100"
+      "w-fit max-w-full px-3 py-2 rounded-xl break-all transition-colors duration-300",
+      isOwnMessage
+        ? theme === "dark"
+          ? "bg-[#57E3DC] text-white"
+          : "bg-light1 text-black"
+        : theme === "dark"
+        ? "bg-gray-700 text-white"
+        : "bg-gray-100 text-black"
     );
 
   const [showInviteModal, setShowInviteModal] = useState(false);

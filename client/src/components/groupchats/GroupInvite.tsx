@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import React, { useEffect, useState, useCallback } from "react";
 import clsx from "clsx";
 import { useDispatch, useSelector } from "react-redux";
@@ -11,6 +12,22 @@ import {
 } from "../../store/slice/groupSlice";
 import { RootState } from "../../store/store";
 import { getSocket, showUniqueToast } from "../../services/socketService";
+=======
+import React, { useEffect } from 'react';
+import clsx from 'clsx';
+import { useDispatch, useSelector } from 'react-redux';
+import axios from 'axios';
+import { BASE_URL } from '../../config/api';
+import { toast } from 'react-hot-toast';
+import { removeGroupInvite } from '../../store/slice/inviteSlice';
+import { RootState } from '../../store/store';
+import { getSocket } from '../../services/socketService';
+import { 
+  setInviteStatus, 
+  InviteStatus 
+} from '../../store/slice/inviteStatusSlice';
+import { useTheme } from '../../context/ThemeContext'; // Import useTheme
+>>>>>>> Stashed changes
 
 interface GroupInviteProps {
   id: string;
@@ -28,6 +45,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   invitedBy,
   onAccept,
 }) => {
+  const { theme } = useTheme();  // Use the theme context
   const dispatch = useDispatch();
   const currentUser = useSelector((state: RootState) => state.user.username);
 
@@ -206,19 +224,33 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     // Spacing
     "p-3",
     // Appearance
+<<<<<<< Updated upstream
     "bg-gray-100 rounded-xl",
+=======
+     theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-100 text-black",
+>>>>>>> Stashed changes
     // Width
     "w-fit"
   );
 
   const title = clsx(
     // Typography
+<<<<<<< Updated upstream
     "text-sm font-semibold text-black"
+=======
+    'text-sm font-semibold text-black',
+    theme === "dark" ? "text-white" : "text-black"
+>>>>>>> Stashed changes
   );
 
   const description = clsx(
     // Typography
+<<<<<<< Updated upstream
     "text-sm text-gray-600"
+=======
+    'text-sm text-gray-600',
+    theme === "dark" ? "text-gray-300" : "text-gray-600"
+>>>>>>> Stashed changes
   );
 
   const buttonContainer = clsx(
@@ -231,6 +263,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   const isInteractive = inviteStatus === "valid" || inviteStatus === "sent";
 
   const acceptButton = clsx(
+<<<<<<< Updated upstream
     // Layout
     "px-3 py-1",
     // Appearance
@@ -254,6 +287,23 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     "text-sm text-gray-700 font-medium",
     // Border
     "rounded-md"
+=======
+    'px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300',
+    inviteStatus === 'valid'
+      ? theme === "dark" 
+        ? "bg-[#57E3DC] text-black cursor-pointer hover:bg-[#47c5bf]"
+        : "bg-[#57E3DC] text-white cursor-pointer hover:bg-[#47c5bf]"
+      : "bg-gray-500 text-gray-300 cursor-not-allowed"
+  );
+
+  const declineButton = clsx(
+    'px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300',
+    inviteStatus === 'valid'
+      ? theme === "dark"
+        ? "bg-gray-700 text-gray-300 cursor-pointer hover:bg-gray-600"
+        : "bg-gray-300 text-gray-700 cursor-pointer hover:bg-gray-200"
+      : "bg-gray-500 text-gray-300 cursor-not-allowed"
+>>>>>>> Stashed changes
   );
 
   const handleAccept = async () => {

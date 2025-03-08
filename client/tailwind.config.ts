@@ -11,6 +11,8 @@ export default {
         dark1: '#68D8D6',
         dark2: '#39bfbd',
         light1: '#ABEBDF',
+        gray100: "#f3f4f6", // Ensure light mode works
+        gray900: "#111827", // Ensure dark mode works
       },
       fontFamily: {
         inter: ['Inter', 'sans-serif'],
@@ -43,4 +45,5 @@ export default {
       }
     }
   },
-} satisfies Config
+  darkMode: "class", // ✅ Ensure Tailwind detects dark mode properly
+} satisfies Config;

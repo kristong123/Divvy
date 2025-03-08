@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import CreateGroupWindow from '../modals/CreateGroupModal';
 import clsx from 'clsx';
+import { useTheme } from '../../context/ThemeContext';
 
 interface AddGroupButtonProps {
   onConfirm: (groupName: string) => void;
 }
 
 const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
+  const { theme } = useTheme();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleCreateGroup = (groupName: string) => {
@@ -19,7 +21,7 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
     'w-48 h-48',
     'flex items-center justify-center',
     // Appearance
-    'bg-white rounded-2xl shadow-md',
+    theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-100 text-black",
     // Interactive
     'cursor-pointer'
   );
@@ -30,8 +32,7 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
     'flex items-center justify-center',
     // Appearance
     'rounded-full',
-    'bg-gradient-to-tr from-[#57E3DC] to-white',
-    // Typography
+    theme === "dark" ? "bg-gradient-to-tr from-[#57E3DC] to-gray-800 text-white" : "bg-gradient-to-tr from-[#57E3DC] to-white text-black",
     'text-black text-2xl',
     // Spacing
     'pb-0.5'
