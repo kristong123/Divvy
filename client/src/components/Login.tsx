@@ -8,8 +8,10 @@ import { BASE_URL } from "../config/api";
 import { toast } from "react-hot-toast";
 import { login } from "../services/auth";
 import { useEnterKeyHandler } from "../utils/keyboardUtils";
+import { useTheme } from "../context/ThemeContext"; // Import the ThemeContext
 
 const Login: React.FC = () => {
+  const { theme } = useTheme(); // Use the theme context
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
@@ -168,68 +170,70 @@ const Login: React.FC = () => {
   );
 
   return (
-    <div className={container}>
-      <div className={formContainer}>
-        <h1 className={title}>Divvy</h1>
+    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${theme === "dark" ? "bg-gray-900 text-white" : "bg-[#68d8d6] text-black"}`}>
+      <div className={container}>
+        <div className={formContainer}>
+          <h1 className={title}>Divvy</h1>
 
-        {error && (
-          <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
+              {error}
+            </div>
+          )}
 
-        <div className="mb-4">
-          <label htmlFor="username" className={inputLabel}>
-            Username
-          </label>
-          <input
-            id="username"
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={baseInput}
-            placeholder="Enter your username"
-          />
-        </div>
-
-        <div className={passwordContainer}>
-          <label htmlFor="password" className={inputLabel}>
-            Password
-          </label>
-          <div className="relative">
+          <div className="mb-4">
+            <label htmlFor="username" className={inputLabel}>
+              Username
+            </label>
             <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={clsx(baseInput, "pr-10")}
-              placeholder="Enter your password"
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={baseInput}
+              placeholder="Enter your username"
             />
-            <button
-              type="button"
-              onClick={togglePasswordVisibility}
-              className={passwordToggle}
-            >
-              {showPassword ? (
-                <EyeOffIcon className="h-5 w-5" />
-              ) : (
-                <EyeIcon className="h-5 w-5" />
-              )}
-            </button>
           </div>
+
+          <div className={passwordContainer}>
+            <label htmlFor="password" className={inputLabel}>
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={clsx(baseInput, "pr-10")}
+                placeholder="Enter your password"
+              />
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className={passwordToggle}
+              >
+                {showPassword ? (
+                  <EyeOffIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleLogin}
+            className={loginButton}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Log In"}
+          </button>
+
+          <button onClick={handleSignUp} className={signupButton}>
+            Sign up
+          </button>
         </div>
-
-        <button
-          onClick={handleLogin}
-          className={loginButton}
-          disabled={loading}
-        >
-          {loading ? "Logging in..." : "Log In"}
-        </button>
-
-        <button onClick={handleSignUp} className={signupButton}>
-          Sign up
-        </button>
       </div>
     </div>
   );

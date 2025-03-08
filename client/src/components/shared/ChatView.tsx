@@ -31,12 +31,9 @@ import GroupInvite from "../groupchats/GroupInvite";
 import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
-<<<<<<< Updated upstream
 import ClickInput from "./ClickInput";
 import { forceRefreshGroupImages } from "../../services/imageUploadService";
-=======
 import {useTheme} from '../../context/ThemeContext';
->>>>>>> Stashed changes
 
 interface ChatViewProps {
   chat: {
