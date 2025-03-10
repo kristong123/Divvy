@@ -1759,13 +1759,6 @@ export const updateGroupImage = async (groupId: string, imageUrl: string, userna
   }
 };
 
-// Add these helper functions near the top of the file
-const getLastMessageId = (messages: Message[]): string | null => {
-  // Get the last non-system message
-  const lastMessage = [...messages].reverse().find(m => m.type !== 'system');
-  return lastMessage?.id || null;
-};
-
 // Update the markMessagesAsRead function to use the correct action
 export const markMessagesAsRead = (chatId: string, userId: string, messages: Message[]) => {
   const socket = getSocket();

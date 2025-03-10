@@ -236,8 +236,10 @@ export const groupSlice = createSlice({
         const newExpense = {
           id: expense.id || `temp-${Date.now()}`,
           itemName: expense.itemName || expense.item || "Expense",
+          item: expense.itemName || expense.item || "Expense", // For backward compatibility
           amount: expense.amount,
           addedBy: expense.addedBy || expense.paidBy || "Unknown",
+          paidBy: expense.addedBy || expense.paidBy || "Unknown", // For backward compatibility
           date: expense.date || new Date().toISOString(),
           debtor: expense.debtor,
           splitBetween: expense.splitBetween,
@@ -245,10 +247,9 @@ export const groupSlice = createSlice({
           _splitBetween: expense._splitBetween
         };
 
-        state.groups[groupId].currentEvent!.expenses = [
-          ...state.groups[groupId].currentEvent!.expenses,
-          newExpense,
-        ];
+        // Update the expenses array with type safety
+        const currentExpenses = state.groups[groupId].currentEvent!.expenses || [];
+        state.groups[groupId].currentEvent!.expenses = [...currentExpenses, newExpense];
 
         if (keepEventOpen) {
           state.groups[groupId].keepEventOpen = true;
