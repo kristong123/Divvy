@@ -237,19 +237,19 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
 
   const acceptButton = clsx(
     'px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300',
-    inviteStatus === 'valid'
+    isInteractive
       ? theme === "dark" 
-        ? "bg-[#57E3DC] text-black cursor-pointer hover:bg-[#47c5bf]"
-        : "bg-[#57E3DC] text-white cursor-pointer hover:bg-[#47c5bf]"
+        ? "bg-green-600 text-white cursor-pointer hover:bg-green-700"
+        : "bg-green-500 text-white cursor-pointer hover:bg-green-600"
       : "bg-gray-500 text-gray-300 cursor-not-allowed"
   );
 
   const declineButton = clsx(
     'px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300',
-    inviteStatus === 'valid'
+    isInteractive
       ? theme === "dark"
-        ? "bg-gray-700 text-gray-300 cursor-pointer hover:bg-gray-600"
-        : "bg-gray-300 text-gray-700 cursor-pointer hover:bg-gray-200"
+        ? "bg-red-600 text-white cursor-pointer hover:bg-red-700"
+        : "bg-red-500 text-white cursor-pointer hover:bg-red-600"
       : "bg-gray-500 text-gray-300 cursor-not-allowed"
   );
 

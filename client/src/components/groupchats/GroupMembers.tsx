@@ -1,6 +1,7 @@
 import React from "react";
 import clsx from "clsx";
 import ProfileFrame from "../shared/ProfileFrame";
+import { useTheme } from '../../context/ThemeContext';
 
 interface Member {
   username: string;
@@ -17,18 +18,25 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
   members = [], // Add default empty array
   adminUsername = "", // Add default empty string
 }) => {
+  const { theme } = useTheme();
+
   const container = clsx(
     // Layout
     "w-64 h-full",
     // Border
-    "border-l border-divider",
+    theme === "dark" 
+      ? "border-l border-gray-700" 
+      : "border-l border-divider",
+    // Background
+    theme === "dark" ? "bg-gray-800" : "bg-white",
     // Spacing
     "p-4"
   );
 
   const title = clsx(
     // Typography
-    "text-lg font-bold text-black",
+    "text-lg font-bold",
+    theme === "dark" ? "text-white" : "text-black",
     // Spacing
     "mb-4"
   );
@@ -37,12 +45,16 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
     // Layout
     "flex items-center",
     // Spacing
-    "mb-3"
+    "mb-1",
+    // Hover effect
+    theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-50",
+    "rounded-lg p-2 transition-colors"
   );
 
   const memberName = clsx(
     // Typography
-    "text-sm text-black",
+    "text-sm",
+    theme === "dark" ? "text-gray-200" : "text-black",
     // Spacing
     "ml-2"
   );
@@ -53,12 +65,19 @@ const GroupMembers: React.FC<GroupMembersProps> = ({
     // Appearance
     "bg-[#57E3DC] rounded-full",
     // Typography
-    "text-xs text-white"
+    theme === "dark" ? "text-black" : "text-white"
   );
 
   // Add error checking
   if (!Array.isArray(members)) {
-    return <div className={container}>Loading members...</div>;
+    return (
+      <div className={clsx(
+        container,
+        theme === "dark" ? "text-gray-400" : "text-gray-600"
+      )}>
+        Loading members...
+      </div>
+    );
   }
 
   return (

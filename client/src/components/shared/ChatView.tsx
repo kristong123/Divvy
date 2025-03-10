@@ -505,11 +505,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       // Appearance
       "rounded-xl",
       // Dark/Light mode text color
-      "dark:text-white text-black",
+      theme === "dark" ? "text-white" : "text-black",
       // Alignment and color
       isOwnMessage
-        ? "bg-light1 dark:bg-dark2 ml-auto" // Your messages
-        : "bg-gray-200 dark:bg-gray-700" // Others' messages (darker in light mode, lighter in dark mode)
+        ? theme === "dark" 
+          ? "bg-gray-800 ml-auto" // Dark mode own messages
+          : "bg-light1 ml-auto"   // Light mode own messages
+        : theme === "dark"
+          ? "bg-gray-700"         // Dark mode others' messages
+          : "bg-gray-200"         // Light mode others' messages
     );
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -1365,7 +1369,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                         editedGroupTitle !== groupName
                       ) {
                         try {
-                          // Any group member can update the group name
                           await updateGroupName(
                             chat.id,
                             editedGroupTitle.trim(),
@@ -1383,13 +1386,21 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                       setEditedGroupTitle(groupName);
                       setEditingGroupTitle(false);
                     }}
-                    className="text-black text-2xl font-bold"
+                    className={clsx(
+                      "text-2xl font-bold px-2 py-1 rounded",
+                      theme === "dark" 
+                        ? "text-white bg-gray-700 focus:bg-gray-600" 
+                        : "text-black bg-gray-100"
+                    )}
                     minWidth={150}
                     charWidth={16}
                   />
                 ) : (
                   <span
-                    className="text-black text-2xl font-bold cursor-pointer hover:underline"
+                    className={clsx(
+                      "text-2xl font-bold cursor-pointer hover:underline",
+                      theme === "dark" ? "text-white" : "text-black"
+                    )}
                     onClick={() => {
                       setEditedGroupTitle(groupName);
                       setEditingGroupTitle(true);
@@ -1399,7 +1410,10 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   </span>
                 )
               ) : (
-                <span className="text-black text-2xl font-bold">
+                <span className={clsx(
+                  "text-2xl font-bold",
+                  theme === "dark" ? "text-white" : "text-black"
+                )}>
                   {chat.name}
                 </span>
               )}
