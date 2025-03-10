@@ -64,13 +64,17 @@ const initializeSocket = (server) => {
                 }
 
                 // Store the message in the messages subcollection
+                const messageToStore = {
+                    ...message,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'sent',
+                    readBy: [message.senderId] // Initialize with sender
+                };
+
                 await friendshipRef
                     .collection('messages')
                     .doc(message.id)
-                    .set({
-                        ...message,
-                        timestamp: admin.firestore.FieldValue.serverTimestamp()
-                    });
+                    .set(messageToStore);
 
                 // Prepare the message with a consistent timestamp
                 const messageToSend = {
@@ -304,39 +308,36 @@ const initializeSocket = (server) => {
                 const senderDoc = await db.collection('users').doc(message.senderId).get();
                 const senderData = senderDoc.data();
 
-                // Save message to database
-                const messageRef = await groupRef.collection('messages').add({
+                // Save message to database with read status fields
+                const messageToStore = {
                     content: message.content,
                     senderId: message.senderId,
                     senderName: message.senderId,
                     senderProfile: senderData?.profilePicture || null,
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
                     system: message.system || false,
-                    type: message.type || (message.system ? 'system' : 'user')
-                });
+                    type: message.type || (message.system ? 'system' : 'user'),
+                    status: 'sent',
+                    readBy: [message.senderId], // Initialize with sender
+                    id: message.id
+                };
 
-                // Update group's last message
-                await groupRef.update({
-                    lastMessage: message.content,
-                    lastMessageTime: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
+                // Add message to database
+                const messageRef = await groupRef.collection('messages').doc(message.id).set(messageToStore);
 
-                // Create the message object to broadcast with a consistent timestamp
+                // Create the message object to broadcast with read status
                 const messageToSend = {
-                    id: messageRef.id,
-                    ...message,
-                    senderName: message.senderId,
-                    senderProfile: senderData?.profilePicture || null,
-                    timestamp: new Date().toISOString(),
-                    system: message.system || false,
-                    type: message.type || (message.system ? 'system' : 'user')
+                    ...messageToStore,
+                    id: message.id,
+                    timestamp: new Date().toISOString()
                 };
 
                 // Broadcast to all group members
                 groupData.users.forEach(username => {
-                    io.to(typeof username === 'string' ? username : username.username).emit('new-group-message', {
-                        groupId,
+                    const memberUsername = typeof username === 'string' ? username : username.username;
+                    console.log(`📨 Sending group message to ${memberUsername}`);
+                    io.to(memberUsername).emit('new-group-message', {
+                        groupId: `group_${groupId}`, // Make sure to include group_ prefix
                         message: messageToSend
                     });
                 });
@@ -519,7 +520,7 @@ const initializeSocket = (server) => {
 
                 // Notify all members about the system message
                 [...groupData.users, username].forEach(member => {
-                    io.to(member).emit('system-message', {
+                    io.to(typeof member === 'string' ? member : member.username).emit('new-group-message', {
                         groupId,
                         message: {
                             ...systemMessage,
@@ -1123,6 +1124,113 @@ const initializeSocket = (server) => {
                     updatedBy: data.updatedBy
                 });
             });
+        });
+
+        // Add this to your socket connection handler
+        socket.on('mark-messages-read', async (data) => {
+            try {
+                const { chatId, userId } = data;
+                const isGroupChat = chatId.startsWith('group_');
+                const actualChatId = isGroupChat ? chatId.replace('group_', '') : chatId;
+                
+                console.log(`📱 Processing read receipt:`, { chatId, userId, isGroupChat, actualChatId });
+
+                if (isGroupChat) {
+                    // Get the group first to verify it exists
+                    const groupRef = db.collection('groupChats').doc(actualChatId);
+                    const groupDoc = await groupRef.get();
+
+                    if (!groupDoc.exists) {
+                        console.error(`❌ Group ${actualChatId} not found`);
+                        return;
+                    }
+
+                    const messagesRef = groupRef.collection('messages');
+                    const messagesSnapshot = await messagesRef
+                        .where('status', '==', 'sent')
+                        .get();
+
+                    console.log(`Found ${messagesSnapshot.size} unread messages in group ${actualChatId}`);
+
+                    const batch = db.batch();
+                    let updatedCount = 0;
+
+                    messagesSnapshot.forEach(doc => {
+                        const messageData = doc.data();
+                        console.log(`Checking message ${doc.id}:`, messageData);
+
+                        if (messageData.senderId !== userId) {
+                            const readBy = messageData.readBy || [];
+                            
+                            if (!readBy.includes(userId)) {
+                                const updatedReadBy = [...readBy, userId];
+                                console.log(`Updating message ${doc.id} readBy:`, updatedReadBy);
+                                
+                                batch.update(doc.ref, {
+                                    readBy: updatedReadBy,
+                                    status: 'read'
+                                });
+
+                                updatedCount++;
+
+                                // Emit to all group members to ensure UI updates
+                                const groupData = groupDoc.data();
+                                groupData.users.forEach(member => {
+                                    const memberUsername = typeof member === 'string' ? member : member.username;
+                                    console.log(`📬 Emitting read receipt to ${memberUsername}`);
+                                    io.to(memberUsername).emit('message-read', {
+                                        chatId: `group_${actualChatId}`,
+                                        messageId: doc.id,
+                                        readBy: updatedReadBy
+                                    });
+                                });
+                            }
+                        }
+                    });
+
+                    if (updatedCount > 0) {
+                        await batch.commit();
+                        console.log(`✅ Updated ${updatedCount} messages as read in group ${actualChatId}`);
+                    } else {
+                        console.log('No messages needed updating');
+                    }
+                }
+                // Handle direct messages (existing code)
+                else {
+                    const messagesSnapshot = await db.collection('friends')
+                        .doc(actualChatId)
+                        .collection('messages')
+                        .where('senderId', '!=', userId)
+                        .where('status', '==', 'sent')
+                        .get();
+
+                    const batch = db.batch();
+                    
+                    messagesSnapshot.forEach(doc => {
+                        const messageData = doc.data();
+                        const readBy = messageData.readBy || [];
+                        
+                        if (!readBy.includes(userId)) {
+                            const updatedReadBy = [...readBy, userId];
+                            batch.update(doc.ref, {
+                                readBy: updatedReadBy,
+                                status: 'read'
+                            });
+
+                            io.to(messageData.senderId).emit('message-read', {
+                                chatId: actualChatId,
+                                messageId: doc.id,
+                                readBy: updatedReadBy
+                            });
+                        }
+                    });
+
+                    await batch.commit();
+                }
+            } catch (error) {
+                console.error('❌ Error in mark-messages-read:', error);
+                console.error('Error details:', error.message);
+            }
         });
     });
 

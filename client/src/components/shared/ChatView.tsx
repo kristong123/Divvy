@@ -12,11 +12,14 @@ import {
   sendSocketEvent,
   updateGroupName,
   generateFriendshipId,
+  loadReadReceipts,
+  markMessagesAsRead,
 } from "../../services/socketService";
 import {
   addMessage,
   setMessages,
   setLoading,
+  updateMessageReadStatus,
 } from "../../store/slice/chatSlice";
 import { SocketMessageEvent, Message } from "../../types/messageTypes";
 import ProfileFrame from "./ProfileFrame";
@@ -74,6 +77,7 @@ interface GroupUpdateData {
   members?: string[];
 }
 
+
 // Create a stable selector outside the component
 const selectChatMessages = createSelector(
   [
@@ -116,6 +120,185 @@ const formatDateForDisplay = (dateString: string): string => {
   });
 };
 
+// Update the MessageStatus component
+const MessageStatus: React.FC<{ 
+  message: Message, 
+  index: number,
+  isSelected: boolean,
+  onSelect: (e: React.MouseEvent) => void,
+  messages: Message[]
+}> = ({ message, index, isSelected, onSelect, messages }) => {
+  const currentUser = useSelector((state: RootState) => state.user.username);
+  const isOwnMessage = message.senderId === currentUser;
+
+  // Get all readers excluding current user
+  const { readers } = useMemo(() => {
+    const readByArray = message.readBy || [];
+    return { 
+      readers: Array.from(new Set(readByArray))
+        .filter(reader => reader !== currentUser)
+    };
+  }, [message.readBy, currentUser]);
+
+  // Check if this is the last message read by each reader
+  const isLastReadMessage = useMemo(() => {
+    if (!readers.length) return false;
+    
+    return readers.some(reader => {
+      // Look at all messages after this one
+      for (let i = index + 1; i < messages.length; i++) {
+        // If we find a later message read by this user, this isn't their last read message
+        if (messages[i].readBy?.includes(reader)) {
+          return false;
+        }
+      }
+      // If we didn't find any later messages read by this user, this is their last read message
+      return true;
+    });
+  }, [readers, index, messages]);
+
+  // Only show status if:
+  // 1. This is the last message in the chat
+  // 2. This is the last read message for some user
+  // 3. The message is selected
+  const isLastMessageInChat = index === messages.length - 1;
+  if (!isLastMessageInChat && !isLastReadMessage && !isSelected) return null;
+
+  // Get all readers who have this as their last read message
+  const lastReadByReaders = readers.filter(reader => {
+    for (let i = index + 1; i < messages.length; i++) {
+      if (messages[i].readBy?.includes(reader)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  return (
+    <div 
+      className="flex items-center justify-end gap-1 mt-1 cursor-pointer"
+      onClick={onSelect}
+    >
+      {isSelected ? (
+        // Show detailed view when selected
+        <div className="text-gray-400 text-xs text-right">
+          <div className="mb-1">
+            {new Date(message.timestamp).toLocaleString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            })}
+          </div>
+          {readers.length > 0 && (
+            <div>
+              Seen by {readers.join(', ')}
+            </div>
+          )}
+        </div>
+      ) : (
+        // Show compact view for last message or last read message
+        <div className="flex items-center justify-end">
+          {lastReadByReaders.length > 0 ? (
+            <div className="flex flex-row-reverse items-center">
+              {lastReadByReaders.map((reader, idx) => (
+                <div 
+                  key={reader} 
+                  className="relative hover:z-10"
+                  style={{ 
+                    marginRight: idx !== lastReadByReaders.length - 1 ? '-6px' : '0',
+                    transform: `translateX(${idx * 2}px)`,
+                    zIndex: idx
+                  }}
+                >
+                  <div className="p-0.5 bg-white rounded-full">
+                    <ProfileFrame 
+                      username={reader} 
+                      size={14} 
+                      className="rounded-full ring-2 ring-white"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            isOwnMessage && <div className="text-gray-400 text-xs">Sent</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Update the shouldShowDivider function to handle undefined timestamps
+const shouldShowDivider = (currentMsg: Message, prevMsg: Message | null): boolean => {
+  if (!prevMsg) return true;
+  
+  // Ensure we have valid timestamps
+  const currentDate = currentMsg.timestamp ? new Date(currentMsg.timestamp) : new Date();
+  const prevDate = prevMsg.timestamp ? new Date(prevMsg.timestamp) : new Date();
+  
+  // Show divider if:
+  // 1. Different days
+  // 2. More than 15 minutes gap
+  // 3. If either message doesn't have a timestamp (safety check)
+  return (
+    !currentMsg.timestamp ||
+    !prevMsg.timestamp ||
+    currentDate.toDateString() !== prevDate.toDateString() ||
+    currentDate.getTime() - prevDate.getTime() > 15 * 60 * 1000
+  );
+};
+
+// Update the TimestampDivider to handle undefined timestamps
+const TimestampDivider: React.FC<{ timestamp?: string }> = ({ timestamp }) => {
+  const formattedTime = timestamp 
+    ? formatMessageTimestamp(timestamp)
+    : new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  return (
+    <div className="flex items-center justify-center my-4">
+      <div className="bg-gray-200 h-[1px] flex-grow"></div>
+      <span className="mx-4 text-gray-500 text-xs font-medium">
+        {formattedTime}
+      </span>
+      <div className="bg-gray-200 h-[1px] flex-grow"></div>
+    </div>
+  );
+};
+
+// Update the formatMessageTimestamp function to handle undefined timestamps
+const formatMessageTimestamp = (timestamp?: string): string => {
+  const date = timestamp ? new Date(timestamp) : new Date();
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  // If same day, show time
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  
+  // If yesterday, show "Yesterday"
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  
+  // If within a week, show day name
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  if (date > weekAgo) {
+    return date.toLocaleDateString([], { weekday: 'long' });
+  }
+  
+  // If this year, show month and day
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString([], { month: 'long', day: 'numeric' });
+  }
+  
+  // Otherwise show full date
+  return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const { theme } = useTheme();
   const [inputText, setInputText] = useState("");
@@ -142,48 +325,47 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     [chat.isGroup, chat.id, chatId, groupMessages, chatMessages]
   ) as Message[];
 
-  // Modify the message loading effect to always load messages when the chat changes
+  // Update the message loading effect
   useEffect(() => {
+    // Skip if we don't have a valid chat ID
+    if (!chat.id) return;
+
     // Check if we already have messages
     const hasMessages = messages.length > 0;
+    const isGroupChat = chat.isGroup;
+    const messageId = isGroupChat ? chat.id : chatId;
 
     if (!hasMessages) {
-      if (!chat.isGroup) {
-        dispatch(setLoading(true));
-        axios
-          .get(`${BASE_URL}/api/messages/${chatId}`)
-          .then((response) => {
-            dispatch(setMessages({ chatId, messages: response.data }));
-          })
-          .catch((_error) => {
-            console.error("Failed to load messages:", _error);
-            toast.error("Failed to load messages");
-          })
-          .finally(() => {
-            dispatch(setLoading(false));
-          });
-      } else if (chat.id) {
-        dispatch(setLoading(true));
-        axios
-          .get(`${BASE_URL}/api/groups/${chat.id}/messages`)
-          .then((response) => {
-            dispatch(
-              groupActions.setGroupMessages({
-                groupId: chat.id,
-                messages: response.data,
-              })
-            );
-          })
-          .catch((_error) => {
-            console.error("Failed to fetch messages:", _error);
-            toast.error("Failed to fetch messages");
-          })
-          .finally(() => {
-            dispatch(setLoading(false));
-          });
-      }
+      dispatch(setLoading(true));
+
+      // Choose the correct endpoint based on chat type
+      const endpoint = isGroupChat 
+        ? `${BASE_URL}/api/groups/${chat.id}/messages`
+        : `${BASE_URL}/api/messages/${chatId}`;
+
+      axios.get(endpoint)
+        .then((response) => {
+          if (isGroupChat) {
+            dispatch(groupActions.setGroupMessages({
+              groupId: chat.id,
+              messages: response.data
+            }));
+          } else {
+            dispatch(setMessages({ 
+              chatId: messageId, 
+              messages: response.data 
+            }));
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to load messages:', error);
+          toast.error('Failed to load messages');
+        })
+        .finally(() => {
+          dispatch(setLoading(false));
+        });
     }
-  }, [chatId, chat.isGroup, chat.id, dispatch, messages.length]);
+  }, [chat.id, chat.isGroup, chatId, dispatch, messages.length]);
 
   // Create memoized selectors
   const selectGroupData = useMemo(
@@ -293,9 +475,11 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const messageContainer = (isOwnMessage: boolean) =>
     clsx(
       // Layout
-      "flex w-full",
+      "flex w-full relative",
       // Alignment
-      isOwnMessage ? "flex-row-reverse" : "flex-row"
+      isOwnMessage ? "flex-row-reverse" : "flex-row",
+      // Spacing
+      "mb-0.5" // Small margin between messages
     );
 
   const messageContent = (isOwnMessage: boolean) =>
@@ -304,20 +488,28 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       "flex flex-col",
       // Spacing
       "w-fit ml-1",
+      // Width constraint
+      "max-w-[70%]",
       // Alignment
-      isOwnMessage ? "items-end" : "items-start"
+      isOwnMessage ? "items-end" : "items-start",
+      // Add space for read receipts
+      "pb-4" // Add padding at bottom for read receipts
     );
 
   const messageStyle = (isOwnMessage: boolean) =>
     clsx(
-      "w-fit max-w-full px-3 py-2 rounded-xl break-all transition-colors duration-300",
+      // Layout and width
+      "w-fit max-w-full px-3 py-2",
+      // Text handling
+      "whitespace-pre-wrap break-words",
+      // Appearance
+      "rounded-xl",
+      // Dark/Light mode text color
+      "dark:text-white text-black",
+      // Alignment and color
       isOwnMessage
-        ? theme === "dark"
-          ? "bg-[#57E3DC] text-white"
-          : "bg-light1 text-black"
-        : theme === "dark"
-        ? "bg-gray-700 text-white"
-        : "bg-gray-100 text-black"
+        ? "bg-light1 dark:bg-dark2 ml-auto" // Your messages
+        : "bg-gray-200 dark:bg-gray-700" // Others' messages (darker in light mode, lighter in dark mode)
     );
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -377,296 +569,138 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Update the socket listener
+  // Update the socket effect to handle both active and background messages
   useEffect(() => {
-    if (!currentUser) return;
-
     const socket = getSocket();
-
-    // Clean up existing listeners first to prevent duplicates
-    socket.off("new-message");
-    socket.off("new-group-message");
-    socket.off("group-member-joined");
-    socket.off("group-updated");
-    socket.off("system-message");
 
     // Set up message handlers
     const handleNewMessage = (data: SocketMessageEvent) => {
-      console.log("Received new message:", data);
+      console.log("📨 Received new message:", data);
 
       // For direct messages, check if this is a message for the current chat
       let isForCurrentChat = false;
 
       if (chat.isGroup) {
-        // For group chats, simple ID comparison
-        isForCurrentChat = data.chatId === chat.id;
+        const currentGroupId = chat.id;
+        const messageGroupId = data.groupId?.replace('group_', '') || data.chatId?.replace('group_', '');
+        isForCurrentChat = currentGroupId === messageGroupId;
+        console.log("Group message check:", { currentGroupId, messageGroupId, isMatch: isForCurrentChat });
       } else {
-        // For direct messages, check if the message involves the current user
-        // The chatId should be in the format user1_user2 (sorted alphabetically)
-        if (data.chatId) {
-          // Generate the expected friendship ID for the current chat
-          const expectedFriendshipId = generateFriendshipId(
-            currentUser,
-            chat.name
-          );
-
-          // Check if the message's chatId matches the expected friendship ID
-          isForCurrentChat = data.chatId === expectedFriendshipId;
-
-          // Special case for group invites - they should always be displayed
-          if (data.message.type === "group-invite") {
-            console.log("Group invite received:", data.message);
-            // Check if the current user is involved in this invite
-            const users = data.chatId.split("_");
-            isForCurrentChat = users.includes(currentUser);
-          }
-        }
+        const expectedFriendshipId = generateFriendshipId(currentUser, chat.name);
+        isForCurrentChat = data.chatId === expectedFriendshipId;
       }
 
       if (isForCurrentChat) {
-        console.log("Message is for current chat:", chat.id);
-
-        // Create a unique key for this message
-        const messageKey =
-          data.message.id ||
-          `${data.chatId}_${data.message.content}_${data.message.timestamp}`;
-
-        console.log(`Processing message: ${messageKey}`);
-
+        console.log("✅ Message is for current chat:", chat.id);
+        
         // Add to messages if not already there
-        if (
-          !messages.some(
-            (msg) =>
-              msg.id === data.message.id ||
-              (msg.content === data.message.content &&
-                msg.timestamp === data.message.timestamp)
-          )
-        ) {
-          // For direct messages, use the friendship ID (data.chatId)
-          // For group messages, use the group ID (chat.id)
-          const dispatchChatId = chat.isGroup
-            ? chat.id
-            : data.chatId || chat.id;
-          dispatch(
-            addMessage({ chatId: dispatchChatId, message: data.message })
-          );
+        if (!messages.some(msg => msg.id === data.message.id)) {
+          if (chat.isGroup) {
+            dispatch(
+              groupActions.addGroupMessage({
+                groupId: chat.id,
+                message: {
+                  ...data.message,
+                  readBy: data.message.readBy || [data.message.senderId]
+                }
+              })
+            );
+
+            // Mark message as read since we're viewing it
+            socket.emit('mark-messages-read', {
+              chatId: `group_${chat.id}`,
+              userId: currentUser
+            });
+          } else {
+            dispatch(
+              addMessage({ 
+                chatId: data.chatId!, 
+                message: {
+                  ...data.message,
+                  readBy: data.message.readBy || [data.message.senderId]
+                }
+              })
+            );
+          }
         }
-      }
-    };
-
-    const handleGroupMessage = (data: SocketMessageEvent) => {
-      console.log("Received new group message:", data);
-      if (data.groupId === chat.id) {
-        // Create a unique key for this message
-        const messageKey =
-          data.message.id ||
-          `${data.groupId}_${data.message.content}_${data.message.timestamp}`;
-
-        console.log(`Processing group message: ${messageKey}`);
-
-        // Add to messages if not already there
-        if (
-          !messages.some(
-            (msg) =>
-              msg.id === data.message.id ||
-              (msg.content === data.message.content &&
-                msg.timestamp === data.message.timestamp)
-          )
-        ) {
+      } else {
+        // Handle messages for other chats
+        if (chat.isGroup && data.groupId) {
+          // Store group message even if not viewing
           dispatch(
             groupActions.addGroupMessage({
-              groupId: data.groupId,
-              message: data.message,
+              groupId: data.groupId.replace('group_', ''),
+              message: {
+                ...data.message,
+                readBy: data.message.readBy || [data.message.senderId]
+              }
+            })
+          );
+        } else if (data.chatId) {
+          // Store direct message even if not viewing
+          dispatch(
+            addMessage({ 
+              chatId: data.chatId, 
+              message: {
+                ...data.message,
+                readBy: data.message.readBy || [data.message.senderId]
+              }
             })
           );
         }
       }
     };
 
-    // Add a specific handler for system messages
-    const handleSystemMessage = (data: {
-      groupId: string;
-      message: Message;
-    }) => {
-      console.log("System message received:", data);
-      if (data.groupId === chat.id.replace("group_", "")) {
-        dispatch(
-          groupActions.addGroupMessage({
-            groupId: data.groupId,
-            message: data.message,
-          })
-        );
-      }
-    };
-
-    const handleGroupJoin = (data: GroupJoinData) => {
-      console.log("User joined group:", data);
-      if (data.groupId === chat.id && data.group) {
-        // Log the join event
-        console.log(`User ${data.username} joined group ${chat.name}`);
-
-        // Update group data if needed
-        if (groupData) {
-          // Create a new object with the group data and ensure id is set correctly
-          const updatedGroup = {
-            ...data.group,
-            id: chat.id, // This will override any id in data.group
-            currentEvent: data.group.currentEvent || groupData.currentEvent,
-          };
-
-          dispatch(groupActions.updateGroup(updatedGroup));
-
-          // Send a system message if someone joined
-          if (data.username && data.username !== currentUser) {
-            const joinContent = `${data.username} joined the group`;
-
-            // Check if we already have a similar message to avoid duplicates
-            const checkExisting = (content: string) =>
-              messages.some(
-                (msg) =>
-                  msg.senderId === "system" &&
-                  msg.content === content &&
-                  new Date(msg.timestamp).getTime() > Date.now() - 5000
-              );
-
-            sendMessage(
-              {
-                chatId: chat.id,
-                content: joinContent,
-                senderId: "system",
-                type: "text",
-              },
-              {
-                dispatch,
-                checkExisting,
-              }
-            );
-          }
-        }
-      }
-    };
-
-    const handleGroupUpdate = (data: GroupUpdateData) => {
-      console.log("Group updated:", data);
-      if (data.groupId === chat.id) {
-        // Create update object with only the fields that were updated
-        const updateObj: Partial<Group> & { id: string } = { id: chat.id };
-
-        // Handle name updates
-        if (data.name) {
-          updateObj.name = data.name;
-          // Update the edited group title state if we're currently editing
-          if (editingGroupTitle) {
-            setEditedGroupTitle(data.name);
-          }
-
-          // If the name was updated, send a system message
-          if (data.name && data.updatedBy && data.updatedBy !== currentUser) {
-            const updateContent = `${data.updatedBy} updated the group name to "${data.name}"`;
-
-            // Check if we already have a similar message to avoid duplicates
-            const checkExisting = (content: string) =>
-              messages.some(
-                (msg) =>
-                  msg.senderId === "system" &&
-                  msg.content === content &&
-                  new Date(msg.timestamp).getTime() > Date.now() - 5000
-              );
-
-            sendMessage(
-              {
-                chatId: chat.id,
-                content: updateContent,
-                senderId: "system",
-                type: "text",
-              },
-              {
-                dispatch,
-                checkExisting,
-              }
-            );
-          }
-        }
-
-        // Handle image updates
-        if (data.imageUrl) {
-          updateObj.imageUrl = data.imageUrl;
-
-          // If the image was updated, send a system message
-          if (
-            data.imageUrl &&
-            data.updatedBy &&
-            data.updatedBy !== currentUser
-          ) {
-            const updateContent = `${data.updatedBy} updated the group image`;
-
-            // Check if we already have a similar message to avoid duplicates
-            const checkExisting = (content: string) =>
-              messages.some(
-                (msg) =>
-                  msg.senderId === "system" &&
-                  msg.content === content &&
-                  new Date(msg.timestamp).getTime() > Date.now() - 5000
-              );
-
-            sendMessage(
-              {
-                chatId: chat.id,
-                content: updateContent,
-                senderId: "system",
-                type: "text",
-              },
-              {
-                dispatch,
-                checkExisting,
-              }
-            );
-          }
-        }
-
-        // Preserve current event data
-        if (groupData?.currentEvent) {
-          updateObj.currentEvent = groupData.currentEvent;
-        }
-
-        console.log("Updating group with:", updateObj);
-
-        // Update the group in Redux
-        dispatch(groupActions.updateGroup(updateObj));
-
-        // Force refresh of group images if needed
-        if (data.imageUrl) {
-          forceRefreshGroupImages(chat.id, data.imageUrl);
-        }
-      }
-    };
-
     // Set up socket listeners
     socket.on("new-message", handleNewMessage);
-    socket.on("new-group-message", handleGroupMessage);
-    socket.on("group-invite-accepted", handleGroupJoin);
-    socket.on("group-member-joined", handleGroupJoin);
-    socket.on("group-updated", handleGroupUpdate);
-    socket.on("system-message", handleSystemMessage);
+    socket.on("new-group-message", handleNewMessage);
 
-    // Clean up on unmount or when dependencies change
+    // Add handler for read receipts
+    const handleMessageRead = (data: { 
+      chatId: string, 
+      messageId: string, 
+      readBy: string[] 
+    }) => {
+      console.log('👀 Message read event received:', data);
+      
+      const isGroupMessage = data.chatId.startsWith('group_');
+      const normalizedChatId = isGroupMessage ? data.chatId.replace('group_', '') : data.chatId;
+      const currentNormalizedChatId = chat.isGroup ? chat.id : chatId;
+      
+      console.log('Comparing IDs:', { normalizedChatId, currentNormalizedChatId });
+
+      if (normalizedChatId === currentNormalizedChatId) {
+        console.log('✅ Updating read status for message:', data.messageId);
+        
+        if (chat.isGroup) {
+          dispatch(
+            groupActions.updateMessageReadStatus({
+              groupId: chat.id,
+              messageId: data.messageId,
+              readBy: data.readBy
+            } as any)
+          );
+        } else {
+          dispatch(
+            updateMessageReadStatus({
+              chatId: data.chatId,
+              messageId: data.messageId,
+              readBy: data.readBy
+            } as any)
+          );
+        }
+      }
+    };
+
+    socket.on('message-read', handleMessageRead);
+
+    // Clean up
     return () => {
       socket.off("new-message", handleNewMessage);
-      socket.off("new-group-message", handleGroupMessage);
-      socket.off("group-invite-accepted", handleGroupJoin);
-      socket.off("group-member-joined", handleGroupJoin);
-      socket.off("group-updated", handleGroupUpdate);
-      socket.off("system-message", handleSystemMessage);
+      socket.off("new-group-message", handleNewMessage);
+      socket.off('message-read', handleMessageRead);
     };
-  }, [
-    currentUser,
-    chat.name,
-    chat.id,
-    chat.isGroup,
-    dispatch,
-    groupData?.currentEvent,
-    messages,
-  ]);
+  }, [chat.id, chat.isGroup, chat.name, currentUser, chatId, messages, dispatch]);
 
   // Add this effect to automatically close event view when event is cleared
   useEffect(() => {
@@ -701,6 +735,64 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }
   }, [groupData?.currentEvent, showEventDetails]);
 
+  // Update the effect that marks messages as read
+  useEffect(() => {
+    if (!currentUser || !chatId || messages.length === 0) return;
+
+    const socket = getSocket();
+
+    // Emit mark-messages-read event
+    socket.emit('mark-messages-read', {
+      chatId,
+      userId: currentUser
+    });
+
+    // Also make the API call for persistence
+    axios.post(`${BASE_URL}/api/messages/${chatId}/read`, {
+      userId: currentUser
+    }).catch(error => {
+      console.error('Error marking messages as read:', error);
+    });
+  }, [messages, currentUser, chatId]);
+
+  // Add this effect to handle real-time group messages
+  useEffect(() => {
+    if (!chat.isGroup || !chat.id) return;
+
+    const socket = getSocket();
+
+    // Listen for new group messages
+    socket.on(`group_message_${chat.id}`, (data: SocketMessageEvent) => {
+      dispatch(groupActions.addGroupMessage({
+        groupId: chat.id,
+        message: data.message
+      }));
+    });
+
+    // Listen for group message updates (read receipts, etc.)
+    socket.on(`group_message_update_${chat.id}`, (data: { 
+      messageId: string, 
+      readBy: string[],
+      groupId: string 
+    }) => {
+      dispatch(groupActions.updateMessageReadStatus({
+        groupId: chat.id,
+        messageId: data.messageId,
+        readBy: data.readBy
+      } as any));
+    });
+
+    // Join the group's room
+    socket.emit('join_group', chat.id);
+
+    return () => {
+      socket.off(`group_message_${chat.id}`);
+      socket.off(`group_message_update_${chat.id}`);
+      socket.emit('leave_group', chat.id);
+    };
+  }, [chat.id, chat.isGroup, dispatch]);
+
+  // Update the message sending for groups
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
@@ -872,6 +964,264 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       setEditedDate(formatDateForInput(groupData.currentEvent.date));
     }
   }, [groupData?.currentEvent?.date]);
+
+  // Add these state variables at the top of your component
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  // Add this helper function to get reader details
+  const getReadDetails = (message: Message) => {
+    if (!message.readBy) return { readers: [], status: "Sent" };
+    
+    const readByOthers = message.readBy.filter(id => id !== currentUser);
+    
+    if (readByOthers.length === 0) return { readers: [], status: "Sent" };
+    
+    return {
+      readers: readByOthers,
+      status: "Seen"
+    };
+  };
+
+  // Update the isLastMessageFromSender function
+  const isLastMessageFromSender = (messages: Message[], index: number) => {
+    const currentMessage = messages[index];
+    
+    // Look at subsequent messages to find the next one from the same sender
+    for (let i = index + 1; i < messages.length; i++) {
+      if (messages[i].senderId === currentMessage.senderId) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Update the renderMessages function
+  const renderMessages = (messages: Message[]) => {
+    return messages.map((message, index) => {
+      // Always show timestamp for first message or when needed
+      const showTimestamp = index === 0 || shouldShowDivider(message, index > 0 ? messages[index - 1] : null);
+
+      // Handle system messages with plain italic text
+      if (message.senderId === "system") {
+        return (
+          <React.Fragment key={message.id || index}>
+            {showTimestamp && <TimestampDivider timestamp={message.timestamp} />}
+            <div className="w-full flex justify-center">
+              <span className="text-gray-500 text-sm italic px-4 py-1">
+                {message.content}
+              </span>
+            </div>
+          </React.Fragment>
+        );
+      }
+
+      // Handle group invites
+      if (message.type === "group-invite" && message.groupId && message.groupName) {
+        const isOwnMessage = message.senderId === currentUser;
+        const isSender = message.invitedBy === currentUser;
+
+        return (
+          <React.Fragment key={message.id || index}>
+            {showTimestamp && <TimestampDivider timestamp={message.timestamp} />}
+            <div className={messageContainer(isOwnMessage)}>
+              {!isOwnMessage && (
+                <div className="flex-shrink-0 mr-2 w-8">
+                  <ProfileFrame 
+                    username={message.senderId} 
+                    size={32} 
+                    className="rounded-full"
+                  />
+                </div>
+              )}
+              <div className={messageContent(isOwnMessage)}>
+                {!isOwnMessage && (
+                  <span className="text-gray-500 text-sm mb-1">
+                    {message.senderId}
+                  </span>
+                )}
+                <div className="mb-2">
+                  {isSender ? (
+                    <div className={clsx(
+                      "flex flex-col p-3 w-fit rounded-xl",
+                      theme === "dark" 
+                        ? "bg-gray-700 text-white" // Match receiver's dark mode color
+                        : "bg-gray-200 text-black" // Keep existing light mode color
+                    )}>
+                      <span className={clsx(
+                        "text-sm font-semibold",
+                        theme === "dark" ? "text-white" : "text-black"
+                      )}>Group Invite</span>
+                      <p className={clsx(
+                        "text-sm",
+                        theme === "dark" ? "text-gray-300" : "text-gray-600"
+                      )}>{message.groupName} - Invite sent</p>
+                    </div>
+                  ) : (
+                    <GroupInvite
+                      id={message.id}
+                      groupId={message.groupId}
+                      groupName={message.groupName}
+                      invitedBy={message.invitedBy || message.senderId}
+                      onAccept={(inviteId) => {
+                        // After successful acceptance, you might want to update the message status
+                        const updatedMessage = { ...message, status: 'accepted' };
+                        if (chat.isGroup) {
+                          dispatch(
+                            groupActions.addGroupMessage({
+                              groupId: chat.id,
+                              message: updatedMessage
+                            })
+                          );
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+                <MessageStatus 
+                  message={message} 
+                  index={index}
+                  isSelected={selectedMessageId === message.id}
+                  messages={messages}
+                  onSelect={(e) => {
+                    e.stopPropagation();
+                    setSelectedMessageId(
+                      selectedMessageId === message.id ? null : message.id
+                    );
+                  }}
+                />
+              </div>
+            </div>
+          </React.Fragment>
+        );
+      }
+
+      const isOwnMessage = message.senderId === currentUser;
+      const senderName = isOwnMessage ? "You" : message.senderId;
+
+      // Check if the previous message was from the same sender
+      const isFirstInSequence =
+        index === 0 || messages[index - 1].senderId !== message.senderId;
+
+      // Check if this is the last message in a sequence
+      const isLastInSequence =
+        index === messages.length - 1 || 
+        messages[index + 1].senderId !== message.senderId;
+
+      return (
+        <React.Fragment key={message.id || index}>
+          {showTimestamp && <TimestampDivider timestamp={message.timestamp} />}
+          <div className={clsx(
+            messageContainer(isOwnMessage),
+            // Make consecutive messages even closer together
+            !isFirstInSequence && "-mt-6",
+            isLastInSequence && "mb-1" // Keep small margin after sequence ends
+          )}>
+            {/* Show profile picture only if it's the first message in a sequence */}
+            {isFirstInSequence && !isOwnMessage && (
+              <div className="flex-shrink-0 mr-2 w-8"> {/* Fixed width for alignment */}
+                <ProfileFrame 
+                  username={message.senderId} 
+                  size={32} 
+                  className="rounded-full"
+                />
+              </div>
+            )}
+            {/* Add placeholder space when no profile picture */}
+            {!isFirstInSequence && !isOwnMessage && <div className="w-8 mr-2" />}
+            <div className={messageContent(isOwnMessage)}>
+              {/* Show username only if it's the first message in a sequence */}
+              {isFirstInSequence && !isOwnMessage && (
+                <span className="text-gray-500 text-sm mb-1">
+                  {senderName}
+                </span>
+              )}
+              <div 
+                className={clsx(
+                  messageStyle(isOwnMessage),
+                  isFirstInSequence && "rounded-t-xl",
+                  isLastInSequence && "rounded-b-xl",
+                  isFirstInSequence && isLastInSequence && "rounded-xl"
+                )}
+                onClick={() => setSelectedMessageId(
+                  selectedMessageId === message.id ? null : message.id
+                )}
+              >
+                {message.content}
+              </div>
+              <MessageStatus 
+                message={message} 
+                index={index}
+                isSelected={selectedMessageId === message.id}
+                messages={messages}
+                onSelect={(e) => {
+                  e.stopPropagation();
+                  setSelectedMessageId(
+                    selectedMessageId === message.id ? null : message.id
+                  );
+                }}
+              />
+            </div>
+          </div>
+        </React.Fragment>
+      );
+    });
+  };
+
+  // Add this effect to load read receipts
+  useEffect(() => {
+    if (chat.isGroup && chat.id) {
+      const storedReceipts = loadReadReceipts(chat.id);
+      
+      // Update read receipts in Redux store
+      Object.entries(storedReceipts).forEach(([messageId, readBy]) => {
+        dispatch(groupActions.updateMessageReadStatus({
+          groupId: chat.id,
+          messageId,
+          readBy: readBy as string[]
+        } as any));
+      });
+    }
+  }, [chat.isGroup, chat.id, dispatch]);
+
+  // Add this effect to mark messages as read when they're viewed
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Mark messages as read
+      markMessagesAsRead(
+        chat.isGroup ? `group_${chat.id}` : chatId,
+        currentUser,
+        messages
+      );
+    }
+  }, [messages, chat.id, chat.isGroup, chatId, currentUser]);
+
+  // Add this effect to load group messages
+  useEffect(() => {
+    const loadGroupMessages = async () => {
+      if (!chat.isGroup || !chat.id) return;
+      
+      try {
+        dispatch(setLoading(true));
+        const response = await axios.get(`${BASE_URL}/api/groups/${chat.id}/messages`);
+        
+        if (response.data) {
+          dispatch(groupActions.setGroupMessages({
+            groupId: chat.id,
+            messages: response.data
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading group messages:', error);
+        toast.error('Failed to load messages');
+      } finally {
+        dispatch(setLoading(false));
+      }
+    };
+
+    if (chat.isGroup) {
+      loadGroupMessages();
+    }
+  }, [chat.id, chat.isGroup, dispatch]);
 
   return (
     <div className="flex w-full h-full">
@@ -1104,85 +1454,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           </div>
 
           <div className={messagesContainer}>
-            {messages.map((message, index) => {
-              const isOwnMessage = message.senderId === currentUser;
-
-              // For displaying sender name (which is no longer in the Message type)
-              const senderName = isOwnMessage ? "You" : message.senderId;
-
-              // Check if this is a group invite message
-              if (message.type === "group-invite") {
-                // Extract the group name from the message content
-                // The format is: "{senderId} invited you to join {groupName}"
-                const groupNameMatch = message.content.match(
-                  /invited you to join (.+)$/
-                );
-                const extractedGroupName = groupNameMatch
-                  ? groupNameMatch[1]
-                  : (message as any).groupName || "Unknown Group";
-
-                console.log("Rendering group invite:", message);
-
-                // Extract groupId from the message id which has format: invite_{groupId}_{timestamp}
-                let extractedGroupId = "";
-                if (message.id && message.id.startsWith("invite_")) {
-                  const parts = message.id.split("_");
-                  if (parts.length >= 2) {
-                    extractedGroupId = parts[1];
-                  }
-                }
-
-                // Use the extracted groupId or fall back to any existing groupId property
-                const groupId =
-                  extractedGroupId || (message as any).groupId || "";
-
-                return (
-                  <div key={message.id || index} className="w-full my-2">
-                    <GroupInvite
-                      id={message.id}
-                      groupId={groupId}
-                      groupName={extractedGroupName}
-                      invitedBy={message.senderId}
-                    />
-                  </div>
-                );
-              }
-
-              // Handle system messages with plain italic text
-              if (message.senderId === "system") {
-                return (
-                  <div
-                    key={message.id || index}
-                    className="w-full flex justify-center"
-                  >
-                    <span className="text-gray-500 text-sm italic px-4 py-1">
-                      {message.content}
-                    </span>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={message.id || index}
-                  className={messageContainer(isOwnMessage)}
-                >
-                  {!isOwnMessage && (
-                    <ProfileFrame username={message.senderId} size={40} />
-                  )}
-                  <div className={messageContent(isOwnMessage)}>
-                    {!isOwnMessage && (
-                      <span className="text-gray-500 text-sm ml-2 mb-1">
-                        {senderName}
-                      </span>
-                    )}
-                    <div className={messageStyle(isOwnMessage)}>
-                      {message.content}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {renderMessages(messages)}
             <div ref={messagesEndRef} />
           </div>
 

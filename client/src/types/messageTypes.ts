@@ -12,7 +12,11 @@ export interface Message {
   content: string;
   timestamp: string;
   status: string;
-  type: "group-invite" | string;
+  type: "text" | "group-invite" | "system";
+  readBy: string[];
+  groupId?: string;
+  groupName?: string;
+  invitedBy?: string;
   attachments?: Attachment[];
 }
 

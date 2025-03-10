@@ -293,31 +293,27 @@ export const initializeSocket = (username: string) => {
       data.message.id ||
       `${data.chatId}_${data.message.content}_${data.message.timestamp}`;
 
-    // Check if we've already processed this message
-    if (processedMessageIds.has(messageKey)) {
+    // For system messages, don't check for duplicates
+    if (data.message.senderId !== 'system' && processedMessageIds.has(messageKey)) {
       return;
     }
 
-    // Add to processed set
-    processedMessageIds.add(messageKey);
-    if (data.message.id) {
-      processedMessageIds.add(data.message.id);
-    }
-
-    // Normalize system messages to have consistent properties
-    if (
-      data.message.senderId === "system" ||
-      (data.message as any).system === true
-    ) {
-      // Ensure the message has the type property set to 'system'
-      data.message.type = "system";
+    // Add to processed set (only for non-system messages)
+    if (data.message.senderId !== 'system') {
+      processedMessageIds.add(messageKey);
+      if (data.message.id) {
+        processedMessageIds.add(data.message.id);
+      }
     }
 
     // Add message to store
     store.dispatch(
       addMessage({
         chatId: data.chatId,
-        message: data.message,
+        message: {
+          ...data.message,
+          type: data.message.senderId === 'system' ? 'system' : (data.message.type || 'text')
+        } as Message
       })
     );
   });
@@ -327,13 +323,31 @@ export const initializeSocket = (username: string) => {
     // Skip if no data or if we've already processed this message
     if (
       !data.groupId ||
-      !data.message ||
-      (data.message.id && processedMessageIds.has(data.message.id))
+      !data.message
     ) {
       return;
     }
 
-    // Create a unique key for this message even if it doesn't have an ID
+    // For system messages, don't check for duplicates and process immediately
+    if (data.message.senderId === 'system') {
+      store.dispatch(
+        groupActions.addGroupMessage({
+          groupId: data.groupId!,
+          message: {
+            ...data.message,
+            type: 'system'
+          } as Message
+        })
+      );
+      return;
+    }
+
+    // For regular messages, check for duplicates
+    if (data.message.id && processedMessageIds.has(data.message.id)) {
+      return;
+    }
+
+    // Create a unique key for this message
     const messageKey =
       data.message.id ||
       `${data.groupId}_${data.message.content}_${data.message.timestamp}`;
@@ -349,22 +363,42 @@ export const initializeSocket = (username: string) => {
       processedMessageIds.add(data.message.id);
     }
 
-    // Normalize system messages to have consistent properties
-    if (
-      data.message.senderId === "system" ||
-      (data.message as any).system === true
-    ) {
-      // Ensure the message has the type property set to 'system'
-      data.message.type = "system";
-    }
-
     // Add message to store
     store.dispatch(
       groupActions.addGroupMessage({
-        groupId: data.groupId,
-        message: data.message,
+        groupId: data.groupId!,
+        message: data.message
       })
     );
+  });
+
+  // Add a specific listener for system messages
+  socket.on("system-message", (data: SocketMessageEvent) => {
+    if (!data.message) return;
+
+    const isGroupMessage = !!data.groupId;
+    
+    if (isGroupMessage) {
+      store.dispatch(
+        groupActions.addGroupMessage({
+          groupId: data.groupId!,
+          message: {
+            ...data.message,
+            type: 'system'
+          } as Message
+        })
+      );
+    } else if (data.chatId) {
+      store.dispatch(
+        addMessage({
+          chatId: data.chatId,
+          message: {
+            ...data.message,
+            type: 'system'
+          } as Message
+        })
+      );
+    }
   });
 
   // Add new group member joined listener
@@ -1151,6 +1185,25 @@ export const initializeSocket = (username: string) => {
     }
   });
 
+  // Add socket listener for group message updates
+  socket.on('group_message_update', (data: { 
+    groupId: string, 
+    messageId: string, 
+    readBy: string[],
+    isLatest: boolean 
+  }) => {
+    console.log('📖 Group message update received:', data);
+    
+    store.dispatch(
+      groupActions.updateMessageReadStatus({
+        groupId: data.groupId,
+        messageId: data.messageId,
+        readBy: data.readBy,
+        isLatest: data.isLatest
+      } as any)
+    );
+  });
+
   return () => {
     socket.off("new-message");
     socket.off("new-group-message");
@@ -1181,33 +1234,7 @@ export const initializeSocket = (username: string) => {
   };
 };
 
-/**
- * Sends a message to either a direct chat or a group chat
- * @param messageData The message data or individual message properties
- * @param options Additional options for message sending
- * @returns The created message object or null if a similar message exists
- * 
- * @example
- * // Send a regular message
- * sendMessage({
- *   chatId: "chat_123",
- *   content: "Hello!",
- *   senderId: "user1",
- *   type: "text"
- * });
- * 
- * @example
- * // Send a system message
- * sendMessage({
- *   chatId: "group_123",
- *   content: "User joined the group",
- *   senderId: "system",
- *   type: "text"
- * }, {
- *   dispatch: dispatch,
- *   checkExisting: (content) => messages.some(msg => msg.senderId === "system" && msg.content === content)
- * });
- */
+// Update the sendMessage function to better handle system messages
 export const sendMessage = async (
   messageData: Partial<Message> & {
     chatId: string;
@@ -1224,7 +1251,6 @@ export const sendMessage = async (
     const mutableData = { ...messageData };
     
     // Determine if this is a group chat by checking if the chatId starts with 'group_'
-    // or if it's explicitly passed as a group chat in the options
     const isGroupChat = mutableData.chatId.startsWith('group_');
     
     // Extract the actual group ID if this is a group chat
@@ -1234,11 +1260,11 @@ export const sendMessage = async (
     
     // Set default type if not provided
     if (!mutableData.type) {
-      mutableData.type = 'text';
+      mutableData.type = mutableData.senderId === 'system' ? 'system' : 'text';
     }
     
-    // Check if a similar message already exists (for group messages)
-    if (isGroupChat && options?.checkExisting && options.checkExisting(mutableData.content)) {
+    // For system messages, skip duplicate check to ensure immediate display
+    if (mutableData.senderId !== 'system' && isGroupChat && options?.checkExisting && options.checkExisting(mutableData.content)) {
       console.log(`Similar message already exists: ${mutableData.content}`);
       return null;
     }
@@ -1264,10 +1290,11 @@ export const sendMessage = async (
       id: mutableData.id!,
       content: mutableData.content,
       senderId: mutableData.senderId,
-      chatId: isGroupChat ? actualChatId : mutableData.chatId, // Use actualChatId for group chats
+      chatId: isGroupChat ? actualChatId : mutableData.chatId,
       timestamp: mutableData.timestamp!,
       status: mutableData.status!,
-      type: mutableData.type!
+      type: mutableData.type!,
+      readBy: mutableData.senderId === 'system' ? [] : [mutableData.senderId] // Don't track read status for system messages
     };
     
     // Add attachments if they exist
@@ -1275,23 +1302,44 @@ export const sendMessage = async (
       fullMessage.attachments = mutableData.attachments;
     }
     
-    // Create a unique key for this message to prevent duplicates
-    const messageKey = `${fullMessage.chatId}_${fullMessage.content}_${fullMessage.timestamp}`;
-    
-    // Check if we've already processed this message in the last few seconds
-    if (processedMessageIds.has(messageKey)) {
-      console.log(`Skipping duplicate message send: ${messageKey}`);
-      return fullMessage;
-    }
-    
-    // Add to processed set to prevent duplicates
-    processedMessageIds.add(messageKey);
-    processedMessageIds.add(fullMessage.id);
-    
     // Get socket instance
     const socket = getSocket();
     
-    // Add message to store immediately for real-time updates
+    // For system messages, dispatch immediately and emit socket event
+    if (mutableData.senderId === 'system') {
+      if (isGroupChat) {
+        const dispatch = options?.dispatch || store.dispatch;
+        dispatch(
+          groupActions.addGroupMessage({
+            groupId: actualChatId,
+            message: fullMessage,
+          })
+        );
+        
+        // Emit as system-message instead of group-message
+        socket.emit("system-message", {
+          groupId: actualChatId,
+          message: fullMessage
+        });
+      } else {
+        store.dispatch(
+          addMessage({
+            chatId: mutableData.chatId,
+            message: fullMessage
+          })
+        );
+        
+        // Emit as system-message instead of direct-message
+        socket.emit("system-message", {
+          chatId: mutableData.chatId,
+          message: fullMessage
+        });
+      }
+      
+      return fullMessage;
+    }
+    
+    // Handle regular messages as before
     if (isGroupChat) {
       const dispatch = options?.dispatch || store.dispatch;
       dispatch(
@@ -1301,34 +1349,22 @@ export const sendMessage = async (
         })
       );
       
-      // Emit the message via socket for group chats
       socket.emit("group-message", {
         groupId: actualChatId,
         message: fullMessage,
       });
-      
-      // Log the message for group chat
-      console.log(`Message sent to group ${actualChatId}: ${fullMessage.content}`);
     } else {
       // For direct messages, ensure we're using the correct friendship ID
-      // Extract the usernames from the chatId (which might not be sorted)
       const users = fullMessage.chatId.split('_');
-      
-      // If the chatId doesn't contain an underscore, it might be a single username
-      // In that case, use the current user as the sender and the chatId as the recipient
       let sender = fullMessage.senderId;
       let recipient = users.length === 2 ? users.find(u => u !== sender) : fullMessage.chatId;
-      
-      // Create the correct friendship ID by sorting the usernames
       const friendshipId = [sender, recipient].sort().join('_');
       
-      // Create a new message object with the updated chatId instead of modifying the existing one
       const messageWithCorrectChatId = {
         ...fullMessage,
         chatId: friendshipId
       };
       
-      // Update the Redux store with the correct chatId
       store.dispatch(
         addMessage({
           chatId: friendshipId,
@@ -1341,24 +1377,9 @@ export const sendMessage = async (
         message: messageWithCorrectChatId,
       });
       
-      // Log the message for direct chat
-      console.log(`Message sent to chat ${friendshipId}: ${fullMessage.content}`);
-      
-      // Schedule cleanup of processed message ID
-      setTimeout(() => {
-        processedMessageIds.delete(fullMessage.id);
-      }, 5000); // 5 second cooldown
-      
-      // Return the message with the correct chatId
       return messageWithCorrectChatId;
     }
     
-    // Schedule cleanup of processed message ID
-    setTimeout(() => {
-      processedMessageIds.delete(fullMessage.id);
-    }, 5000); // 5 second cooldown
-    
-    // Return the original message for group chats
     return fullMessage;
   } catch (error) {
     console.error("Error sending message:", error);
@@ -1735,5 +1756,84 @@ export const updateGroupImage = async (groupId: string, imageUrl: string, userna
   } catch (error) {
     console.error("Error updating group image:", error);
     throw error;
+  }
+};
+
+// Add these helper functions near the top of the file
+const getLastMessageId = (messages: Message[]): string | null => {
+  // Get the last non-system message
+  const lastMessage = [...messages].reverse().find(m => m.type !== 'system');
+  return lastMessage?.id || null;
+};
+
+// Update the markMessagesAsRead function to handle all messages up to the last one
+export const markMessagesAsRead = (chatId: string, userId: string, messages: Message[]) => {
+  const socket = getSocket();
+  
+  // For group messages
+  if (chatId.startsWith('group_')) {
+    const groupId = chatId.replace('group_', '');
+    socket.emit('mark-messages-read', {
+      groupId,
+      userId,
+      messageIds: messages.map(m => m.id)
+    });
+  } else {
+    // For direct messages (existing code)
+    const lastMessageId = getLastMessageId(messages);
+    if (!lastMessageId) return;
+    
+    socket.emit('mark-messages-read', {
+      chatId,
+      userId,
+      messageId: lastMessageId
+    });
+  }
+};
+
+// Update the socket event handler for message-read events
+socket.on('message-read', (data: { 
+  chatId: string, 
+  messageId: string,
+  messageIds?: string[],
+  readBy: string[] 
+}) => {
+  console.log('👀 Message read event received:', data);
+  
+  const isGroupMessage = data.chatId.startsWith('group_');
+  const normalizedChatId = isGroupMessage ? data.chatId.replace('group_', '') : data.chatId;
+  
+  // Update the read status for all messages
+  if (data.messageIds) {
+    data.messageIds.forEach(messageId => {
+      if (isGroupMessage) {
+        store.dispatch(
+          groupActions.updateMessageReadStatus({
+            groupId: normalizedChatId,
+            messageId,
+            readBy: data.readBy
+          } as any)
+        );
+      } else {
+        store.dispatch(
+          updateMessageReadStatus({
+            chatId: data.chatId,
+            messageId,
+            readBy: data.readBy
+          })
+        );
+      }
+    });
+  }
+});
+
+// Update the loadReadReceipts function to handle last read message
+export const loadReadReceipts = (groupId: string): Record<string, string[]> => {
+  try {
+    // For now, return an empty object as we'll implement the actual storage later
+    return {};
+  } catch (error) {
+    console.error('Error loading read receipts:', error);
+    return {};
   }
 };

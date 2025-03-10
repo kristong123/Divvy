@@ -41,7 +41,7 @@ const createGroupChat = async (req, res) => {
 // Send a message in a group chat
 const sendGroupMessage = async (req, res) => {
     try {
-        const { groupId } = req.params;  // Get from URL params
+        const { groupId } = req.params;
         const { content, senderId } = req.body;
 
         const groupRef = db.collection('groupChats').doc(groupId);
@@ -52,31 +52,35 @@ const sendGroupMessage = async (req, res) => {
             return res.status(404).json({ message: "Group not found" });
         }
 
-        // Add message
+        // Add message to database
         const messageRef = await groupRef.collection('messages').add({
             content,
             senderId,
             timestamp: new Date(),
-            system: false
+            system: false,
+            status: 'sent',
+            readBy: [senderId]
         });
 
-        // Update group
-        await groupRef.update({
-            lastMessage: content,
-            lastMessageTime: new Date(),
-            updatedAt: new Date()
-        });
-
-        // Get message with ID
-        const messageDoc = await messageRef.get();
-        const messageData = {
+        const message = {
             id: messageRef.id,
-            ...messageDoc.data(),
-            timestamp: messageDoc.data().timestamp.toDate().toISOString()
+            content,
+            senderId,
+            timestamp: new Date().toISOString(),
+            status: 'sent',
+            readBy: [senderId]
         };
 
-        res.status(201).json(messageData);
+        // Emit to all group members
+        const io = getIO();
+        io.to(`group_${groupId}`).emit('group_message', {
+            groupId,
+            message
+        });
+
+        res.status(200).json(message);
     } catch (error) {
+        console.error('Error sending group message:', error);
         res.status(500).json({ message: 'Failed to send message' });
     }
 };
@@ -636,6 +640,77 @@ const checkGroupStatus = async (req, res) => {
     }
 };
 
+// Update read status handling for groups
+const markGroupMessageAsRead = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { userId } = req.body;
+
+        const groupRef = db.collection('groupChats').doc(groupId);
+        
+        // Get all messages in order
+        const messagesSnapshot = await groupRef.collection('messages')
+            .orderBy('timestamp', 'asc')
+            .get();
+
+        const batch = db.batch();
+        const io = getIO();
+        const updatedMessages = [];
+
+        // Track the latest message read
+        let latestMessageRead = null;
+
+        messagesSnapshot.forEach(doc => {
+            const messageData = doc.data();
+            const readBy = new Set(messageData.readBy || []);
+
+            if (!readBy.has(userId)) {
+                readBy.add(userId);
+                const updatedReadBy = Array.from(readBy);
+                batch.update(doc.ref, { readBy: updatedReadBy });
+                
+                updatedMessages.push({
+                    messageId: doc.id,
+                    readBy: updatedReadBy
+                });
+                latestMessageRead = doc.id;
+            }
+        });
+
+        await batch.commit();
+
+        // Emit updates for all messages that were modified
+        if (updatedMessages.length > 0) {
+            // First, notify about all previous messages
+            updatedMessages.slice(0, -1).forEach(({ messageId, readBy }) => {
+                io.to(`group_${groupId}`).emit('group_message_update', {
+                    groupId,
+                    messageId,
+                    readBy,
+                    isLatest: false
+                });
+            });
+
+            // Then, notify about the latest message read
+            const lastUpdate = updatedMessages[updatedMessages.length - 1];
+            io.to(`group_${groupId}`).emit('group_message_update', {
+                groupId,
+                messageId: lastUpdate.messageId,
+                readBy: lastUpdate.readBy,
+                isLatest: true
+            });
+        }
+
+        res.status(200).json({ 
+            message: 'Messages marked as read',
+            latestMessageRead
+        });
+    } catch (error) {
+        console.error('Error marking group messages as read:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     // Group creation and management
     createGroup,
@@ -662,5 +737,8 @@ module.exports = {
     setGroupEvent,
 
     // Add this function to check group status
-    checkGroupStatus
+    checkGroupStatus,
+
+    // Update read status handling for groups
+    markGroupMessageAsRead
 };

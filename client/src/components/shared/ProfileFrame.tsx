@@ -6,11 +6,13 @@ import { RootState } from "../../store/store";
 interface ProfileFrameProps {
   username: string;
   size?: number; // Use numeric size instead of preset sizes
+  className?: string;
 }
 
 const ProfileFrame: React.FC<ProfileFrameProps> = ({
   username,
   size = 32, // Default size of 32px
+  className,
 }) => {
   // Get data from Redux store
   const groups = useSelector((state: RootState) => state.groups.groups);
@@ -63,7 +65,7 @@ const ProfileFrame: React.FC<ProfileFrameProps> = ({
 
   return (
     <div
-      className="relative flex items-center justify-center rounded-full shadow-md overflow-hidden bg-gradient-to-br from-dark2 to-light1"
+      className={`relative flex items-center justify-center rounded-full shadow-md overflow-hidden bg-gradient-to-br from-dark2 to-light1 ${className}`}
       style={{ width: `${size}px`, height: `${size}px` }}
       data-username={username}
     >

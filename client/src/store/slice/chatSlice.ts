@@ -6,6 +6,7 @@ interface Message {
   content: string;
   timestamp: string;
   status: string;
+  readBy?: string[];
 }
 
 interface ChatState {
@@ -48,9 +49,23 @@ const chatSlice = createSlice({
     },
     setLoading: (state, action) => {
       state.loading = action.payload;
+    },
+    updateMessageReadStatus: (state, action: PayloadAction<{
+      chatId: string;
+      messageId: string;
+      readBy: string[];
+    }>) => {
+      const { chatId, messageId, readBy } = action.payload;
+      if (state.messages[chatId]) {
+        const message = state.messages[chatId].find(m => m.id === messageId);
+        if (message) {
+          message.readBy = readBy;
+          message.status = 'read';
+        }
+      }
     }
   }
 });
 
-export const { addMessage, setMessages, clearMessages, setLoading } = chatSlice.actions;
+export const { addMessage, setMessages, clearMessages, setLoading, updateMessageReadStatus } = chatSlice.actions;
 export default chatSlice.reducer;

@@ -90,20 +90,54 @@ export const groupSlice = createSlice({
       });
       state.groups = newGroups;
     },
-    setGroupMessages: (
-      state,
-      action: PayloadAction<{ groupId: string; messages: Message[] }>
-    ) => {
-      state.messages[action.payload.groupId] = action.payload.messages;
+    setGroupMessages: (state, action: PayloadAction<{ groupId: string; messages: Message[] }>) => {
+      const { groupId, messages } = action.payload;
+      
+      // Create a map of existing messages by ID
+      const existingMessages = new Map(
+        (state.messages[groupId] || []).map(msg => [msg.id, msg])
+      );
+      
+      // Add new messages, overwriting existing ones with updated data
+      messages.forEach(msg => {
+        if (msg.id) {
+          existingMessages.set(msg.id, {
+            ...existingMessages.get(msg.id),
+            ...msg
+          });
+        }
+      });
+      
+      // Convert back to array and sort by timestamp
+      state.messages[groupId] = Array.from(existingMessages.values())
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     },
-    addGroupMessage: (
-      state,
-      action: PayloadAction<{ groupId: string; message: Message }>
-    ) => {
-      if (!state.messages[action.payload.groupId]) {
-        state.messages[action.payload.groupId] = [];
+    addGroupMessage: (state, action: PayloadAction<{ groupId: string; message: Message }>) => {
+      const { groupId, message } = action.payload;
+      
+      if (!state.messages[groupId]) {
+        state.messages[groupId] = [];
       }
-      state.messages[action.payload.groupId].push(action.payload.message);
+      
+      // Check if message already exists
+      const existingIndex = state.messages[groupId]
+        .findIndex(msg => msg.id === message.id);
+        
+      if (existingIndex === -1) {
+        // Add new message
+        state.messages[groupId].push(message);
+      } else {
+        // Update existing message
+        state.messages[groupId][existingIndex] = {
+          ...state.messages[groupId][existingIndex],
+          ...message
+        };
+      }
+      
+      // Sort messages by timestamp
+      state.messages[groupId].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
     },
     updateGroup: (
       state,
@@ -288,6 +322,38 @@ export const groupSlice = createSlice({
         }
       });
     },
+    updateMessageReadStatus: (state, action: PayloadAction<{
+      groupId: string;
+      messageId: string;
+      readBy: string[];
+      isLatest: boolean;
+    }>) => {
+      const { groupId, messageId, readBy, isLatest } = action.payload;
+      const messages = state.messages[groupId];
+      
+      if (messages) {
+        const messageIndex = messages.findIndex(m => m.id === messageId);
+        if (messageIndex !== -1) {
+          // For the latest read message, we want to ensure we have all readers
+          if (isLatest) {
+            messages[messageIndex].readBy = Array.from(new Set(readBy));
+          } else {
+            // For previous messages, merge with existing readers
+            const existingReadBy = messages[messageIndex].readBy || [];
+            messages[messageIndex].readBy = Array.from(new Set([...existingReadBy, ...readBy]));
+          }
+          
+          // Update all previous messages to include these readers
+          for (let i = 0; i < messageIndex; i++) {
+            const currentReadBy = messages[i].readBy || [];
+            messages[i].readBy = Array.from(new Set([...currentReadBy, ...readBy]));
+          }
+        }
+      }
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    }
   },
 });
 
@@ -308,6 +374,8 @@ export const {
   removeInviteStatus,
   markGroupInvitesInvalid,
   markUserInvitesAsMember,
+  updateMessageReadStatus,
+  setLoading
 } = groupSlice.actions;
 export const groupActions = groupSlice.actions;
 export default groupSlice.reducer;

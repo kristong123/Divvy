@@ -208,9 +208,10 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     // Spacing
     "p-3",
     // Appearance
-     theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-100 text-black",
+     theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-200 text-black",
     // Width
-    "w-fit"
+    "w-fit",
+    "rounded-xl"
   );
 
   const title = clsx(

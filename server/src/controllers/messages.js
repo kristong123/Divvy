@@ -160,22 +160,28 @@ const markMessagesAsRead = async (req, res) => {
             .where("status", "==", "sent")
             .get();
 
-        if (messagesSnapshot.empty) {
-            return res.status(404).json({ message: "No unread messages found" });
-        }
-
         const batch = db.batch();
+        const io = getIO();
+
         messagesSnapshot.forEach(doc => {
             const messageData = doc.data();
-            const readBy = messageData.readBy || []; // Ensure readBy is an array
+            const readBy = messageData.readBy || [];
 
             if (!readBy.includes(userId)) {
-                batch.update(doc.ref, { readBy: [...readBy, userId] });
+                batch.update(doc.ref, {
+                    readBy: [...readBy, userId],
+                    status: 'read'
+                });
+
+                io.to(messageData.senderId).emit('message-read', {
+                    chatId,
+                    messageId: doc.id,
+                    readBy: [...readBy, userId]
+                });
             }
         });
 
         await batch.commit();
-
         res.status(200).json({ message: "Messages marked as read!" });
     } catch (error) {
         console.error("Error marking messages as read:", error);
