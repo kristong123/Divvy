@@ -5,7 +5,7 @@ import { RootState } from "../../store/store";
 import { fetchFriends } from "../../store/slice/friendsSlice";
 import { AppDispatch } from "../../store/store";
 import ProfileFrame from "../shared/ProfileFrame";
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from "../../context/ThemeContext";
 
 interface FriendsProps {
   onChatSelect: (chatId: string) => void;
@@ -17,11 +17,6 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
   const username = useSelector((state: RootState) => state.user.username);
   const friends = useSelector((state: RootState) => state.friends.friends);
   const loading = useSelector((state: RootState) => state.friends.loading);
-
-  const container = clsx(
-    // Spacing
-    "p-4 pt-0"
-  );
 
   const title = clsx(
     // Typography
@@ -36,7 +31,7 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
     "max-h-[calc(100vh-250px)]",
     "overflow-y-auto",
     // Scrollbar styling
-    theme === "dark" 
+    theme === "dark"
       ? "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent"
       : "scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
   );
@@ -71,11 +66,11 @@ const Friends: React.FC<FriendsProps> = ({ onChatSelect }) => {
   }, [dispatch, username]);
 
   if (loading) {
-    return <div className={container}>Loading...</div>;
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className={container}>
+    <div>
       <p className={title}>Friends</p>
       <div className={friendsList}>
         {friends.map((friend) => (

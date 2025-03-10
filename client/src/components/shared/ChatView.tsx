@@ -5,6 +5,7 @@ import { RootState } from "../../store/store";
 import { toast } from "react-hot-toast";
 import axios from "axios";
 import { BASE_URL } from "../../config/api";
+import Button from "./Button";
 import {
   sendMessage,
   getSocket,
@@ -34,7 +35,7 @@ import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
 import ClickInput from "./ClickInput";
-import {useTheme} from '../../context/ThemeContext';
+import { useTheme } from "../../context/ThemeContext";
 
 interface ChatViewProps {
   chat: {
@@ -74,7 +75,6 @@ interface ChatViewProps {
 //   updatedBy?: string;
 //   members?: string[];
 // }
-
 
 // Create a stable selector outside the component
 const selectChatMessages = createSelector(
@@ -119,12 +119,12 @@ const formatDateForDisplay = (dateString: string): string => {
 };
 
 // Update the MessageStatus component
-const MessageStatus: React.FC<{ 
-  message: Message, 
-  index: number,
-  isSelected: boolean,
-  onSelect: (e: React.MouseEvent) => void,
-  messages: Message[]
+const MessageStatus: React.FC<{
+  message: Message;
+  index: number;
+  isSelected: boolean;
+  onSelect: (e: React.MouseEvent) => void;
+  messages: Message[];
 }> = ({ message, index, isSelected, onSelect, messages }) => {
   const currentUser = useSelector((state: RootState) => state.user.username);
   const isOwnMessage = message.senderId === currentUser;
@@ -132,17 +132,18 @@ const MessageStatus: React.FC<{
   // Get all readers excluding current user
   const { readers } = useMemo(() => {
     const readByArray = message.readBy || [];
-    return { 
-      readers: Array.from(new Set(readByArray))
-        .filter(reader => reader !== currentUser)
+    return {
+      readers: Array.from(new Set(readByArray)).filter(
+        (reader) => reader !== currentUser
+      ),
     };
   }, [message.readBy, currentUser]);
 
   // Check if this is the last message read by each reader
   const isLastReadMessage = useMemo(() => {
     if (!readers.length) return false;
-    
-    return readers.some(reader => {
+
+    return readers.some((reader) => {
       // Look at all messages after this one
       for (let i = index + 1; i < messages.length; i++) {
         // If we find a later message read by this user, this isn't their last read message
@@ -163,7 +164,7 @@ const MessageStatus: React.FC<{
   if (!isLastMessageInChat && !isLastReadMessage && !isSelected) return null;
 
   // Get all readers who have this as their last read message
-  const lastReadByReaders = readers.filter(reader => {
+  const lastReadByReaders = readers.filter((reader) => {
     for (let i = index + 1; i < messages.length; i++) {
       if (messages[i].readBy?.includes(reader)) {
         return false;
@@ -173,7 +174,7 @@ const MessageStatus: React.FC<{
   });
 
   return (
-    <div 
+    <div
       className="flex items-center justify-end gap-1 mt-1 cursor-pointer"
       onClick={onSelect}
     >
@@ -182,16 +183,12 @@ const MessageStatus: React.FC<{
         <div className="text-gray-400 text-xs text-right">
           <div className="mb-1">
             {new Date(message.timestamp).toLocaleString([], {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
             })}
           </div>
-          {readers.length > 0 && (
-            <div>
-              Seen by {readers.join(', ')}
-            </div>
-          )}
+          {readers.length > 0 && <div>Seen by {readers.join(", ")}</div>}
         </div>
       ) : (
         // Show compact view for last message or last read message
@@ -199,19 +196,20 @@ const MessageStatus: React.FC<{
           {lastReadByReaders.length > 0 ? (
             <div className="flex flex-row-reverse items-center">
               {lastReadByReaders.map((reader, idx) => (
-                <div 
-                  key={reader} 
+                <div
+                  key={reader}
                   className="relative hover:z-10"
-                  style={{ 
-                    marginRight: idx !== lastReadByReaders.length - 1 ? '-6px' : '0',
+                  style={{
+                    marginRight:
+                      idx !== lastReadByReaders.length - 1 ? "-6px" : "0",
                     transform: `translateX(${idx * 2}px)`,
-                    zIndex: idx
+                    zIndex: idx,
                   }}
                 >
                   <div className="p-0.5 bg-white rounded-full">
-                    <ProfileFrame 
-                      username={reader} 
-                      size={14} 
+                    <ProfileFrame
+                      username={reader}
+                      size={14}
                       className="rounded-full ring-2 ring-white"
                     />
                   </div>
@@ -228,13 +226,18 @@ const MessageStatus: React.FC<{
 };
 
 // Update the shouldShowDivider function to handle undefined timestamps
-const shouldShowDivider = (currentMsg: Message, prevMsg: Message | null): boolean => {
+const shouldShowDivider = (
+  currentMsg: Message,
+  prevMsg: Message | null
+): boolean => {
   if (!prevMsg) return true;
-  
+
   // Ensure we have valid timestamps
-  const currentDate = currentMsg.timestamp ? new Date(currentMsg.timestamp) : new Date();
+  const currentDate = currentMsg.timestamp
+    ? new Date(currentMsg.timestamp)
+    : new Date();
   const prevDate = prevMsg.timestamp ? new Date(prevMsg.timestamp) : new Date();
-  
+
   // Show divider if:
   // 1. Different days
   // 2. More than 15 minutes gap
@@ -249,17 +252,17 @@ const shouldShowDivider = (currentMsg: Message, prevMsg: Message | null): boolea
 
 // Update the TimestampDivider to handle undefined timestamps
 const TimestampDivider: React.FC<{ timestamp?: string }> = ({ timestamp }) => {
-  const formattedTime = timestamp 
+  const formattedTime = timestamp
     ? formatMessageTimestamp(timestamp)
-    : new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    : new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
   return (
     <div className="flex items-center justify-center my-4">
-      <div className="bg-gray-200 h-[1px] flex-grow"></div>
-      <span className="mx-4 text-gray-500 text-xs font-medium">
+      <div className="bg-gray-200 dark:bg-gray-700 h-[1px] flex-grow"></div>
+      <span className="mx-4 text-gray-500 dark:text-gray-400 text-xs font-medium">
         {formattedTime}
       </span>
-      <div className="bg-gray-200 h-[1px] flex-grow"></div>
+      <div className="bg-gray-200 dark:bg-gray-700 h-[1px] flex-grow"></div>
     </div>
   );
 };
@@ -270,31 +273,35 @@ const formatMessageTimestamp = (timestamp?: string): string => {
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  
+
   // If same day, show time
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
-  
+
   // If yesterday, show "Yesterday"
   if (date.toDateString() === yesterday.toDateString()) {
     return "Yesterday";
   }
-  
+
   // If within a week, show day name
   const weekAgo = new Date(now);
   weekAgo.setDate(weekAgo.getDate() - 7);
   if (date > weekAgo) {
-    return date.toLocaleDateString([], { weekday: 'long' });
+    return date.toLocaleDateString([], { weekday: "long" });
   }
-  
+
   // If this year, show month and day
   if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString([], { month: 'long', day: 'numeric' });
+    return date.toLocaleDateString([], { month: "long", day: "numeric" });
   }
-  
+
   // Otherwise show full date
-  return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 };
 
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
@@ -337,27 +344,32 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       dispatch(setLoading(true));
 
       // Choose the correct endpoint based on chat type
-      const endpoint = isGroupChat 
+      const endpoint = isGroupChat
         ? `${BASE_URL}/api/groups/${chat.id}/messages`
         : `${BASE_URL}/api/messages/${chatId}`;
 
-      axios.get(endpoint)
+      axios
+        .get(endpoint)
         .then((response) => {
           if (isGroupChat) {
-            dispatch(groupActions.setGroupMessages({
-              groupId: chat.id,
-              messages: response.data
-            }));
+            dispatch(
+              groupActions.setGroupMessages({
+                groupId: chat.id,
+                messages: response.data,
+              })
+            );
           } else {
-            dispatch(setMessages({ 
-              chatId: messageId, 
-              messages: response.data 
-            }));
+            dispatch(
+              setMessages({
+                chatId: messageId,
+                messages: response.data,
+              })
+            );
           }
         })
         .catch((error) => {
-          console.error('Failed to load messages:', error);
-          toast.error('Failed to load messages');
+          console.error("Failed to load messages:", error);
+          toast.error("Failed to load messages");
         })
         .finally(() => {
           dispatch(setLoading(false));
@@ -416,7 +428,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Border
     "border-b",
     //apperance
-    theme === "dark" ? "border-gray-700 bg-gray-800 text-white" : "border-gray-300 bg-white text-black"
+    theme === "dark"
+      ? "border-gray-700 bg-gray-800 text-white"
+      : "border-gray-300 bg-white text-black"
   );
 
   const messagesContainer = clsx(
@@ -428,7 +442,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     "overflow-y-auto",
     // Scrollbar
     "scrollbar-thin",
-    theme === "dark" ? "scrollbar-thumb-gray-600 scrollbar-track-gray-800" : "scrollbar-thumb-gray-200 scrollbar-track-transparent"
+    theme === "dark"
+      ? "scrollbar-thumb-gray-600 scrollbar-track-gray-800"
+      : "scrollbar-thumb-gray-200 scrollbar-track-transparent"
   );
 
   const inputSection = clsx(
@@ -439,7 +455,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     // Border
     "border-t",
     // Appearance
-     theme === "dark" ? "border-gray-700 bg-gray-800 text-white" : "border-gray-300 bg-white text-black"
+    theme === "dark"
+      ? "border-gray-700 bg-gray-800 text-white"
+      : "border-gray-300 bg-white text-black"
   );
 
   const plusButton = clsx(
@@ -462,7 +480,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     "px-4 py-2 mx-3",
     // Appearance
     "rounded-full",
-    theme === "dark" ? "bg-gray-700 text-white placeholder-gray-400" : "bg-gray-100 text-black placeholder-gray-600",
+    theme === "dark"
+      ? "bg-gray-700 text-white placeholder-gray-400"
+      : "bg-gray-100 text-black placeholder-gray-600",
     // Typography
     "text-black",
     // Focus
@@ -506,12 +526,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       theme === "dark" ? "text-white" : "text-black",
       // Alignment and color
       isOwnMessage
-        ? theme === "dark" 
+        ? theme === "dark"
           ? "bg-gray-800 ml-auto" // Dark mode own messages
-          : "bg-light1 ml-auto"   // Light mode own messages
+          : "bg-light1 ml-auto" // Light mode own messages
         : theme === "dark"
-          ? "bg-gray-700"         // Dark mode others' messages
-          : "bg-gray-200"         // Light mode others' messages
+        ? "bg-gray-700" // Dark mode others' messages
+        : "bg-gray-200" // Light mode others' messages
     );
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -584,43 +604,52 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
       if (chat.isGroup) {
         const currentGroupId = chat.id;
-        const messageGroupId = data.groupId?.replace('group_', '') || data.chatId?.replace('group_', '');
+        const messageGroupId =
+          data.groupId?.replace("group_", "") ||
+          data.chatId?.replace("group_", "");
         isForCurrentChat = currentGroupId === messageGroupId;
-        console.log("Group message check:", { currentGroupId, messageGroupId, isMatch: isForCurrentChat });
+        console.log("Group message check:", {
+          currentGroupId,
+          messageGroupId,
+          isMatch: isForCurrentChat,
+        });
       } else {
-        const expectedFriendshipId = generateFriendshipId(currentUser, chat.name);
+        const expectedFriendshipId = generateFriendshipId(
+          currentUser,
+          chat.name
+        );
         isForCurrentChat = data.chatId === expectedFriendshipId;
       }
 
       if (isForCurrentChat) {
         console.log("✅ Message is for current chat:", chat.id);
-        
+
         // Add to messages if not already there
-        if (!messages.some(msg => msg.id === data.message.id)) {
+        if (!messages.some((msg) => msg.id === data.message.id)) {
           if (chat.isGroup) {
             dispatch(
               groupActions.addGroupMessage({
                 groupId: chat.id,
                 message: {
                   ...data.message,
-                  readBy: data.message.readBy || [data.message.senderId]
-                }
+                  readBy: data.message.readBy || [data.message.senderId],
+                },
               })
             );
 
             // Mark message as read since we're viewing it
-            socket.emit('mark-messages-read', {
+            socket.emit("mark-messages-read", {
               chatId: `group_${chat.id}`,
-              userId: currentUser
+              userId: currentUser,
             });
           } else {
             dispatch(
-              addMessage({ 
-                chatId: data.chatId!, 
+              addMessage({
+                chatId: data.chatId!,
                 message: {
                   ...data.message,
-                  readBy: data.message.readBy || [data.message.senderId]
-                }
+                  readBy: data.message.readBy || [data.message.senderId],
+                },
               })
             );
           }
@@ -631,22 +660,22 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           // Store group message even if not viewing
           dispatch(
             groupActions.addGroupMessage({
-              groupId: data.groupId.replace('group_', ''),
+              groupId: data.groupId.replace("group_", ""),
               message: {
                 ...data.message,
-                readBy: data.message.readBy || [data.message.senderId]
-              }
+                readBy: data.message.readBy || [data.message.senderId],
+              },
             })
           );
         } else if (data.chatId) {
           // Store direct message even if not viewing
           dispatch(
-            addMessage({ 
-              chatId: data.chatId, 
+            addMessage({
+              chatId: data.chatId,
               message: {
                 ...data.message,
-                readBy: data.message.readBy || [data.message.senderId]
-              }
+                readBy: data.message.readBy || [data.message.senderId],
+              },
             })
           );
         }
@@ -658,28 +687,33 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     socket.on("new-group-message", handleNewMessage);
 
     // Add handler for read receipts
-    const handleMessageRead = (data: { 
-      chatId: string, 
-      messageId: string, 
-      readBy: string[] 
+    const handleMessageRead = (data: {
+      chatId: string;
+      messageId: string;
+      readBy: string[];
     }) => {
-      console.log('👀 Message read event received:', data);
-      
-      const isGroupMessage = data.chatId.startsWith('group_');
-      const normalizedChatId = isGroupMessage ? data.chatId.replace('group_', '') : data.chatId;
+      console.log("👀 Message read event received:", data);
+
+      const isGroupMessage = data.chatId.startsWith("group_");
+      const normalizedChatId = isGroupMessage
+        ? data.chatId.replace("group_", "")
+        : data.chatId;
       const currentNormalizedChatId = chat.isGroup ? chat.id : chatId;
-      
-      console.log('Comparing IDs:', { normalizedChatId, currentNormalizedChatId });
+
+      console.log("Comparing IDs:", {
+        normalizedChatId,
+        currentNormalizedChatId,
+      });
 
       if (normalizedChatId === currentNormalizedChatId) {
-        console.log('✅ Updating read status for message:', data.messageId);
-        
+        console.log("✅ Updating read status for message:", data.messageId);
+
         if (chat.isGroup) {
           dispatch(
             groupActions.updateMessageReadStatus({
               groupId: chat.id,
               messageId: data.messageId,
-              readBy: data.readBy
+              readBy: data.readBy,
             } as any)
           );
         } else {
@@ -687,22 +721,30 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
             updateMessageReadStatus({
               chatId: data.chatId,
               messageId: data.messageId,
-              readBy: data.readBy
+              readBy: data.readBy,
             } as any)
           );
         }
       }
     };
 
-    socket.on('message-read', handleMessageRead);
+    socket.on("message-read", handleMessageRead);
 
     // Clean up
     return () => {
       socket.off("new-message", handleNewMessage);
       socket.off("new-group-message", handleNewMessage);
-      socket.off('message-read', handleMessageRead);
+      socket.off("message-read", handleMessageRead);
     };
-  }, [chat.id, chat.isGroup, chat.name, currentUser, chatId, messages, dispatch]);
+  }, [
+    chat.id,
+    chat.isGroup,
+    chat.name,
+    currentUser,
+    chatId,
+    messages,
+    dispatch,
+  ]);
 
   // Add this effect to automatically close event view when event is cleared
   useEffect(() => {
@@ -737,24 +779,19 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }
   }, [groupData?.currentEvent, showEventDetails]);
 
-  // Update the effect that marks messages as read
+  // Add this effect to automatically mark messages as read
   useEffect(() => {
-    if (!currentUser || !chatId || messages.length === 0) return;
+    if (!messages.length || !currentUser || !chatId) return;
 
     const socket = getSocket();
 
     // Emit mark-messages-read event
-    socket.emit('mark-messages-read', {
+    socket.emit("mark-messages-read", {
       chatId,
-      userId: currentUser
+      userId: currentUser,
     });
 
-    // Also make the API call for persistence
-    axios.post(`${BASE_URL}/api/messages/${chatId}/read`, {
-      userId: currentUser
-    }).catch(error => {
-      console.error('Error marking messages as read:', error);
-    });
+    // The API call is now handled in socketService.ts
   }, [messages, currentUser, chatId]);
 
   // Add this effect to handle real-time group messages
@@ -765,32 +802,35 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
     // Listen for new group messages
     socket.on(`group_message_${chat.id}`, (data: SocketMessageEvent) => {
-      dispatch(groupActions.addGroupMessage({
-        groupId: chat.id,
-        message: data.message
-      }));
+      dispatch(
+        groupActions.addGroupMessage({
+          groupId: chat.id,
+          message: data.message,
+        })
+      );
     });
 
     // Listen for group message updates (read receipts, etc.)
-    socket.on(`group_message_update_${chat.id}`, (data: { 
-      messageId: string, 
-      readBy: string[],
-      groupId: string 
-    }) => {
-      dispatch(groupActions.updateMessageReadStatus({
-        groupId: chat.id,
-        messageId: data.messageId,
-        readBy: data.readBy
-      } as any));
-    });
+    socket.on(
+      `group_message_update_${chat.id}`,
+      (data: { messageId: string; readBy: string[]; groupId: string }) => {
+        dispatch(
+          groupActions.updateMessageReadStatus({
+            groupId: chat.id,
+            messageId: data.messageId,
+            readBy: data.readBy,
+          } as any)
+        );
+      }
+    );
 
     // Join the group's room
-    socket.emit('join_group', chat.id);
+    socket.emit("join_group", chat.id);
 
     return () => {
       socket.off(`group_message_${chat.id}`);
       socket.off(`group_message_update_${chat.id}`);
-      socket.emit('leave_group', chat.id);
+      socket.emit("leave_group", chat.id);
     };
   }, [chat.id, chat.isGroup, dispatch]);
 
@@ -968,16 +1008,18 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   }, [groupData?.currentEvent?.date]);
 
   // Add these state variables at the top of your component
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
+    null
+  );
 
   // // Add this helper function to get reader details
   // const getReadDetails = (message: Message) => {
   //   if (!message.readBy) return { readers: [], status: "Sent" };
-    
+
   //   const readByOthers = message.readBy.filter(id => id !== currentUser);
-    
+
   //   if (readByOthers.length === 0) return { readers: [], status: "Sent" };
-    
+
   //   return {
   //     readers: readByOthers,
   //     status: "Seen"
@@ -987,7 +1029,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   // // Update the isLastMessageFromSender function
   // const isLastMessageFromSender = (messages: Message[], index: number) => {
   //   const currentMessage = messages[index];
-    
+
   //   // Look at subsequent messages to find the next one from the same sender
   //   for (let i = index + 1; i < messages.length; i++) {
   //     if (messages[i].senderId === currentMessage.senderId) {
@@ -1001,13 +1043,17 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const renderMessages = (messages: Message[]) => {
     return messages.map((message, index) => {
       // Always show timestamp for first message or when needed
-      const showTimestamp = index === 0 || shouldShowDivider(message, index > 0 ? messages[index - 1] : null);
+      const showTimestamp =
+        index === 0 ||
+        shouldShowDivider(message, index > 0 ? messages[index - 1] : null);
 
       // Handle system messages with plain italic text
       if (message.senderId === "system") {
         return (
           <React.Fragment key={message.id || index}>
-            {showTimestamp && <TimestampDivider timestamp={message.timestamp} />}
+            {showTimestamp && (
+              <TimestampDivider timestamp={message.timestamp} />
+            )}
             <div className="w-full flex justify-center">
               <span className="text-gray-500 text-sm italic px-4 py-1">
                 {message.content}
@@ -1018,19 +1064,25 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       }
 
       // Handle group invites
-      if (message.type === "group-invite" && message.groupId && message.groupName) {
+      if (
+        message.type === "group-invite" &&
+        message.groupId &&
+        message.groupName
+      ) {
         const isOwnMessage = message.senderId === currentUser;
         const isSender = message.invitedBy === currentUser;
 
         return (
           <React.Fragment key={message.id || index}>
-            {showTimestamp && <TimestampDivider timestamp={message.timestamp} />}
+            {showTimestamp && (
+              <TimestampDivider timestamp={message.timestamp} />
+            )}
             <div className={messageContainer(isOwnMessage)}>
               {!isOwnMessage && (
                 <div className="flex-shrink-0 mr-2 w-8">
-                  <ProfileFrame 
-                    username={message.senderId} 
-                    size={32} 
+                  <ProfileFrame
+                    username={message.senderId}
+                    size={32}
                     className="rounded-full"
                   />
                 </div>
@@ -1043,20 +1095,30 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                 )}
                 <div className="mb-2">
                   {isSender ? (
-                    <div className={clsx(
-                      "flex flex-col p-3 w-fit rounded-xl",
-                      theme === "dark" 
-                        ? "bg-gray-700 text-white"
-                        : "bg-gray-200 text-black"
-                    )}>
-                      <span className={clsx(
-                        "text-sm font-semibold",
-                        theme === "dark" ? "text-white" : "text-black"
-                      )}>Group Invite</span>
-                      <p className={clsx(
-                        "text-sm",
-                        theme === "dark" ? "text-gray-300" : "text-gray-600"
-                      )}>{message.groupName} - Invite sent</p>
+                    <div
+                      className={clsx(
+                        "flex flex-col p-3 w-fit rounded-xl",
+                        theme === "dark"
+                          ? "bg-gray-700 text-white"
+                          : "bg-gray-200 text-black"
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          "text-sm font-semibold",
+                          theme === "dark" ? "text-white" : "text-black"
+                        )}
+                      >
+                        Group Invite
+                      </span>
+                      <p
+                        className={clsx(
+                          "text-sm",
+                          theme === "dark" ? "text-gray-300" : "text-gray-600"
+                        )}
+                      >
+                        {message.groupName} - Invite sent
+                      </p>
                     </div>
                   ) : (
                     <GroupInvite
@@ -1066,12 +1128,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                       invitedBy={message.invitedBy || message.senderId}
                       onAccept={() => {
                         // After successful acceptance, update the message status
-                        const updatedMessage = { ...message, status: 'accepted' };
+                        const updatedMessage = {
+                          ...message,
+                          status: "accepted",
+                        };
                         if (chat.isGroup) {
                           dispatch(
                             groupActions.addGroupMessage({
                               groupId: chat.id,
-                              message: updatedMessage
+                              message: updatedMessage,
                             })
                           );
                         }
@@ -1079,8 +1144,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                     />
                   )}
                 </div>
-                <MessageStatus 
-                  message={message} 
+                <MessageStatus
+                  message={message}
                   index={index}
                   isSelected={selectedMessageId === message.id}
                   messages={messages}
@@ -1106,52 +1171,58 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
       // Check if this is the last message in a sequence
       const isLastInSequence =
-        index === messages.length - 1 || 
+        index === messages.length - 1 ||
         messages[index + 1].senderId !== message.senderId;
 
       return (
         <React.Fragment key={message.id || index}>
           {showTimestamp && <TimestampDivider timestamp={message.timestamp} />}
-          <div className={clsx(
-            messageContainer(isOwnMessage),
-            // Make consecutive messages even closer together
-            !isFirstInSequence && "-mt-6",
-            isLastInSequence && "mb-1" // Keep small margin after sequence ends
-          )}>
+          <div
+            className={clsx(
+              messageContainer(isOwnMessage),
+              // Make consecutive messages even closer together
+              !isFirstInSequence && "-mt-6",
+              isLastInSequence && "mb-1" // Keep small margin after sequence ends
+            )}
+          >
             {/* Show profile picture only if it's the first message in a sequence */}
             {isFirstInSequence && !isOwnMessage && (
-              <div className="flex-shrink-0 mr-2 w-8"> {/* Fixed width for alignment */}
-                <ProfileFrame 
-                  username={message.senderId} 
-                  size={32} 
+              <div className="flex-shrink-0 mr-2 w-8">
+                {" "}
+                {/* Fixed width for alignment */}
+                <ProfileFrame
+                  username={message.senderId}
+                  size={32}
                   className="rounded-full"
                 />
               </div>
             )}
             {/* Add placeholder space when no profile picture */}
-            {!isFirstInSequence && !isOwnMessage && <div className="w-8 mr-2" />}
+            {!isFirstInSequence && !isOwnMessage && (
+              <div className="w-8 mr-2" />
+            )}
             <div className={messageContent(isOwnMessage)}>
               {/* Show username only if it's the first message in a sequence */}
               {isFirstInSequence && !isOwnMessage && (
-                <span className="text-gray-500 text-sm mb-1">
-                  {senderName}
-                </span>
+                <span className="text-gray-500 text-sm mb-1">{senderName}</span>
               )}
-              <div 
+              <div
                 className={clsx(
                   messageStyle(isOwnMessage),
                   isFirstInSequence && "rounded-t-xl",
                   isLastInSequence && "rounded-b-xl",
                   isFirstInSequence && isLastInSequence && "rounded-xl"
                 )}
-                onClick={() => setSelectedMessageId(
-                  selectedMessageId === message.id ? null : message.id
-                )}
+                onClick={() =>
+                  setSelectedMessageId(
+                    selectedMessageId === message.id ? null : message.id
+                  )
+                }
               >
                 {message.content}
               </div>
-              <MessageStatus 
-                message={message} 
+              <MessageStatus
+                message={message}
                 index={index}
                 isSelected={selectedMessageId === message.id}
                 messages={messages}
@@ -1173,14 +1244,16 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   useEffect(() => {
     if (chat.isGroup && chat.id) {
       const storedReceipts = loadReadReceipts(chat.id);
-      
+
       // Update read receipts in Redux store
       Object.entries(storedReceipts).forEach(([messageId, readBy]) => {
-        dispatch(groupActions.updateMessageReadStatus({
-          groupId: chat.id,
-          messageId,
-          readBy: readBy as string[]
-        } as any));
+        dispatch(
+          groupActions.updateMessageReadStatus({
+            groupId: chat.id,
+            messageId,
+            readBy: readBy as string[],
+          } as any)
+        );
       });
     }
   }, [chat.isGroup, chat.id, dispatch]);
@@ -1201,20 +1274,24 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   useEffect(() => {
     const loadGroupMessages = async () => {
       if (!chat.isGroup || !chat.id) return;
-      
+
       try {
         dispatch(setLoading(true));
-        const response = await axios.get(`${BASE_URL}/api/groups/${chat.id}/messages`);
-        
+        const response = await axios.get(
+          `${BASE_URL}/api/groups/${chat.id}/messages`
+        );
+
         if (response.data) {
-          dispatch(groupActions.setGroupMessages({
-            groupId: chat.id,
-            messages: response.data
-          }));
+          dispatch(
+            groupActions.setGroupMessages({
+              groupId: chat.id,
+              messages: response.data,
+            })
+          );
         }
       } catch (error) {
-        console.error('Error loading group messages:', error);
-        toast.error('Failed to load messages');
+        console.error("Error loading group messages:", error);
+        toast.error("Failed to load messages");
       } finally {
         dispatch(setLoading(false));
       }
@@ -1386,8 +1463,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                     }}
                     className={clsx(
                       "text-2xl font-bold px-2 py-1 rounded",
-                      theme === "dark" 
-                        ? "text-white bg-gray-700 focus:bg-gray-600" 
+                      theme === "dark"
+                        ? "text-white bg-gray-700 focus:bg-gray-600"
                         : "text-black bg-gray-100"
                     )}
                     minWidth={150}
@@ -1408,10 +1485,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   </span>
                 )
               ) : (
-                <span className={clsx(
-                  "text-2xl font-bold",
-                  theme === "dark" ? "text-white" : "text-black"
-                )}>
+                <span
+                  className={clsx(
+                    "text-2xl font-bold",
+                    theme === "dark" ? "text-white" : "text-black"
+                  )}
+                >
                   {chat.name}
                 </span>
               )}
@@ -1420,12 +1499,13 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
             {chat.isGroup && (
               <div className="flex items-center gap-4">
                 {hasCurrentEvent ? (
-                  <button
+                  <Button
                     onClick={() => setShowEventDetails(true)}
-                    className="px-4 py-2 bg-[#57E3DC] rounded-lg text-white"
+                    color="dark1"
+                    className="text-white"
                   >
                     {groupData?.currentEvent?.title}
-                  </button>
+                  </Button>
                 ) : (
                   <AddEventButton
                     onConfirm={(

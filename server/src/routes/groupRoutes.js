@@ -17,7 +17,8 @@ const {
     getGroupInvites,
     declineGroupInvite,
     getInviteStatus,
-    updateGroupImage
+    updateGroupImage,
+    markGroupMessagesAsRead
 } = require("../controllers/groups");
 const { upload } = require("../utils/multer");
 
@@ -38,6 +39,7 @@ router.delete("/leave", leaveGroup);
 // Messages
 router.post("/:groupId/messages", sendGroupMessage);
 router.get("/:groupId/messages", getGroupMessages);
+router.put("/:groupId/messages/read", markGroupMessagesAsRead);
 
 // Invites
 router.post("/invite", sendGroupInvite);

@@ -90,7 +90,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           value={item}
           onChange={(e) => setItem(e.target.value)}
           onKeyDown={preventEnterKeySubmission}
-          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-3 text-base text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800"
           autoFocus
         />
 
@@ -100,11 +100,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           onKeyDown={preventEnterKeySubmission}
-          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-3 text-base text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800"
         />
 
         <div>
-          <div className="text-sm font-medium mb-2 text-black">
+          <div className="text-sm font-medium mb-2 text-black dark:text-white">
             Split between:
           </div>
           <div className="flex flex-wrap gap-2">
@@ -123,12 +123,12 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   "px-3 py-2 rounded-full",
                   "border transition-colors",
                   selectedParticipants.includes(participant.username)
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 bg-white"
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900"
+                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 )}
               >
                 <ProfileFrame username={participant.username} size={32} />
-                <span className="text-sm text-black">
+                <span className="text-sm text-black dark:text-white">
                   {participant.username}
                 </span>
               </button>

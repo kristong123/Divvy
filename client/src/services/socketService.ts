@@ -1,12 +1,12 @@
-import io from "socket.io-client";
-import { SOCKET_URL } from "../config/api";
+import { io } from "socket.io-client";
+import { SOCKET_URL, BASE_URL } from "../config/api";
 import { store } from "../store/store";
 import {
   setFriends,
   setPendingRequests,
   setSentRequests,
 } from "../store/slice/friendsSlice";
-import { addMessage } from "../store/slice/chatSlice";
+import { addMessage, updateMessageReadStatus } from "../store/slice/chatSlice";
 import { toast } from "react-hot-toast";
 import {
   Message,
@@ -16,7 +16,6 @@ import {
 } from "../types/messageTypes";
 import { groupActions } from "../store/slice/groupSlice";
 import axios from "axios";
-import { BASE_URL } from "../config/api";
 import { Event } from "../types/groupTypes";
 import {
   setVenmoUsername,
@@ -1491,7 +1490,7 @@ export const updateEvent = (
 export const addExpense = (
   groupId: string,
   expense: {
-    item: string;
+    itemName: string;
     amount: number;
     paidBy: string;
     splitBetween: string[];
@@ -1499,7 +1498,7 @@ export const addExpense = (
 ) => {
   const socket = getSocket();
 
-  console.log(`Adding expense: ${expense.item} for $${expense.amount}`);
+  console.log(`Adding expense: ${expense.itemName} for $${expense.amount}`);
 
   // Filter out the payer from splitBetween to avoid creating an expense where payer owes themselves
   const filteredSplitBetween = expense.splitBetween.filter(
@@ -1520,7 +1519,7 @@ export const addExpense = (
   filteredSplitBetween.forEach((person) => {
     const expenseData = {
       // Convert to the new Expense format
-      itemName: expense.item,
+      itemName: expense.itemName,
       amount: amountPerPerson, // Split amount equally among all participants
       addedBy: expense.paidBy,
       date: new Date().toISOString(),
@@ -1778,6 +1777,14 @@ export const markMessagesAsRead = (chatId: string, userId: string, messages: Mes
       userId,
       messageIds: messages.map(m => m.id)
     });
+    
+    // Make API call for group messages
+    axios.put(`${BASE_URL}/api/groups/${groupId}/messages/read`, {
+      userId,
+      messageIds: messages.map(m => m.id)
+    }).catch(error => {
+      console.error('Error marking group messages as read:', error);
+    });
   } else {
     // For direct messages (existing code)
     const lastMessageId = getLastMessageId(messages);
@@ -1787,6 +1794,13 @@ export const markMessagesAsRead = (chatId: string, userId: string, messages: Mes
       chatId,
       userId,
       messageId: lastMessageId
+    });
+    
+    // Make API call for direct messages
+    axios.put(`${BASE_URL}/api/messages/${chatId}/read`, {
+      userId
+    }).catch(error => {
+      console.error('Error marking messages as read:', error);
     });
   }
 };
@@ -1828,8 +1842,9 @@ socket.on('message-read', (data: {
 });
 
 // Update the loadReadReceipts function to handle last read message
-export const loadReadReceipts = (groupId: string): Record<string, string[]> => {
+export const loadReadReceipts = (_groupId: string): Record<string, string[]> => {
   try {
+    // groupId will be used in future implementation
     // For now, return an empty object as we'll implement the actual storage later
     return {};
   } catch (error) {

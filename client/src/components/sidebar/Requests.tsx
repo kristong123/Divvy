@@ -18,7 +18,7 @@ import {
   getSocket,
   showUniqueToast,
 } from "../../services/socketService";
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from "../../context/ThemeContext";
 
 const Requests: React.FC = () => {
   const { theme } = useTheme();
@@ -37,11 +37,6 @@ const Requests: React.FC = () => {
     []
   );
   const [forceRefresh, setForceRefresh] = useState(0);
-
-  const container = clsx(
-    // Spacing
-    "p-4 pt-0"
-  );
 
   const addFriendSection = clsx(
     // Layout
@@ -63,8 +58,8 @@ const Requests: React.FC = () => {
     // Layout
     "w-full",
     // Border
-    theme === "dark" 
-      ? "border-2 border-gray-600 bg-gray-700" 
+    theme === "dark"
+      ? "border-2 border-gray-600 bg-gray-700"
       : "border-2 border-gray-300 bg-white",
     "rounded-md",
     // Spacing
@@ -113,7 +108,7 @@ const Requests: React.FC = () => {
 
   const acceptButton = clsx(
     // Color
-    theme === "dark" 
+    theme === "dark"
       ? "text-green-400 hover:text-green-300"
       : "text-green-500 hover:text-green-600",
     // Transitions
@@ -337,7 +332,7 @@ const Requests: React.FC = () => {
   ).length;
 
   return (
-    <div className={container} key={`requests-${requestsKey}-${forceRefresh}`}>
+    <div key={`requests-${requestsKey}-${forceRefresh}`}>
       <div className={addFriendSection}>
         <p className={sectionTitle}>Add Friend</p>
         <form onSubmit={handleSendFriendRequest} className={addFriendForm}>

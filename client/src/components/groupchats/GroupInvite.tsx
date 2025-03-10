@@ -11,7 +11,7 @@ import {
 } from "../../store/slice/groupSlice";
 import { RootState } from "../../store/store";
 import { getSocket, showUniqueToast } from "../../services/socketService";
-import { useTheme } from '../../context/ThemeContext'; // Import useTheme
+import { useTheme } from "../../context/ThemeContext"; // Import useTheme
 
 interface GroupInviteProps {
   id: string;
@@ -29,7 +29,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   invitedBy,
   onAccept,
 }) => {
-  const { theme } = useTheme();  // Use the theme context
+  const { theme } = useTheme(); // Use the theme context
   const dispatch = useDispatch();
   const currentUser = useSelector((state: RootState) => state.user.username);
 
@@ -134,7 +134,11 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     } catch (error) {
       console.error("Error checking invite status:", error);
       // Only set to invalid if not already accepted or declined
-      if (inviteStatus !== "accepted" && inviteStatus !== "declined" && inviteStatus !== "sent") {
+      if (
+        inviteStatus !== "accepted" &&
+        inviteStatus !== "declined" &&
+        inviteStatus !== "sent"
+      ) {
         // Set to valid instead of invalid to allow the user to try accepting/declining
         dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
       }
@@ -208,7 +212,7 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
     // Spacing
     "p-3",
     // Appearance
-     theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-200 text-black",
+    theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-200 text-black",
     // Width
     "w-fit",
     "rounded-xl"
@@ -216,13 +220,13 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
 
   const title = clsx(
     // Typography
-    'text-sm font-semibold text-black',
+    "text-sm font-semibold text-black",
     theme === "dark" ? "text-white" : "text-black"
   );
 
   const description = clsx(
     // Typography
-    'text-sm text-gray-600',
+    "text-sm text-gray-600",
     theme === "dark" ? "text-gray-300" : "text-gray-600"
   );
 
@@ -236,16 +240,16 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
   const isInteractive = inviteStatus === "valid" || inviteStatus === "sent";
 
   const acceptButton = clsx(
-    'px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300',
+    "px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300",
     isInteractive
-      ? theme === "dark" 
+      ? theme === "dark"
         ? "bg-green-600 text-white cursor-pointer hover:bg-green-700"
         : "bg-green-500 text-white cursor-pointer hover:bg-green-600"
       : "bg-gray-500 text-gray-300 cursor-not-allowed"
   );
 
   const declineButton = clsx(
-    'px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300',
+    "px-3 py-1 text-sm font-medium rounded-md transition-colors duration-300",
     isInteractive
       ? theme === "dark"
         ? "bg-red-600 text-white cursor-pointer hover:bg-red-700"

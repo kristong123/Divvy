@@ -1343,3 +1343,62 @@ exports.updateGroupImage = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// Add this function to mark group messages as read
+exports.markGroupMessagesAsRead = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { userId, messageIds } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // If no messageIds provided, just return success
+    if (!messageIds || messageIds.length === 0) {
+      return res.status(200).json({ message: "No messages to mark as read" });
+    }
+
+    const batch = db.batch();
+    const io = getIO();
+
+    // Get the group messages collection
+    const messagesRef = db.collection("groups")
+      .doc(groupId)
+      .collection("messages");
+
+    // Get all messages that need to be marked as read
+    const messagesSnapshot = await messagesRef
+      .where("status", "==", "sent")
+      .get();
+
+    messagesSnapshot.forEach(doc => {
+      // Only update if the message is in the provided messageIds
+      if (messageIds.includes(doc.id)) {
+        const messageData = doc.data();
+        const readBy = messageData.readBy || [];
+
+        // Only update if the user hasn't already read the message
+        if (!readBy.includes(userId)) {
+          batch.update(doc.ref, {
+            readBy: [...readBy, userId],
+            status: 'read'
+          });
+
+          // Emit message-read event to notify other clients
+          io.to(groupId).emit('message-read', {
+            groupId,
+            messageId: doc.id,
+            readBy: [...readBy, userId]
+          });
+        }
+      }
+    });
+
+    await batch.commit();
+    res.status(200).json({ message: "Group messages marked as read!" });
+  } catch (error) {
+    console.error("Error marking group messages as read:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

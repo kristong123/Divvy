@@ -9,7 +9,7 @@ export interface GroupMember {
 
 export interface Expense {
   id?: string;
-  item: string;
+  itemName: string;
   amount: number;
   addedBy: string;
   paidBy: string;

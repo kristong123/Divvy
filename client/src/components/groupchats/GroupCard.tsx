@@ -1,6 +1,6 @@
-import React from 'react';
-import clsx from 'clsx';
-import { useTheme } from '../../context/ThemeContext'; 
+import React from "react";
+import clsx from "clsx";
+import { useTheme } from "../../context/ThemeContext";
 
 interface GroupCardProps {
   name: string;
@@ -9,7 +9,7 @@ interface GroupCardProps {
 }
 
 const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
-  const { theme } = useTheme(); 
+  const { theme } = useTheme();
 
   const card = clsx(
     // Layout
@@ -17,11 +17,11 @@ const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
     "flex flex-col",
     "relative",
     // Spacing
-    'p-2',
+    "p-2",
     // Appearance - Use dynamic colors instead of hardcoded white
-    theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-100 text-black",
-    'rounded-2xl',
-    'shadow-md',
+    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black",
+    "rounded-2xl",
+    "shadow-md",
     // Interactive
     "cursor-pointer"
   );
@@ -30,8 +30,8 @@ const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
     // Layout
     "flex-1 w-full",
     // Appearance
-    'rounded-xl',
-    theme === "dark" ? "bg-gray-700" : "bg-gray-100", 
+    "rounded-xl",
+    theme === "dark" ? "bg-gray-700" : "bg-gray-100",
     // Spacing
     "mb-6",
     // Overflow
@@ -49,8 +49,8 @@ const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
     // Position
     "absolute bottom-2 left-2",
     // Typography
-    'text-sm font-bold',
-    theme === "dark" ? "text-white" : "text-black" 
+    "text-sm font-bold",
+    theme === "dark" ? "text-white" : "text-black"
   );
 
   return (

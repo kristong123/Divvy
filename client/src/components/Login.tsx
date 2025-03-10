@@ -9,6 +9,7 @@ import { toast } from "react-hot-toast";
 import { login } from "../services/auth";
 import { useEnterKeyHandler } from "../utils/keyboardUtils";
 import { useTheme } from "../context/ThemeContext"; // Import the ThemeContext
+import Button from "./shared/Button"; // Import the Button component
 
 const Login: React.FC = () => {
   const { theme } = useTheme(); // Use the theme context
@@ -102,14 +103,18 @@ const Login: React.FC = () => {
 
   const title = clsx(
     // Typography
-    "text-4xl font-bold text-white text-center",
+    "text-4xl font-bold text-center",
+    // Color based on theme
+    theme === "dark" ? "text-gray-200" : "text-white",
     // Spacing
     "mb-4"
   );
 
   const inputLabel = clsx(
     // Typography
-    "block text-white text-sm font-bold",
+    "block text-sm font-bold",
+    // Color based on theme
+    theme === "dark" ? "text-gray-200" : "text-white",
     // Spacing
     "mb-2"
   );
@@ -126,7 +131,11 @@ const Login: React.FC = () => {
     // Transitions
     "transition-all duration-300 ease-smooth",
     // Hover
-    "hover:border-dark2"
+    "hover:border-dark2",
+    // Theme-specific styles
+    theme === "dark"
+      ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+      : "bg-white border-gray-300 text-black placeholder-gray-500"
   );
 
   const passwordContainer = clsx(
@@ -142,41 +151,31 @@ const Login: React.FC = () => {
     // Layout
     "flex items-center",
     // Typography
-    "text-gray-600",
-    // Hover
-    "hover:text-gray-800"
-  );
-
-  const loginButton = clsx(
-    // Layout
-    "w-full",
-    // Spacing
-    "py-2",
-    // Appearance
-    "bg-dark2 text-white rounded-lg",
-    // Effects
-    "hover:shadow-md",
+    theme === "dark"
+      ? "text-gray-400 hover:text-gray-200"
+      : "text-gray-600 hover:text-gray-800",
     // Transitions
-    "transition-all duration-300 ease-smooth"
-  );
-
-  const signupButton = clsx(
-    // Typography
-    "text-white font-bold",
-    // Spacing
-    "mt-3",
-    // Transitions
-    "transition-all duration-300 ease-smooth"
+    "transition-colors duration-300"
   );
 
   return (
-    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${theme === "dark" ? "bg-gray-900 text-white" : "bg-[#68d8d6] text-black"}`}>
+    <div
+      className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        theme === "dark" ? "bg-gray-900 text-white" : "bg-[#68d8d6] text-black"
+      }`}
+    >
       <div className={container}>
         <div className={formContainer}>
           <h1 className={title}>Divvy</h1>
 
           {error && (
-            <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
+            <div
+              className={`mb-4 p-2 rounded-md ${
+                theme === "dark"
+                  ? "bg-red-900 text-red-200"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
               {error}
             </div>
           )}
@@ -214,25 +213,37 @@ const Login: React.FC = () => {
                 className={passwordToggle}
               >
                 {showPassword ? (
-                  <EyeOffIcon className="h-5 w-5" />
+                  <EyeOffIcon
+                    className={`h-5 w-5 ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  />
                 ) : (
-                  <EyeIcon className="h-5 w-5" />
+                  <EyeIcon
+                    className={`h-5 w-5 ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  />
                 )}
               </button>
             </div>
           </div>
 
-          <button
+          <Button
             onClick={handleLogin}
-            className={loginButton}
             disabled={loading}
+            color="dark2"
+            className="w-full text-white"
           >
             {loading ? "Logging in..." : "Log In"}
-          </button>
+          </Button>
 
-          <button onClick={handleSignUp} className={signupButton}>
+          <Button
+            onClick={handleSignUp}
+            className="mt-3 text-white font-bold bg-transparent shadow-none hover:text-gray-300 dark:hover:text-gray-200"
+          >
             Sign up
-          </button>
+          </Button>
         </div>
       </div>
     </div>

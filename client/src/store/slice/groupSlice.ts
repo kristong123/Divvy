@@ -227,7 +227,7 @@ export const groupSlice = createSlice({
 
       // Log expense addition with emoji
       console.log(
-        `💰 Adding expense: ${expense.itemName || expense.item} ($${
+        `💰 Adding expense: ${expense.itemName} ($${
           expense.amount
         }) to group: ${groupId}`
       );
@@ -236,9 +236,12 @@ export const groupSlice = createSlice({
         // Create a new expense object that conforms to the Expense interface
         const newExpense = {
           id: expense.id || `temp-${Date.now()}`,
-          itemName: expense.itemName || expense.item || "Expense",
+          itemName: expense.itemName || "Expense",
           amount: expense.amount,
           addedBy: expense.addedBy || expense.paidBy || "Unknown",
+          paidBy: expense.paidBy || expense.addedBy || "Unknown",
+          debtor: expense._debtor || "",
+          splitBetween: expense.splitBetween || [],
           date: expense.date || new Date().toISOString(),
         };
 

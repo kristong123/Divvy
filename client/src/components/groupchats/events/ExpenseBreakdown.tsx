@@ -11,6 +11,7 @@ import { store } from "../../../store/store";
 import { groupActions } from "../../../store/slice/groupSlice";
 import axios from "axios";
 import { BASE_URL } from "../../../config/api";
+import { useTheme } from "../../../context/ThemeContext";
 
 interface ExpenseBreakdownProps {
   groupId: string;
@@ -28,6 +29,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
   const reduxExpenses = group?.currentEvent?.expenses || [];
   const groupMembers = group?.users || [];
   const dispatch = useDispatch();
+  const { theme } = useTheme();
 
   // State for editing expense amounts
   const [editingState, setEditingState] = useState<{
@@ -243,7 +245,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
         }
         summary[payer].isOwedBy[debtor].total += expense.amount;
         summary[payer].isOwedBy[debtor].items.push({
-          id: expense.id,
+          id: expense.id || "",
           itemName: expense.itemName,
           amount: expense.amount,
           index: index,
@@ -286,7 +288,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
           }
           summary[payer].isOwedBy[debtor].total += amountPerPerson;
           summary[payer].isOwedBy[debtor].items.push({
-            id: expense.id,
+            id: expense.id || "",
             itemName: expense.itemName,
             amount: amountPerPerson,
             index: index,
@@ -364,7 +366,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
         return; // Exit without showing toast or updating
       }
 
-      // Access itemName directly
+      // Access item directly
       const itemName = originalExpense.itemName;
 
       if (value === itemName) {
@@ -518,7 +520,11 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                       <ProfileFrame username={debt.to} size={32} />
                       <div className="flex flex-col items-center mx-2 flex-grow">
                         <span className="text-sm">{debt.to}</span>
-                        <span className="ml-auto text-sm font-medium text-dark1">
+                        <span
+                          className={`ml-auto text-sm font-medium ${
+                            theme === "dark" ? "text-white" : "text-dark1"
+                          }`}
+                        >
                           ${(debt.amount as number).toFixed(2)}
                         </span>
                       </div>
@@ -545,12 +551,26 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
               .map(([payer, data]) => (
                 <div
                   key={payer}
-                  className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 w-fit h-fit"
+                  className={`rounded-xl p-4 shadow-sm w-fit h-fit ${
+                    theme === "dark"
+                      ? "bg-gray-800 border border-gray-700 text-white"
+                      : "bg-white border border-gray-100 text-black"
+                  }`}
                 >
                   <div className="flex items-center mb-3">
                     <ProfileFrame username={payer} size={32} />
-                    <span className="text-black ml-2 font-medium">{payer}</span>
-                    <span className="ml-auto text-sm text-gray-500">
+                    <span
+                      className={`ml-2 font-medium ${
+                        theme === "dark" ? "text-white" : "text-black"
+                      }`}
+                    >
+                      {payer}
+                    </span>
+                    <span
+                      className={`ml-auto text-sm ${
+                        theme === "dark" ? "text-gray-300" : "text-gray-500"
+                      }`}
+                    >
                       paid ${(data as any).paid.toFixed(2)}
                     </span>
                   </div>
@@ -561,14 +581,28 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                       .map(([debtor, debtData]) => (
                         <div
                           key={debtor}
-                          className="bg-gray-50 rounded-lg p-3 border border-gray-100"
+                          className={`rounded-lg p-3 ${
+                            theme === "dark"
+                              ? "bg-gray-700 border border-gray-600"
+                              : "bg-gray-50 border border-gray-100"
+                          }`}
                         >
                           <div className="flex items-center mb-2">
                             <ProfileFrame username={debtor} size={24} />
-                            <span className="text-gray-700 ml-2 text-sm">
+                            <span
+                              className={`mx-2 text-sm ${
+                                theme === "dark"
+                                  ? "text-gray-200"
+                                  : "text-gray-700"
+                              }`}
+                            >
                               {debtor}
                             </span>
-                            <span className="ml-auto text-black text-sm font-medium">
+                            <span
+                              className={`ml-auto text-sm font-medium ${
+                                theme === "dark" ? "text-white" : "text-dark1"
+                              }`}
+                            >
                               owes ${(debtData as any).total.toFixed(2)}
                             </span>
                           </div>
@@ -578,10 +612,24 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                               (item: any, idx: number) => (
                                 <div
                                   key={`${item.id}-${idx}`}
-                                  className="flex items-center text-sm text-black pl-6 py-1 group hover:bg-gray-50 rounded"
+                                  className={`flex items-center text-sm pl-6 py-1 group hover:${
+                                    theme === "dark"
+                                      ? "bg-gray-600"
+                                      : "bg-gray-50"
+                                  } rounded ${
+                                    theme === "dark"
+                                      ? "text-gray-200"
+                                      : "text-black"
+                                  }`}
                                 >
                                   {/* Bullet point */}
-                                  <div className="w-1.5 h-1.5 rounded-full bg-dark1 mr-2 flex-shrink-0"></div>
+                                  <div
+                                    className={`w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0 ${
+                                      theme === "dark"
+                                        ? "bg-gray-300"
+                                        : "bg-dark1"
+                                    }`}
+                                  ></div>
 
                                   {/* Item name */}
                                   {editingState &&
@@ -608,7 +656,11 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                                     />
                                   ) : (
                                     <span
-                                      className="text-gray-600 mr-3 cursor-pointer hover:text-black"
+                                      className={`mr-3 cursor-pointer ${
+                                        theme === "dark"
+                                          ? "text-gray-300 hover:text-white"
+                                          : "text-gray-600 hover:text-black"
+                                      }`}
                                       onClick={() =>
                                         startEditing(
                                           payer,
@@ -650,7 +702,11 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                                     />
                                   ) : (
                                     <span
-                                      className="text-gray-600 ml-auto cursor-pointer hover:text-black"
+                                      className={`ml-auto cursor-pointer ${
+                                        theme === "dark"
+                                          ? "text-gray-300 hover:text-white"
+                                          : "text-gray-600 hover:text-black"
+                                      }`}
                                       onClick={() =>
                                         startEditing(
                                           payer,

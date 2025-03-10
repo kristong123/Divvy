@@ -22,8 +22,6 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   const currentUser = useSelector((state: RootState) => state.user.username);
 
   const container = clsx(
-    // Spacing
-    "p-4 pt-0",
     // Layout
     "flex-1 overflow-y-auto",
     // Height - make it responsive to parent container
@@ -36,7 +34,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
     // Typography
     "text-sm font-bold text-black",
     // Spacing
-    "ml-4 mb-2 flex gap-5 items-center"
+    "flex gap-5 items-center"
   );
 
   const notificationItem = clsx(

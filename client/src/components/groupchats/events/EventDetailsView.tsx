@@ -6,6 +6,8 @@ import AddExpenseModal from "../../modals/AddExpenseModal";
 import ExpenseBreakdown from "./ExpenseBreakdown";
 import { Expense } from "../../../types/groupTypes";
 import { addExpense as addExpenseSocket } from "../../../services/socketService";
+import { useTheme } from "../../../context/ThemeContext";
+import Button from "../../shared/Button";
 
 interface EventDetailsProps {
   description: string;
@@ -28,16 +30,14 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   groupId,
 }) => {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const { theme } = useTheme();
 
   const currentUser = useSelector((state: RootState) => state.user.username);
 
   const totalAmount = React.useMemo(() => {
     return expenses.reduce((sum, expense) => {
       // Skip expenses where the current user is both the payer and the one who paid
-      if (
-        expense.addedBy === currentUser &&
-        expense.paidBy === currentUser
-      ) {
+      if (expense.addedBy === currentUser && expense.paidBy === currentUser) {
         return sum;
       }
       return sum + expense.amount;
@@ -52,7 +52,7 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
   ) => {
     // Create the expense object
     const expense = {
-      item,
+      itemName: item,
       amount,
       paidBy: currentUser,
       splitBetween:
@@ -73,8 +73,20 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
     <div className="max-w-4xl mx-auto">
       {/* Description - only show if there is a description */}
       {description && description.trim() !== "" && (
-        <div className="bg-white rounded-xl p-6 shadow-md mb-6">
-          <p className="text-gray-600 whitespace-pre-wrap">{description}</p>
+        <div
+          className={`rounded-xl p-6 shadow-md mb-6 ${
+            theme === "dark"
+              ? "bg-gray-800 text-gray-200"
+              : "bg-white text-gray-600"
+          }`}
+        >
+          <p
+            className={`whitespace-pre-wrap ${
+              theme === "dark" ? "text-gray-200" : "text-gray-600"
+            }`}
+          >
+            {description}
+          </p>
         </div>
       )}
 
@@ -92,18 +104,20 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
         {/* Right side - Participants and Buttons */}
         <div className="flex flex-col items-end">
           <div className="flex gap-3 mb-4">
-            <button
+            <Button
               onClick={() => setShowAddExpenseModal(true)}
-              className="px-4 py-2 bg-[#57E3DC] text-white rounded-lg hover:bg-[#4DC8C2] transition-colors"
+              color="dark1"
+              className="text-white"
             >
               Add Expense
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={onCancel}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              color="red-500"
+              className="text-white hover:bg-red-600"
             >
               Cancel Event
-            </button>
+            </Button>
           </div>
           <div className="flex gap-2">
             {participants.map((participant) => (

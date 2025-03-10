@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import Modal from '../shared/Modal';
+import React, { useState } from "react";
+import Modal from "../shared/Modal";
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -7,13 +7,17 @@ interface CreateGroupModalProps {
   onConfirm: (groupName: string) => void;
 }
 
-const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, onConfirm }) => {
-  const [groupName, setGroupName] = useState('');
+const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+}) => {
+  const [groupName, setGroupName] = useState("");
 
   const handleSubmit = () => {
     if (groupName.trim()) {
       onConfirm(groupName.trim());
-      setGroupName('');
+      setGroupName("");
     }
   };
 
@@ -26,7 +30,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
         text: "Create Group",
         onClick: handleSubmit,
         disabled: !groupName.trim(),
-        color: "primary"
+        color: "primary",
       }}
     >
       <div className="mt-4">
@@ -35,7 +39,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
           placeholder="Enter group name"
           value={groupName}
           onChange={(e) => setGroupName(e.target.value)}
-          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-3 text-base text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800"
           autoFocus
         />
       </div>
@@ -43,4 +47,4 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
   );
 };
 
-export default CreateGroupModal; 
+export default CreateGroupModal;

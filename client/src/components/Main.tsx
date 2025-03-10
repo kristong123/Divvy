@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import clsx from 'clsx';
-import Sidebar from './Sidebar';
-import AddGroupButton from './groupchats/AddGroupButton';
-import GroupCard from './groupchats/GroupCard';
-import ChatView from './shared/ChatView';
-import axios from 'axios';
-import { toast } from 'react-hot-toast';
-import { useSelector, useDispatch } from 'react-redux';
-import { BASE_URL } from '../config/api';
-import { RootState } from '../store/store';
-import { groupActions } from '../store/slice/groupSlice';
-import { useTheme } from '../context/ThemeContext'; 
+import React, { useState, useEffect, useMemo } from "react";
+import clsx from "clsx";
+import Sidebar from "./Sidebar";
+import AddGroupButton from "./groupchats/AddGroupButton";
+import GroupCard from "./groupchats/GroupCard";
+import ChatView from "./shared/ChatView";
+import axios from "axios";
+import { toast } from "react-hot-toast";
+import { useSelector, useDispatch } from "react-redux";
+import { BASE_URL } from "../config/api";
+import { RootState } from "../store/store";
+import { groupActions } from "../store/slice/groupSlice";
+import { useTheme } from "../context/ThemeContext";
+import { Settings } from "lucide-react";
+import FloatingButton from "./shared/FloatingButton";
+import SettingsModal from "./modals/SettingsModal";
 
 interface GroupMember {
   username: string;
@@ -73,13 +76,14 @@ const Main: React.FC = () => {
     type: "group" | "direct";
     data: GroupData | DirectChat | null;
   }>({ type: "group", data: null });
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const titleLink = clsx(
     // Layout
     "ml-96 mt-6",
     // Typography
-    'text-5xl font-bold',
-     theme === "dark" ? "text-[#57E3DC]" : "text-[#39bfbd]"
+    "text-5xl font-bold",
+    "text-dark1"
   );
 
   const groupsContainer = clsx(
@@ -183,10 +187,14 @@ const Main: React.FC = () => {
   };
 
   return (
-    <div className={`flex w-screen h-screen transition-colors duration-300 ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100 text-black"}`}>
-      <Sidebar 
-        onChatSelect={handleDirectChatClick} 
-        onHomeClick={() => setSelectedChat({ type: 'group', data: null })}
+    <div
+      className={`flex w-screen h-screen transition-colors duration-300 ${
+        theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black"
+      }`}
+    >
+      <Sidebar
+        onChatSelect={handleDirectChatClick}
+        onHomeClick={() => setSelectedChat({ type: "group", data: null })}
       />
       <div className="flex flex-col w-full">
         {!selectedChat.data ? (
@@ -208,6 +216,19 @@ const Main: React.FC = () => {
           <ChatView chat={selectedChat.data} />
         )}
       </div>
+
+      {/* Settings Button */}
+      <FloatingButton
+        icon={<Settings className="h-6 w-6 text-black" />}
+        onClick={() => setIsSettingsModalOpen(true)}
+        position="bottom-right"
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
     </div>
   );
 };

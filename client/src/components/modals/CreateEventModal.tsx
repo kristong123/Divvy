@@ -64,7 +64,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
           value={eventName}
           onChange={(e) => setEventName(e.target.value)}
           onKeyDown={preventEnterKeySubmission}
-          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-3 text-base text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800"
           autoFocus
         />
         <input
@@ -72,7 +72,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
           value={eventDate}
           onChange={(e) => setEventDate(e.target.value)}
           onKeyDown={preventEnterKeySubmission}
-          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-3 text-base text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800"
           placeholder="Optional - Today's date will be used if empty"
         />
         <textarea
@@ -80,7 +80,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onKeyDown={preventEnterKeySubmission}
-          className="w-full px-3 py-3 text-base text-black border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-32"
+          className="w-full px-3 py-3 text-base text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-32 bg-white dark:bg-gray-800"
         />
       </div>
     </Modal>

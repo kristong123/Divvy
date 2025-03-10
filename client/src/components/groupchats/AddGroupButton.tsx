@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import CreateGroupWindow from '../modals/CreateGroupModal';
-import clsx from 'clsx';
-import { useTheme } from '../../context/ThemeContext';
+import React, { useState } from "react";
+import CreateGroupWindow from "../modals/CreateGroupModal";
+import clsx from "clsx";
+import { useTheme } from "../../context/ThemeContext";
 
 interface AddGroupButtonProps {
   onConfirm: (groupName: string) => void;
@@ -18,24 +18,27 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
 
   const buttonContainer = clsx(
     // Layout
-    'w-48 h-48',
-    'flex items-center justify-center',
+    "w-48 h-48",
+    "flex items-center justify-center",
     // Appearance
-    theme === "dark" ? "bg-gray-800 text-white" : "bg-gray-100 text-black",
+    "rounded-2xl shadow-md",
+    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black",
     // Interactive
-    'cursor-pointer'
+    "cursor-pointer"
   );
 
   const plusButton = clsx(
     // Layout
-    'w-10 h-10',
-    'flex items-center justify-center',
+    "w-10 h-10",
+    "flex items-center justify-center pb-1",
     // Appearance
-    'rounded-full',
-    theme === "dark" ? "bg-gradient-to-tr from-[#57E3DC] to-gray-800 text-white" : "bg-gradient-to-tr from-[#57E3DC] to-white text-black",
-    'text-black text-2xl',
+    "rounded-full",
+    theme === "dark"
+      ? "bg-gradient-to-tr from-[#57E3DC] to-gray-800 text-white"
+      : "bg-gradient-to-tr from-[#57E3DC] to-white text-black",
+    "text-black text-2xl",
     // Spacing
-    'pb-0.5'
+    "pb-0.5"
   );
 
   return (
@@ -43,7 +46,7 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
       <div className={buttonContainer} onClick={() => setIsModalOpen(true)}>
         <div className={plusButton}>+</div>
       </div>
-      
+
       <CreateGroupWindow
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -53,4 +56,4 @@ const AddGroupButton: React.FC<AddGroupButtonProps> = ({ onConfirm }) => {
   );
 };
 
-export default AddGroupButton; 
+export default AddGroupButton;

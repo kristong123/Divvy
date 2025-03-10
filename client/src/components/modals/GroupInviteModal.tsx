@@ -74,8 +74,8 @@ const GroupInviteModal: React.FC<GroupInviteModalProps> = ({
       "w-fit p-3 mb-2",
       "border rounded-lg transition-colors",
       isSelected
-        ? "border-[#57E3DC] bg-[#E7FCFB]"
-        : "border-gray-200 hover:bg-gray-50",
+        ? "border-[#57E3DC] bg-[#E7FCFB] dark:bg-[#1e3e3d]"
+        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700",
       "cursor-pointer"
     );
 
@@ -95,12 +95,12 @@ const GroupInviteModal: React.FC<GroupInviteModalProps> = ({
       size="md"
     >
       <div className="mt-4">
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 dark:text-gray-300 mb-4">
           Select friends to invite to this group:
         </p>
 
         {availableFriends.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">
+          <p className="text-center text-gray-500 dark:text-gray-400 py-4">
             All your friends are already in this group.
           </p>
         ) : (
@@ -115,7 +115,7 @@ const GroupInviteModal: React.FC<GroupInviteModalProps> = ({
               >
                 <div className="flex items-center">
                   <ProfileFrame username={friend.username} size={40} />
-                  <span className="ml-2 mr-1 text-black">
+                  <span className="ml-2 mr-1 text-black dark:text-white">
                     {friend.username}
                   </span>
                 </div>
