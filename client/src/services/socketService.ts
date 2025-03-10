@@ -6,7 +6,7 @@ import {
   setPendingRequests,
   setSentRequests,
 } from "../store/slice/friendsSlice";
-import { addMessage, updateMessageReadStatus } from "../store/slice/chatSlice";
+import { addMessage } from "../store/slice/chatSlice";
 import { toast } from "react-hot-toast";
 import {
   Message,
@@ -460,6 +460,7 @@ export const initializeSocket = (username: string) => {
           createdBy: data.group.createdBy || "",
           createdAt: data.group.createdAt || new Date().toISOString(),
           updatedAt: data.group.updatedAt || new Date().toISOString(),
+          imageUrl: data.group.imageUrl || undefined, // Preserve the imageUrl if it exists
           currentEvent: data.group.currentEvent || {
             id: "",
             title: "",
@@ -803,8 +804,13 @@ export const initializeSocket = (username: string) => {
         if (group && group.currentEvent) {
           // Log expenses update
           console.log(
-            `💰 ${data.expenses.length} expenses updated in group: ${data.groupId}`
+            `💰 Received expenses update for group ${data.groupId}: ${data.expenses.length} expenses`
           );
+
+          // Log the first few expenses for debugging
+          if (data.expenses.length > 0) {
+            console.log("Sample expenses:", data.expenses.slice(0, 2));
+          }
 
           // Update the entire expenses array
           store.dispatch(
@@ -817,7 +823,19 @@ export const initializeSocket = (username: string) => {
               keepEventOpen: true,
             })
           );
+
+          // Show a toast notification
+          showUniqueToast(
+            `expenses-updated-${data.groupId}`,
+            "Expenses have been updated"
+          );
+        } else {
+          console.warn(
+            `Received expenses update for group ${data.groupId}, but group or event not found in store`
+          );
         }
+      } else {
+        console.error("Invalid expenses-updated data:", data);
       }
     }
   );
@@ -1601,19 +1619,13 @@ export const removeExpense = (
   const socket = getSocket();
 
   // If itemIndex is provided, we're removing a single item
-  if (itemIndex !== undefined) {
-    socket.emit("remove-expense-item", {
-      groupId,
-      expenseId: expense.id,
-      itemIndex,
-    });
-  } else {
-    // Otherwise remove the entire expense
-    socket.emit("remove-expense", {
-      groupId,
-      expense,
-    });
-  }
+  // If not, we're removing the entire expense
+  // The server only has a handler for 'remove-expense-item'
+  socket.emit("remove-expense-item", {
+    groupId,
+    expenseId: expense.id,
+    itemIndex: itemIndex !== undefined ? itemIndex : null
+  });
 };
 
 // Add this function to mark a notification as read via socket
@@ -1758,95 +1770,42 @@ export const updateGroupImage = async (groupId: string, imageUrl: string, userna
   }
 };
 
-// Add these helper functions near the top of the file
-const getLastMessageId = (messages: Message[]): string | null => {
-  // Get the last non-system message
-  const lastMessage = [...messages].reverse().find(m => m.type !== 'system');
-  return lastMessage?.id || null;
-};
-
-// Update the markMessagesAsRead function to handle all messages up to the last one
+// Update the markMessagesAsRead function to use the correct action
 export const markMessagesAsRead = (chatId: string, userId: string, messages: Message[]) => {
   const socket = getSocket();
   
-  // For group messages
-  if (chatId.startsWith('group_')) {
-    const groupId = chatId.replace('group_', '');
-    socket.emit('mark-messages-read', {
-      groupId,
-      userId,
-      messageIds: messages.map(m => m.id)
-    });
+  messages.forEach((message, index) => {
+    const isLatest = index === messages.length - 1;
+    const readBy = message.readBy || [];
     
-    // Make API call for group messages
-    axios.put(`${BASE_URL}/api/groups/${groupId}/messages/read`, {
-      userId,
-      messageIds: messages.map(m => m.id)
-    }).catch(error => {
-      console.error('Error marking group messages as read:', error);
-    });
-  } else {
-    // For direct messages (existing code)
-    const lastMessageId = getLastMessageId(messages);
-    if (!lastMessageId) return;
-    
-    socket.emit('mark-messages-read', {
-      chatId,
-      userId,
-      messageId: lastMessageId
-    });
-    
-    // Make API call for direct messages
-    axios.put(`${BASE_URL}/api/messages/${chatId}/read`, {
-      userId
-    }).catch(error => {
-      console.error('Error marking messages as read:', error);
-    });
-  }
-};
+    if (!readBy.includes(userId)) {
+      socket.emit('mark-message-read', {
+        chatId,
+        messageId: message.id,
+        userId
+      });
 
-// Update the socket event handler for message-read events
-socket.on('message-read', (data: { 
-  chatId: string, 
-  messageId: string,
-  messageIds?: string[],
-  readBy: string[] 
-}) => {
-  console.log('👀 Message read event received:', data);
-  
-  const isGroupMessage = data.chatId.startsWith('group_');
-  const normalizedChatId = isGroupMessage ? data.chatId.replace('group_', '') : data.chatId;
-  
-  // Update the read status for all messages
-  if (data.messageIds) {
-    data.messageIds.forEach(messageId => {
-      if (isGroupMessage) {
+      // Use groupActions for group messages
+      if (chatId.startsWith('group_')) {
         store.dispatch(
           groupActions.updateMessageReadStatus({
-            groupId: normalizedChatId,
-            messageId,
-            readBy: data.readBy
-          } as any)
-        );
-      } else {
-        store.dispatch(
-          updateMessageReadStatus({
-            chatId: data.chatId,
-            messageId,
-            readBy: data.readBy
+            groupId: chatId.replace('group_', ''),
+            messageId: message.id,
+            readBy: [...readBy, userId],
+            isLatest
           })
         );
       }
-    });
-  }
-});
+    }
+  });
+};
 
-// Update the loadReadReceipts function to handle last read message
-export const loadReadReceipts = (_groupId: string): Record<string, string[]> => {
+// Update the loadReadReceipts function to use the groupId parameter
+export const loadReadReceipts = (groupId: string): Record<string, string[]> => {
   try {
-    // groupId will be used in future implementation
-    // For now, return an empty object as we'll implement the actual storage later
-    return {};
+    const key = `readReceipts_${groupId}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : {};
   } catch (error) {
     console.error('Error loading read receipts:', error);
     return {};

@@ -718,6 +718,7 @@ exports.joinGroup = async (req, res) => {
         createdBy: groupData.createdBy,
         createdAt: groupData.createdAt,
         updatedAt: groupData.updatedAt,
+        imageUrl: groupData.imageUrl,
         currentEvent: groupData.currentEvent || {
           id: "",
           title: "",
@@ -812,6 +813,7 @@ exports.joinGroup = async (req, res) => {
           createdBy: updatedData.createdBy,
           createdAt: updatedData.createdAt,
           updatedAt: updatedData.updatedAt,
+          imageUrl: updatedData.imageUrl,
           currentEvent
         }
       });
@@ -825,6 +827,7 @@ exports.joinGroup = async (req, res) => {
       createdBy: updatedData.createdBy,
       createdAt: updatedData.createdAt,
       updatedAt: updatedData.updatedAt,
+      imageUrl: updatedData.imageUrl,
       currentEvent
     });
   } catch (error) {

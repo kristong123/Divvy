@@ -12,6 +12,7 @@ import { groupActions } from "../../../store/slice/groupSlice";
 import axios from "axios";
 import { BASE_URL } from "../../../config/api";
 import { useTheme } from "../../../context/ThemeContext";
+import PaymentConfirmation from "../../modals/PaymentConfirmation";
 
 interface ExpenseBreakdownProps {
   groupId: string;
@@ -66,6 +67,17 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
       }
     >
   >({});
+
+  // State for payment confirmation modal
+  const [paymentConfirmation, setPaymentConfirmation] = useState<{
+    isOpen: boolean;
+    payee: string;
+    amount: number;
+  }>({
+    isOpen: false,
+    payee: "",
+    amount: 0,
+  });
 
   // Update local state when redux expenses change
   useEffect(() => {
@@ -445,6 +457,23 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
     toast.success("Item removed");
   };
 
+  // Function to handle opening the payment confirmation modal
+  const handleOpenPaymentConfirmation = (payee: string, amount: number) => {
+    setPaymentConfirmation({
+      isOpen: true,
+      payee,
+      amount,
+    });
+  };
+
+  // Function to handle closing the payment confirmation modal
+  const handleClosePaymentConfirmation = () => {
+    setPaymentConfirmation({
+      ...paymentConfirmation,
+      isOpen: false,
+    });
+  };
+
   // Add this to force a re-render when expenses are updated in the store
   useEffect(() => {
     const unsubscribe = store.subscribe(() => {
@@ -466,288 +495,292 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
     return () => unsubscribe();
   }, [groupId, localExpenses]);
 
-  const hasExpenses = reduxExpenses.length > 0;
-
   return (
-    <div className="space-y-8">
-      {hasExpenses ? (
-        <>
-          {/* You owe section */}
-          {userOwes.length > 0 && (
-            <div className="bg-[#E7FCFB] rounded-xl p-4 shadow-sm w-fit">
-              <div className="flex items-center mb-3">
-                <h3 className="text-lg text-black font-bold">You owe</h3>
-                <span className="ml-2 text-lg font-bold text-[#57E3DC]">
-                  ${totalUserOwes.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="flex flex-row flex-wrap gap-3">
-                {userOwes.map((debt) => {
-                  return (
-                    <div
-                      key={debt.to}
-                      className="bg-white text-black rounded-2xl p-2 shadow-md flex items-center cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={async () => {
-                        // Use our helper function to get the latest Venmo username
-                        let freshVenmoUsername = getLatestVenmoUsername(
-                          debt.to
-                        );
-
-                        if (!freshVenmoUsername) {
-                          // If not found in Redux, try fetching directly from the API
-                          toast.loading("Checking for Venmo username...");
-                          freshVenmoUsername = await fetchLatestUserData(
-                            debt.to
-                          );
-                          toast.dismiss();
-                        }
-
-                        if (freshVenmoUsername) {
-                          const url = `https://venmo.com/${freshVenmoUsername}?txn=pay&amount=${(
-                            debt.amount as number
-                          ).toFixed(2)}&note=Payment for ${
-                            group?.currentEvent?.title || "expenses"
-                          }`;
-                          window.open(url, "_blank", "noopener,noreferrer");
-                        } else {
-                          toast.error(
-                            `${debt.to} hasn't set their Venmo username yet`
-                          );
-                        }
-                      }}
-                    >
-                      <ProfileFrame username={debt.to} size={32} />
-                      <div className="flex flex-col items-center mx-2 flex-grow">
-                        <span className="text-sm">{debt.to}</span>
-                        <span
-                          className={`ml-auto text-sm font-medium ${
-                            theme === "dark" ? "text-white" : "text-dark1"
-                          }`}
-                        >
-                          ${(debt.amount as number).toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Venmo indicator - always show */}
-                      <div className="ml-2 text-[#3D95CE]">
-                        <VenmoIcon size={20} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+    <>
+      <div className="p-4 md:p-6 space-y-6">
+        {/* You owe section */}
+        {userOwes.length > 0 && (
+          <div className="bg-[#E7FCFB] rounded-xl p-4 shadow-sm w-fit">
+            <div className="flex items-center mb-3">
+              <h3 className="text-lg text-black font-bold">You owe</h3>
+              <span className="ml-2 text-lg font-bold text-[#57E3DC]">
+                ${totalUserOwes.toFixed(2)}
+              </span>
             </div>
-          )}
 
-          {/* Expense breakdown by person */}
-          <div className="flex flex-row flex-wrap gap-4">
-            {Object.entries(expenseSummary)
-              .filter(([_, data]) =>
-                Object.values((data as any).isOwedBy).some(
-                  (debt: any) => debt.total > 0
-                )
-              )
-              .map(([payer, data]) => (
-                <div
-                  key={payer}
-                  className={`rounded-xl p-4 shadow-sm w-fit h-fit ${
-                    theme === "dark"
-                      ? "bg-gray-800 border border-gray-700 text-white"
-                      : "bg-white border border-gray-100 text-black"
-                  }`}
-                >
-                  <div className="flex items-center mb-3">
-                    <ProfileFrame username={payer} size={32} />
-                    <span
-                      className={`ml-2 font-medium ${
-                        theme === "dark" ? "text-white" : "text-black"
-                      }`}
-                    >
-                      {payer}
-                    </span>
-                    <span
-                      className={`ml-auto text-sm ${
-                        theme === "dark" ? "text-gray-300" : "text-gray-500"
-                      }`}
-                    >
-                      paid ${(data as any).paid.toFixed(2)}
-                    </span>
+            <div className="flex flex-row flex-wrap gap-3">
+              {userOwes.map((debt) => {
+                return (
+                  <div
+                    key={debt.to}
+                    className="bg-white text-black rounded-2xl p-2 shadow-md flex items-center cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={async () => {
+                      // Use our helper function to get the latest Venmo username
+                      let freshVenmoUsername = getLatestVenmoUsername(debt.to);
+
+                      if (!freshVenmoUsername) {
+                        // If not found in Redux, try fetching directly from the API
+                        toast.loading("Checking for Venmo username...");
+                        freshVenmoUsername = await fetchLatestUserData(debt.to);
+                        toast.dismiss();
+                      }
+
+                      if (freshVenmoUsername) {
+                        const url = `https://venmo.com/${freshVenmoUsername}?txn=pay&amount=${(
+                          debt.amount as number
+                        ).toFixed(2)}&note=Payment for ${
+                          group?.currentEvent?.title || "expenses"
+                        }`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+
+                        // Open payment confirmation modal after redirecting to Venmo
+                        handleOpenPaymentConfirmation(
+                          debt.to,
+                          debt.amount as number
+                        );
+                      } else {
+                        toast.error(
+                          `${debt.to} hasn't set their Venmo username yet`
+                        );
+                      }
+                    }}
+                  >
+                    <ProfileFrame username={debt.to} size={32} />
+                    <div className="flex flex-col items-center mx-2 flex-grow">
+                      <span className="text-sm">{debt.to}</span>
+                      <span
+                        className={`ml-auto text-sm font-medium ${
+                          theme === "dark" ? "text-white" : "text-dark1"
+                        }`}
+                      >
+                        ${(debt.amount as number).toFixed(2)}
+                      </span>
+                    </div>
+
+                    {/* Venmo indicator - always show */}
+                    <div className="ml-2 text-[#3D95CE]">
+                      <VenmoIcon size={20} />
+                    </div>
                   </div>
-
-                  <div className="space-y-4">
-                    {Object.entries((data as any).isOwedBy)
-                      .filter(([_, debtData]) => (debtData as any).total > 0)
-                      .map(([debtor, debtData]) => (
-                        <div
-                          key={debtor}
-                          className={`rounded-lg p-3 ${
-                            theme === "dark"
-                              ? "bg-gray-700 border border-gray-600"
-                              : "bg-gray-50 border border-gray-100"
-                          }`}
-                        >
-                          <div className="flex items-center mb-2">
-                            <ProfileFrame username={debtor} size={24} />
-                            <span
-                              className={`mx-2 text-sm ${
-                                theme === "dark"
-                                  ? "text-gray-200"
-                                  : "text-gray-700"
-                              }`}
-                            >
-                              {debtor}
-                            </span>
-                            <span
-                              className={`ml-auto text-sm font-medium ${
-                                theme === "dark" ? "text-white" : "text-dark1"
-                              }`}
-                            >
-                              owes ${(debtData as any).total.toFixed(2)}
-                            </span>
-                          </div>
-
-                          <div className="space-y-1">
-                            {(debtData as any).items.map(
-                              (item: any, idx: number) => (
-                                <div
-                                  key={`${item.id}-${idx}`}
-                                  className={`flex items-center text-sm pl-6 py-1 group hover:${
-                                    theme === "dark"
-                                      ? "bg-gray-600"
-                                      : "bg-gray-50"
-                                  } rounded ${
-                                    theme === "dark"
-                                      ? "text-gray-200"
-                                      : "text-black"
-                                  }`}
-                                >
-                                  {/* Bullet point */}
-                                  <div
-                                    className={`w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0 ${
-                                      theme === "dark"
-                                        ? "bg-gray-300"
-                                        : "bg-dark1"
-                                    }`}
-                                  ></div>
-
-                                  {/* Item name */}
-                                  {editingState &&
-                                  editingState.payerId === payer &&
-                                  editingState.debtorId === debtor &&
-                                  editingState.itemIndex === idx &&
-                                  editingState.field === "name" ? (
-                                    <ClickInput
-                                      value={editingState.value}
-                                      onChange={(value) =>
-                                        setEditingState({
-                                          ...editingState,
-                                          value,
-                                        })
-                                      }
-                                      onSave={() => {
-                                        saveEditedExpense();
-                                        setEditingState(null);
-                                      }}
-                                      onCancel={() => setEditingState(null)}
-                                      minWidth={100}
-                                      className="mr-3"
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <span
-                                      className={`mr-3 cursor-pointer ${
-                                        theme === "dark"
-                                          ? "text-gray-300 hover:text-white"
-                                          : "text-gray-600 hover:text-black"
-                                      }`}
-                                      onClick={() =>
-                                        startEditing(
-                                          payer,
-                                          debtor,
-                                          idx,
-                                          "name",
-                                          item.itemName
-                                        )
-                                      }
-                                    >
-                                      {item.itemName}
-                                    </span>
-                                  )}
-
-                                  {/* Amount */}
-                                  {editingState &&
-                                  editingState.payerId === payer &&
-                                  editingState.debtorId === debtor &&
-                                  editingState.itemIndex === idx &&
-                                  editingState.field === "amount" ? (
-                                    <ClickInput
-                                      value={editingState.value}
-                                      onChange={(value) =>
-                                        setEditingState({
-                                          ...editingState,
-                                          value,
-                                        })
-                                      }
-                                      onSave={() => {
-                                        saveEditedExpense();
-                                        setEditingState(null);
-                                      }}
-                                      onCancel={() => setEditingState(null)}
-                                      minWidth={60}
-                                      className="ml-auto"
-                                      textAlign="right"
-                                      type="text"
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <span
-                                      className={`ml-auto cursor-pointer ${
-                                        theme === "dark"
-                                          ? "text-gray-300 hover:text-white"
-                                          : "text-gray-600 hover:text-black"
-                                      }`}
-                                      onClick={() =>
-                                        startEditing(
-                                          payer,
-                                          debtor,
-                                          idx,
-                                          "amount",
-                                          item.amount.toFixed(2)
-                                        )
-                                      }
-                                    >
-                                      ${item.amount.toFixed(2)}
-                                    </span>
-                                  )}
-
-                                  {/* Delete button */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRemoveItem(item);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 ml-2"
-                                  >
-                                    <X size={16} />
-                                  </button>
-                                </div>
-                              )
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
           </div>
-        </>
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          No expenses found. Add an expense to see the breakdown.
+        )}
+
+        {/* Expense breakdown by person */}
+        <div className="flex flex-row flex-wrap gap-4">
+          {Object.entries(expenseSummary)
+            .filter(([_, data]) =>
+              Object.values((data as any).isOwedBy).some(
+                (debt: any) => debt.total > 0
+              )
+            )
+            .map(([payer, data]) => (
+              <div
+                key={payer}
+                className={`rounded-xl p-4 shadow-sm w-fit h-fit ${
+                  theme === "dark"
+                    ? "bg-gray-800 border border-gray-700 text-white"
+                    : "bg-white border border-gray-100 text-black"
+                }`}
+              >
+                <div className="flex items-center mb-3">
+                  <ProfileFrame username={payer} size={32} />
+                  <span
+                    className={`ml-2 font-medium ${
+                      theme === "dark" ? "text-white" : "text-black"
+                    }`}
+                  >
+                    {payer}
+                  </span>
+                  <span
+                    className={`ml-auto text-sm ${
+                      theme === "dark" ? "text-gray-300" : "text-gray-500"
+                    }`}
+                  >
+                    paid ${(data as any).paid.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {Object.entries((data as any).isOwedBy)
+                    .filter(([_, debtData]) => (debtData as any).total > 0)
+                    .map(([debtor, debtData]) => (
+                      <div
+                        key={debtor}
+                        className={`rounded-lg p-3 ${
+                          theme === "dark"
+                            ? "bg-gray-700 border border-gray-600"
+                            : "bg-gray-50 border border-gray-100"
+                        }`}
+                      >
+                        <div className="flex items-center mb-2">
+                          <ProfileFrame username={debtor} size={24} />
+                          <span
+                            className={`mx-2 text-sm ${
+                              theme === "dark"
+                                ? "text-gray-200"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            {debtor}
+                          </span>
+                          <span
+                            className={`ml-auto text-sm font-medium ${
+                              theme === "dark" ? "text-white" : "text-dark1"
+                            }`}
+                          >
+                            owes ${(debtData as any).total.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          {(debtData as any).items.map(
+                            (item: any, idx: number) => (
+                              <div
+                                key={`${item.id}-${idx}`}
+                                className={`flex items-center text-sm pl-6 py-1 group hover:${
+                                  theme === "dark"
+                                    ? "bg-gray-600"
+                                    : "bg-gray-50"
+                                } rounded ${
+                                  theme === "dark"
+                                    ? "text-gray-200"
+                                    : "text-black"
+                                }`}
+                              >
+                                {/* Bullet point */}
+                                <div
+                                  className={`w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0 ${
+                                    theme === "dark"
+                                      ? "bg-gray-300"
+                                      : "bg-dark1"
+                                  }`}
+                                ></div>
+
+                                {/* Item name */}
+                                {editingState &&
+                                editingState.payerId === payer &&
+                                editingState.debtorId === debtor &&
+                                editingState.itemIndex === idx &&
+                                editingState.field === "name" ? (
+                                  <ClickInput
+                                    value={editingState.value}
+                                    onChange={(value) =>
+                                      setEditingState({
+                                        ...editingState,
+                                        value,
+                                      })
+                                    }
+                                    onSave={() => {
+                                      saveEditedExpense();
+                                      setEditingState(null);
+                                    }}
+                                    onCancel={() => setEditingState(null)}
+                                    minWidth={100}
+                                    className="mr-3"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span
+                                    className={`mr-3 cursor-pointer ${
+                                      theme === "dark"
+                                        ? "text-gray-300 hover:text-white"
+                                        : "text-gray-600 hover:text-black"
+                                    }`}
+                                    onClick={() =>
+                                      startEditing(
+                                        payer,
+                                        debtor,
+                                        idx,
+                                        "name",
+                                        item.itemName
+                                      )
+                                    }
+                                  >
+                                    {item.itemName}
+                                  </span>
+                                )}
+
+                                {/* Amount */}
+                                {editingState &&
+                                editingState.payerId === payer &&
+                                editingState.debtorId === debtor &&
+                                editingState.itemIndex === idx &&
+                                editingState.field === "amount" ? (
+                                  <ClickInput
+                                    value={editingState.value}
+                                    onChange={(value) =>
+                                      setEditingState({
+                                        ...editingState,
+                                        value,
+                                      })
+                                    }
+                                    onSave={() => {
+                                      saveEditedExpense();
+                                      setEditingState(null);
+                                    }}
+                                    onCancel={() => setEditingState(null)}
+                                    minWidth={60}
+                                    className="ml-auto"
+                                    textAlign="right"
+                                    type="text"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span
+                                    className={`ml-auto cursor-pointer ${
+                                      theme === "dark"
+                                        ? "text-gray-300 hover:text-white"
+                                        : "text-gray-600 hover:text-black"
+                                    }`}
+                                    onClick={() =>
+                                      startEditing(
+                                        payer,
+                                        debtor,
+                                        idx,
+                                        "amount",
+                                        item.amount.toFixed(2)
+                                      )
+                                    }
+                                  >
+                                    ${item.amount.toFixed(2)}
+                                  </span>
+                                )}
+
+                                {/* Delete button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveItem(item);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 ml-2"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))}
         </div>
-      )}
-    </div>
+      </div>
+
+      {/* Payment Confirmation Modal */}
+      <PaymentConfirmation
+        isOpen={paymentConfirmation.isOpen}
+        onClose={handleClosePaymentConfirmation}
+        payee={paymentConfirmation.payee}
+        amount={paymentConfirmation.amount}
+        groupId={groupId}
+        expenses={reduxExpenses}
+      />
+    </>
   );
 };
 

@@ -219,13 +219,12 @@ export const groupSlice = createSlice({
       state,
       action: PayloadAction<{
         groupId: string;
-        expense: any; // Use any for the input to handle legacy code
+        expense: any;
         keepEventOpen?: boolean;
       }>
     ) => {
       const { groupId, expense, keepEventOpen } = action.payload;
 
-      // Log expense addition with emoji
       console.log(
         `💰 Adding expense: ${expense.itemName} ($${
           expense.amount
@@ -233,22 +232,23 @@ export const groupSlice = createSlice({
       );
 
       if (state.groups[groupId] && state.groups[groupId].currentEvent) {
-        // Create a new expense object that conforms to the Expense interface
+        // Create a new expense object that matches the Expense interface
         const newExpense = {
           id: expense.id || `temp-${Date.now()}`,
           itemName: expense.itemName || "Expense",
           amount: expense.amount,
           addedBy: expense.addedBy || expense.paidBy || "Unknown",
           paidBy: expense.paidBy || expense.addedBy || "Unknown",
-          debtor: expense._debtor || "",
+          debtor: expense._debtor || expense.debtor || "",
           splitBetween: expense.splitBetween || [],
           date: expense.date || new Date().toISOString(),
+          _debtor: expense._debtor,
+          _splitBetween: expense._splitBetween
         };
 
-        state.groups[groupId].currentEvent!.expenses = [
-          ...state.groups[groupId].currentEvent!.expenses,
-          newExpense,
-        ];
+        // Update the expenses array with type safety
+        const currentExpenses = state.groups[groupId].currentEvent!.expenses || [];
+        state.groups[groupId].currentEvent!.expenses = [...currentExpenses, newExpense];
 
         if (keepEventOpen) {
           state.groups[groupId].keepEventOpen = true;

@@ -900,11 +900,16 @@ const initializeSocket = (server) => {
                 const expenseIndex = expenses.findIndex(exp => exp.id === expenseId);
 
                 if (expenseIndex === -1) {
-                    console.log('Expense not found:', expenseId);
+                    console.log('Expense not found with ID:', expenseId);
+                    console.log('This might be a generated ID. Checking all expenses...');
+
+                    // If we can't find the expense by ID, log all expense IDs for debugging
+                    console.log('All expense IDs:', expenses.map(exp => exp.id));
                     return;
                 }
 
-                console.log('Found expense at index:', expenseIndex);
+                console.log('Found expense at index:', expenseIndex, 'with ID:', expenseId);
+                console.log('Expense details:', expenses[expenseIndex]);
 
                 // Remove the expense from the array
                 expenses.splice(expenseIndex, 1);
@@ -914,12 +919,28 @@ const initializeSocket = (server) => {
                     'currentEvent.expenses': expenses
                 });
 
-                console.log('Updated expenses:', expenses);
+                console.log('Updated expenses array length:', expenses.length);
+
+                // Get all users in the group to notify them individually
+                const users = groupData.users || [];
 
                 // Notify all group members with the complete updated expenses array
+                // First, emit to the group room for users currently viewing the group
                 io.to(groupId).emit('expenses-updated', {
                     groupId,
                     expenses
+                });
+
+                // Then, emit to each user individually to ensure they all get the update
+                // even if they're not currently in the group room
+                users.forEach(user => {
+                    if (user && user.username) {
+                        console.log(`Notifying user ${user.username} about expense update in group ${groupId}`);
+                        io.to(user.username).emit('expenses-updated', {
+                            groupId,
+                            expenses
+                        });
+                    }
                 });
             } catch (error) {
                 console.error('Error removing expense item:', error);
@@ -1132,7 +1153,7 @@ const initializeSocket = (server) => {
                 const { chatId, userId } = data;
                 const isGroupChat = chatId.startsWith('group_');
                 const actualChatId = isGroupChat ? chatId.replace('group_', '') : chatId;
-                
+
                 console.log(`📱 Processing read receipt:`, { chatId, userId, isGroupChat, actualChatId });
 
                 if (isGroupChat) {
@@ -1161,11 +1182,11 @@ const initializeSocket = (server) => {
 
                         if (messageData.senderId !== userId) {
                             const readBy = messageData.readBy || [];
-                            
+
                             if (!readBy.includes(userId)) {
                                 const updatedReadBy = [...readBy, userId];
                                 console.log(`Updating message ${doc.id} readBy:`, updatedReadBy);
-                                
+
                                 batch.update(doc.ref, {
                                     readBy: updatedReadBy,
                                     status: 'read'
@@ -1205,11 +1226,11 @@ const initializeSocket = (server) => {
                         .get();
 
                     const batch = db.batch();
-                    
+
                     messagesSnapshot.forEach(doc => {
                         const messageData = doc.data();
                         const readBy = messageData.readBy || [];
-                        
+
                         if (!readBy.includes(userId)) {
                             const updatedReadBy = [...readBy, userId];
                             batch.update(doc.ref, {
