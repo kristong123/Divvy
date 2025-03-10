@@ -1766,72 +1766,42 @@ const getLastMessageId = (messages: Message[]): string | null => {
   return lastMessage?.id || null;
 };
 
-// Update the markMessagesAsRead function to handle all messages up to the last one
+// Update the markMessagesAsRead function to use the correct action
 export const markMessagesAsRead = (chatId: string, userId: string, messages: Message[]) => {
   const socket = getSocket();
   
-  // For group messages
-  if (chatId.startsWith('group_')) {
-    const groupId = chatId.replace('group_', '');
-    socket.emit('mark-messages-read', {
-      groupId,
-      userId,
-      messageIds: messages.map(m => m.id)
-    });
-  } else {
-    // For direct messages (existing code)
-    const lastMessageId = getLastMessageId(messages);
-    if (!lastMessageId) return;
+  messages.forEach((message, index) => {
+    const isLatest = index === messages.length - 1;
+    const readBy = message.readBy || [];
     
-    socket.emit('mark-messages-read', {
-      chatId,
-      userId,
-      messageId: lastMessageId
-    });
-  }
-};
+    if (!readBy.includes(userId)) {
+      socket.emit('mark-message-read', {
+        chatId,
+        messageId: message.id,
+        userId
+      });
 
-// Update the socket event handler for message-read events
-socket.on('message-read', (data: { 
-  chatId: string, 
-  messageId: string,
-  messageIds?: string[],
-  readBy: string[] 
-}) => {
-  console.log('👀 Message read event received:', data);
-  
-  const isGroupMessage = data.chatId.startsWith('group_');
-  const normalizedChatId = isGroupMessage ? data.chatId.replace('group_', '') : data.chatId;
-  
-  // Update the read status for all messages
-  if (data.messageIds) {
-    data.messageIds.forEach(messageId => {
-      if (isGroupMessage) {
+      // Use groupActions for group messages
+      if (chatId.startsWith('group_')) {
         store.dispatch(
           groupActions.updateMessageReadStatus({
-            groupId: normalizedChatId,
-            messageId,
-            readBy: data.readBy
-          } as any)
-        );
-      } else {
-        store.dispatch(
-          updateMessageReadStatus({
-            chatId: data.chatId,
-            messageId,
-            readBy: data.readBy
+            groupId: chatId.replace('group_', ''),
+            messageId: message.id,
+            readBy: [...readBy, userId],
+            isLatest
           })
         );
       }
-    });
-  }
-});
+    }
+  });
+};
 
-// Update the loadReadReceipts function to handle last read message
+// Update the loadReadReceipts function to use the groupId parameter
 export const loadReadReceipts = (groupId: string): Record<string, string[]> => {
   try {
-    // For now, return an empty object as we'll implement the actual storage later
-    return {};
+    const key = `readReceipts_${groupId}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : {};
   } catch (error) {
     console.error('Error loading read receipts:', error);
     return {};

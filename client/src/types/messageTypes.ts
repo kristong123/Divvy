@@ -44,3 +44,15 @@ export interface FriendRequestEvent {
   senderProfile?: string | null;
   recipientProfile?: string | null;
 }
+
+export interface Expense {
+  id: string;
+  itemName: string;
+  amount: number;
+  addedBy: string;
+  date: string;
+  debtor?: string;
+  splitBetween?: string[];
+  _debtor?: string;
+  _splitBetween?: string[];
+}
