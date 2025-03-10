@@ -29,13 +29,11 @@ import GroupMembers from "../groupchats/GroupMembers";
 import InviteModal from "../modals/GroupInviteModal";
 import { createSelector } from "@reduxjs/toolkit";
 import * as groupActions from "../../store/slice/groupSlice";
-import { Event, Group } from "../../types/groupTypes";
 import GroupInvite from "../groupchats/GroupInvite";
 import AddEventButton from "../groupchats/events/AddEventButton";
 import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
 import ClickInput from "./ClickInput";
-import { forceRefreshGroupImages } from "../../services/imageUploadService";
 import {useTheme} from '../../context/ThemeContext';
 
 interface ChatViewProps {
@@ -50,32 +48,32 @@ interface ChatViewProps {
   };
 }
 
-// Add interface for group data
-interface GroupJoinData {
-  groupId: string;
-  username?: string; // Add username property
-  group: {
-    id: string;
-    name: string;
-    users: Array<{
-      username: string;
-      profilePicture: string | null;
-      isAdmin: boolean;
-      venmoUsername?: string;
-    }>;
-    currentEvent?: Event;
-    // add other group properties you need
-  };
-}
+// // Add interface for group data
+// interface GroupJoinData {
+//   groupId: string;
+//   username?: string; // Add username property
+//   group: {
+//     id: string;
+//     name: string;
+//     users: Array<{
+//       username: string;
+//       profilePicture: string | null;
+//       isAdmin: boolean;
+//       venmoUsername?: string;
+//     }>;
+//     currentEvent?: Event;
+//     // add other group properties you need
+//   };
+// }
 
-// Add this interface near the top of the file with other interfaces
-interface GroupUpdateData {
-  groupId: string;
-  name?: string;
-  imageUrl?: string;
-  updatedBy?: string;
-  members?: string[];
-}
+// // Add this interface near the top of the file with other interfaces
+// interface GroupUpdateData {
+//   groupId: string;
+//   name?: string;
+//   imageUrl?: string;
+//   updatedBy?: string;
+//   members?: string[];
+// }
 
 
 // Create a stable selector outside the component
@@ -972,32 +970,32 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   // Add these state variables at the top of your component
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
-  // Add this helper function to get reader details
-  const getReadDetails = (message: Message) => {
-    if (!message.readBy) return { readers: [], status: "Sent" };
+  // // Add this helper function to get reader details
+  // const getReadDetails = (message: Message) => {
+  //   if (!message.readBy) return { readers: [], status: "Sent" };
     
-    const readByOthers = message.readBy.filter(id => id !== currentUser);
+  //   const readByOthers = message.readBy.filter(id => id !== currentUser);
     
-    if (readByOthers.length === 0) return { readers: [], status: "Sent" };
+  //   if (readByOthers.length === 0) return { readers: [], status: "Sent" };
     
-    return {
-      readers: readByOthers,
-      status: "Seen"
-    };
-  };
+  //   return {
+  //     readers: readByOthers,
+  //     status: "Seen"
+  //   };
+  // };
 
-  // Update the isLastMessageFromSender function
-  const isLastMessageFromSender = (messages: Message[], index: number) => {
-    const currentMessage = messages[index];
+  // // Update the isLastMessageFromSender function
+  // const isLastMessageFromSender = (messages: Message[], index: number) => {
+  //   const currentMessage = messages[index];
     
-    // Look at subsequent messages to find the next one from the same sender
-    for (let i = index + 1; i < messages.length; i++) {
-      if (messages[i].senderId === currentMessage.senderId) {
-        return false;
-      }
-    }
-    return true;
-  };
+  //   // Look at subsequent messages to find the next one from the same sender
+  //   for (let i = index + 1; i < messages.length; i++) {
+  //     if (messages[i].senderId === currentMessage.senderId) {
+  //       return false;
+  //     }
+  //   }
+  //   return true;
+  // };
 
   // Update the renderMessages function
   const renderMessages = (messages: Message[]) => {
@@ -1048,8 +1046,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                     <div className={clsx(
                       "flex flex-col p-3 w-fit rounded-xl",
                       theme === "dark" 
-                        ? "bg-gray-700 text-white" // Match receiver's dark mode color
-                        : "bg-gray-200 text-black" // Keep existing light mode color
+                        ? "bg-gray-700 text-white"
+                        : "bg-gray-200 text-black"
                     )}>
                       <span className={clsx(
                         "text-sm font-semibold",
@@ -1066,8 +1064,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                       groupId={message.groupId}
                       groupName={message.groupName}
                       invitedBy={message.invitedBy || message.senderId}
-                      onAccept={(inviteId) => {
-                        // After successful acceptance, you might want to update the message status
+                      onAccept={() => {
+                        // After successful acceptance, update the message status
                         const updatedMessage = { ...message, status: 'accepted' };
                         if (chat.isGroup) {
                           dispatch(

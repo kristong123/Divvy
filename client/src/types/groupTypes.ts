@@ -8,11 +8,14 @@ export interface GroupMember {
 }
 
 export interface Expense {
-  id: string;
-  itemName: string;
+  id?: string;
+  item: string;
   amount: number;
   addedBy: string;
-  date?: string;
+  paidBy: string;
+  debtor: string;
+  splitBetween: string[];
+  timestamp?: Date | string;
 }
 
 export interface Event {

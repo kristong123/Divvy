@@ -33,10 +33,10 @@ const EventDetailsView: React.FC<EventDetailsProps> = ({
 
   const totalAmount = React.useMemo(() => {
     return expenses.reduce((sum, expense) => {
-      // Skip expenses where the current user is both the payer and debtor
+      // Skip expenses where the current user is both the payer and the one who paid
       if (
         expense.addedBy === currentUser &&
-        (expense as any)._debtor === currentUser
+        expense.paidBy === currentUser
       ) {
         return sum;
       }

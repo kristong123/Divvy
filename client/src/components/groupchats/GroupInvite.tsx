@@ -276,11 +276,8 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
       // Only call onAccept if the API call was successful
       if (response.status === 200) {
         console.log(`Successfully joined group ${groupId}`);
-        try {
-          onAccept && onAccept(id);
-        } catch (callbackError) {
-          console.error("Error in onAccept callback:", callbackError);
-          // Don't revert status on callback errors
+        if (onAccept) {
+          onAccept(id);
         }
 
         // Don't show a toast notification here - it will be shown by the socket event handler
