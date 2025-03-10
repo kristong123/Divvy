@@ -25,8 +25,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
   const groups = useSelector((state: RootState) => state.groups.groups);
 
   const themeButton = clsx(
-    'flex items-center gap-2 mt-4 mx-auto p-2 border rounded-lg transition-all duration-300',
-    'hover:bg-gray-200 dark:hover:bg-gray-700'
+    'flex items-center gap-2 mx-auto p-2 border rounded-lg transition-all duration-300',
+    'hover:bg-gray-200 dark:hover:bg-gray-700',
+    'mb-4'
   );
 
   useEffect(() => {
@@ -79,9 +80,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
               aria-label="Notifications"
             >
               <div className="relative">
-                <Bell className={clsx("h-8 w-8", activeSection === 'notifications' ? 'stroke-dark1' : 'stroke-black')}/>
+                <Bell className={clsx(
+                  "h-8 w-8", 
+                  activeSection === 'notifications' 
+                    ? 'stroke-[#57E3DC]' 
+                    : theme === "dark" ? 'stroke-white' : 'stroke-black'
+                )}/>
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-dark1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-[#57E3DC] text-black text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -91,13 +97,23 @@ const Sidebar: React.FC<SidebarProps> = ({ onChatSelect, onHomeClick }) => {
               onClick={() => setActiveSection('friends')}
               className="m-auto transition-all duration-300 hover:scale-110"
             >
-              <UsersRound className={clsx("h-8 w-8", activeSection === 'friends' ? 'stroke-dark1' : 'stroke-black')}/>
+              <UsersRound className={clsx(
+                "h-8 w-8", 
+                activeSection === 'friends' 
+                  ? 'stroke-[#57E3DC]' 
+                  : theme === "dark" ? 'stroke-white' : 'stroke-black'
+              )}/>
             </button>
             <button 
               onClick={() => setActiveSection('requests')}
               className="m-auto transition-all duration-300 hover:scale-110"
             >
-              <UserRoundPlus className={clsx("h-8 w-8", activeSection === 'requests' ? 'stroke-dark1' : 'stroke-black')}/>
+              <UserRoundPlus className={clsx(
+                "h-8 w-8", 
+                activeSection === 'requests' 
+                  ? 'stroke-[#57E3DC]' 
+                  : theme === "dark" ? 'stroke-white' : 'stroke-black'
+              )}/>
             </button>
           </div>
 

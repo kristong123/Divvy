@@ -18,8 +18,10 @@ import {
   getSocket,
   showUniqueToast,
 } from "../../services/socketService";
+import { useTheme } from '../../context/ThemeContext';
 
 const Requests: React.FC = () => {
+  const { theme } = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const username = useSelector((state: RootState) => state.user.username);
   const pendingRequests = useSelector(
@@ -48,7 +50,8 @@ const Requests: React.FC = () => {
 
   const sectionTitle = clsx(
     // Typography
-    "text-sm font-bold text-black"
+    "text-sm font-bold",
+    theme === "dark" ? "text-white" : "text-black"
   );
 
   const addFriendForm = clsx(
@@ -60,24 +63,34 @@ const Requests: React.FC = () => {
     // Layout
     "w-full",
     // Border
-    "border-2 border-gray-300",
+    theme === "dark" 
+      ? "border-2 border-gray-600 bg-gray-700" 
+      : "border-2 border-gray-300 bg-white",
     "rounded-md",
     // Spacing
     "p-1 mb-0 mt-auto",
     // Typography
-    "text-black",
+    theme === "dark" ? "text-white" : "text-black",
+    // Placeholder
+    theme === "dark" ? "placeholder-gray-400" : "placeholder-gray-500",
     // Focus & Hover
-    "focus:border-dark1",
-    "hover:border-dark2",
+    theme === "dark"
+      ? "focus:border-[#57E3DC] hover:border-gray-500"
+      : "focus:border-dark1 hover:border-dark2",
     // Transitions
     "transition-all duration-300 ease-smooth"
   );
 
   const requestItem = clsx(
     // Layout
-    "row text-sm text-black",
+    "row text-sm",
+    // Typography
+    theme === "dark" ? "text-white" : "text-black",
     // Spacing
-    "mb-2"
+    "mb-2",
+    // Hover effect
+    theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-50",
+    "rounded-lg p-2 transition-colors"
   );
 
   const userInfo = clsx(
@@ -87,7 +100,8 @@ const Requests: React.FC = () => {
 
   const usernameStyle = clsx(
     // Spacing
-    "ml-2"
+    "ml-2",
+    theme === "dark" ? "text-gray-200" : "text-black"
   );
 
   const actionButtons = clsx(
@@ -99,7 +113,9 @@ const Requests: React.FC = () => {
 
   const acceptButton = clsx(
     // Color
-    "text-green-500 hover:text-green-600",
+    theme === "dark" 
+      ? "text-green-400 hover:text-green-300"
+      : "text-green-500 hover:text-green-600",
     // Transitions
     "transition-colors duration-300 ease-smooth",
     "hover:scale-110 transform"
@@ -107,14 +123,17 @@ const Requests: React.FC = () => {
 
   const declineButton = clsx(
     // Color
-    "text-red-500 hover:text-red-600"
+    theme === "dark"
+      ? "text-red-400 hover:text-red-300"
+      : "text-red-500 hover:text-red-600"
   );
 
   const statusText = clsx(
     // Layout
     "ml-2",
     // Typography
-    "text-xs text-gray-500 italic"
+    "text-xs italic",
+    theme === "dark" ? "text-gray-400" : "text-gray-500"
   );
 
   // Avatar container style with colored backdrop
@@ -330,7 +349,7 @@ const Requests: React.FC = () => {
           />
         </form>
       </div>
-      <p className="mt-4 text-sm font-bold text-black">
+      <p className={clsx("mt-4", sectionTitle)}>
         Friend Requests ({actualPendingCount})
       </p>
       <div className="mt-2">
@@ -354,7 +373,6 @@ const Requests: React.FC = () => {
                       className={avatarImage}
                       onError={(e) => {
                         e.currentTarget.src = "";
-                        // Fallback to ProfileFrame if image fails to load
                         e.currentTarget.style.display = "none";
                         e.currentTarget.parentElement?.nextElementSibling?.classList.remove(
                           "hidden"
@@ -385,7 +403,7 @@ const Requests: React.FC = () => {
             </div>
           ))}
       </div>
-      <p className="mt-4 text-sm font-bold text-black">
+      <p className={clsx("mt-4", sectionTitle)}>
         Sent Requests ({actualSentCount})
       </p>
       <div className="mt-2">
@@ -411,7 +429,6 @@ const Requests: React.FC = () => {
                       className={avatarImage}
                       onError={(e) => {
                         e.currentTarget.src = "";
-                        // Fallback to ProfileFrame if image fails to load
                         e.currentTarget.style.display = "none";
                         e.currentTarget.parentElement?.nextElementSibling?.classList.remove(
                           "hidden"
