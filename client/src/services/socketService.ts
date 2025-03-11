@@ -1,4 +1,4 @@
-import { io } from "socket.io-client";
+import io from "socket.io-client";
 import { SOCKET_URL, BASE_URL } from "../config/api";
 import { store } from "../store/store";
 import {
@@ -1313,9 +1313,10 @@ export const sendMessage = async (
       type: mutableData.type!,
       readBy: mutableData.senderId === 'system' ? [] : [mutableData.senderId] // Don't track read status for system messages
     };
-    
+    console.log("new message created")
     // Add attachments if they exist
     if (mutableData.attachments) {
+      console.log("Image found");
       fullMessage.attachments = mutableData.attachments;
     }
     

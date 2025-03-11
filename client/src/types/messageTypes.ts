@@ -12,12 +12,12 @@ export interface Message {
   content: string;
   timestamp: string;
   status: string;
-  type: "text" | "group-invite" | "system";
+  type: "text" | "group-invite" | "system" | "image";
   readBy: string[];
   groupId?: string;
   groupName?: string;
   invitedBy?: string;
-  attachments?: Attachment[];
+  attachments?: Attachment;
 }
 
 export interface SocketMessageEvent {

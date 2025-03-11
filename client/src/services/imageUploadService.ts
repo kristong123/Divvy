@@ -6,7 +6,8 @@ import { store } from "../store/store";
 import * as groupActions from "../store/slice/groupSlice";
 import { updateProfilePicture, forceProfileRefresh } from "../store/slice/userSlice";
 import { GroupMember } from "../types/groupTypes";
-
+import {ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from "../config/firebase";
 /**
  * Upload a profile picture for a user
  * @param file The image file to upload
@@ -232,7 +233,6 @@ export const forceRefreshGroupImages = (groupId: string, imageUrl: string) => {
       }
     });
   };
-  
   // Try immediately
   updateAllGroupImages();
   
@@ -242,3 +242,40 @@ export const forceRefreshGroupImages = (groupId: string, imageUrl: string) => {
   // And again after a longer delay
   setTimeout(updateAllGroupImages, 500);
 }; 
+
+/**
+ * Uploads a file to Firebase Storage and returns the download URL
+ * @param file The file to upload
+ * @returns Promise with the download URL
+ */
+export const uploadFile = async (file: File): Promise<string> => {
+    const date = new Date();
+    const storageRef = ref(storage, `image/${date.getTime()}_${file.name}`);
+    
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    return new Promise((resolve, reject) => {
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                // You can handle progress updates here if needed
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                console.log('Upload is ' + progress + '% done');
+            },
+            (error) => {
+                // Handle unsuccessful uploads
+                console.error('Upload error:', error);
+                reject("Failed to upload file");
+            },
+            async () => {
+                try {
+                    // Get the download URL after successful upload
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    resolve(downloadURL);
+                } catch (error) {
+                    console.error('Error getting download URL:', error);
+                    reject("Failed to get download URL");
+                }
+            }
+        );
+    });
+};

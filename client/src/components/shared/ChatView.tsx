@@ -36,6 +36,8 @@ import EventDetailsView from "../groupchats/events/EventDetailsView";
 import { markAsRead } from "../../store/slice/notificationsSlice";
 import ClickInput from "./ClickInput";
 import { useTheme } from "../../context/ThemeContext";
+import { uploadFile } from "../../services/imageUploadService";
+import ImageUploader from "./ImageUploader";
 
 interface ChatViewProps {
   chat: {
@@ -307,6 +309,10 @@ const formatMessageTimestamp = (timestamp?: string): string => {
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const { theme } = useTheme();
   const [inputText, setInputText] = useState("");
+  const [img, setImg] = useState<{file: File | null, url: string}>({
+    file: null,
+    url: "",
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
 
@@ -834,6 +840,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     };
   }, [chat.id, chat.isGroup, dispatch]);
 
+
   // Update the message sending for groups
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -879,13 +886,79 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       toast.error("Failed to send message. Please try again.");
     }
   };
+ // Update the image messages
+ const handleSendImage = async () => {
+  if (!img.file) return;
+  const imgURL = await uploadFile(img.file)
+  setImg({
+    file: null,
+    url: ""
+   }); 
+  //const messageContent = await uploadFile(img.file)
+  try {
+    console.log("Handling message")
 
+    if (chat.isGroup) {
+      // For group messages, ensure the chatId is properly formatted
+      // If the chat.id already starts with 'group_', use it as is
+      // Otherwise, add the 'group_' prefix
+      const groupChatId = chat.id.startsWith("group_")
+        ? chat.id
+        : `group_${chat.id}`;
+      await sendMessage(
+        {
+          chatId: groupChatId,
+          content: imgURL,
+          senderId: currentUser,
+          type: "image",
+          attachments: {url: imgURL, type: 'image'},
+        },
+        {
+          dispatch,
+        }
+      );
+      console.log("image sent");
+
+    }
+    // For direct messages, ensure we're using the correct friendship ID
+    // The chat.id might already be the correct friendship ID, but let's make sure
+    const recipient = chat.name; // For direct messages, the chat name is the other user's username
+    const friendshipId = generateFriendshipId(currentUser, recipient);
+    await sendMessage(
+      {
+        chatId: friendshipId,
+        content: imgURL,
+        senderId: currentUser,
+        type: "image",
+        attachments: {url: imgURL, type: 'image'},
+      },
+    );
+    console.log("image sent");
+
+  } catch (error) {
+    console.error("Failed to send message:", error);
+    toast.error("Failed to send message. Please try again.");
+    }
+  };
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
+  // Allows for users to upload images
+  const handleImg = (file: File) => {
+    setImg({
+      file: file,
+      url: URL.createObjectURL(file)
+    });
+    console.log(img)
+    handleSendImage()
+  }
+  useEffect(() => {
+    console.log("Updated image state:", img);
+  }, [img]);
+  
 
   // Update the event cancellation handler
   const handleCancelEvent = () => {
@@ -1219,7 +1292,10 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                   )
                 }
               >
-                {message.content}
+                {message.attachments ? (
+                  <img src={message.attachments.url} 
+                        alt="Image" />
+                ) : message.content}
               </div>
               <MessageStatus
                 message={message}
@@ -1551,7 +1627,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           </div>
 
           <div className={inputSection}>
+            <ImageUploader 
+              onFileSelect={handleImg}
+              overlayText="+"
+            >
             <button className={plusButton}>+</button>
+            </ImageUploader>
             <input
               type="text"
               placeholder="Type a message..."
