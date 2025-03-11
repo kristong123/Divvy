@@ -44,87 +44,86 @@ Currently with this beta, we implemented the core features of our messaging app.
 
 ## Getting Started
 
+### Prerequisites
+- Node.js (v16 or higher)
+- npm (v8 or higher)
+- A Firebase project with Firestore enabled
+- A Cloudinary account for image uploads
+
 ### Installation
 
 1. Clone the repository
 
 ```bash
-git clone [repository-url]
+git clone https://github.com/kristong123/Divvy.git
+cd Divvy
 ```
 
-2. Install dependencies
+2. Set up environment variables
 
 ```bash
-cd divvy
-npm install
+# For client
+cd client
+cp .env.example .env.local
+# Edit .env.local with your Firebase configuration
 ```
-
-3. Set up environment variables
-
 ```bash
+# For server
+cd ../server
 cp .env.example .env
+# Edit .env with your Firebase admin key and other configurations
 ```
 
-Fill in your API keys and configuration values in the `.env` file.
-
-### Frontend Setup (Client Folder)
-
-1. Install Dependencies
+3. Install dependencies
 
 ```bash
+# Install client dependencies
 cd client
 npm install
 ```
-
-2. Install Firebase SDK
-
 ```bash
-npm install firebase
-```
-
-3. Set Up Environment Variables
-
-- Create a .env.local file inside client/ directory and add:
-
-```bash
-NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-```
-
-4. Run the Frontend locally
-
-```bash
-npm run dev
-```
-
-### Backend Setup (Server Folder)
-
-1. Install Dependencies
-
-```bash
-cd server
+# Install server dependencies
+cd ../server
 npm install
 ```
 
-2. Set Up Environment Variables
-
-- Create a .env file in the server/ directory and add:
+4. Start the development servers
 
 ```bash
-FIREBASE_ADMIN_KEY='{
-  "type": "service_account",
-  "project_id": "your_project_id",
-  "private_key": "your_private_key"
-}'
+# Start the client (in client directory)
+npm run dev
+```
+
+```bash
+# Start the server (in server directory)
+npm run dev
+```
+
+The application will be available at:
+- Client: http://localhost:3000
+- Server: http://localhost:3002
+
+## Environment Variables
+
+#### Client (.env.local)
+```env
+VITE_FIREBASE_API_KEY=your_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain_here
+VITE_FIREBASE_PROJECT_ID=your_project_id_here
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id_here
+VITE_FIREBASE_APP_ID=your_app_id_here
+VITE_API_URL=http://localhost:3000
+```
+
+#### Server (.env)
+```env
+PORT=3002
+FIREBASE_ADMIN_KEY={"type": "service_account", ...}
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-```
-
-3. Run the Backend Locally
-
-```bash
-npm run dev
+CLIENT_URL=http://localhost:3000
 ```
 
 ## Running the System
@@ -180,6 +179,40 @@ Divvy implements several security measures:
 - Data encryption in transit and at rest
 - Regular security audits
 - Compliance with data privacy guidelines
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Environment Files Not Found**
+   If you encounter the "path not found" error when copying environment files:
+   - Manually create the `.env.local` and `.env` files in their respective directories
+   - Copy the content from the Environment Variables section above
+
+2. **Firebase Configuration**
+   - Ensure your Firebase project has Firestore enabled
+   - Make sure your Firebase Admin key is properly formatted JSON
+   - Check that your client Firebase configuration matches your project
+
+3. **Port Conflicts**
+   If ports 3000 or 3002 are already in use:
+   - Client: Edit vite.config.ts to change the port
+   - Server: Change the PORT in your .env file
+
+4. **Cloudinary Setup**
+   - Verify your Cloudinary credentials in the server .env file
+   - Ensure your Cloudinary account has upload permissions enabled
+
+5. **Real-time Features Not Working**
+   - Check that WebSocket connections are not blocked by your firewall
+   - Verify that the Socket.IO server URL matches your client configuration
+   - Ensure you're connected to a stable internet connection
+
+6. **Authentication Issues**
+   - Verify your Firebase configuration in .env.local
+   - Check that your Firebase project has Authentication enabled
+   - Make sure you've added the appropriate authentication providers in Firebase Console
+
 
 ## License
 
