@@ -225,12 +225,12 @@ Our CI configuration is defined in the following file:
 ## Workflow Overview
 The main workflow runs on push events to any branch and on pull requests to the main branch. It includes the following steps:
 
-Setup: Configures the environment with Node.js
-Install Dependencies: Installs project dependencies using npm
-Type Checking: Runs type-checking to ensure code quality
-Lint: Runs the linter to ensure code quality
-Build: Builds the application
-Unit Tests: Executes unit tests
+1. Setup: Configures the environment with Node.js
+2. Install Dependencies: Installs project dependencies using npm
+3. Type Checking: Runs type-checking to ensure code quality
+4. Lint: Runs the linter to ensure code quality
+5. Build: Builds the application
+6. Unit Tests: Executes unit tests
 
 ## Local Testing
 Before pushing your changes, you can run the same checks locally:
