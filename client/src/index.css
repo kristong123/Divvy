@@ -46,6 +46,9 @@
 
   /* Sidebar */
   .sidebar {
+    width: 14rem; /* Approximately equivalent to 9vw on a 1920px screen */
+    min-width: 12rem; /* Minimum width for smaller screens */
+    max-width: 16rem; /* Maximum width for larger screens */
     background-color: var(--sidebar-bg);
     @apply border-r transition-colors duration-300;
   }
@@ -88,11 +91,17 @@
 }
 
 /* Hide scrollbar when not in use but keep functionality */
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
+.hide-scrollbar::-webkit-scrollbar-thumb {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.hide-scrollbar:hover::-webkit-scrollbar-thumb {
+  opacity: 1;
 }
 
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  overflow: auto;
 }
