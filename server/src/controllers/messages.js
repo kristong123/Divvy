@@ -1,6 +1,7 @@
 const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
 const cloudinary = require("cloudinary").v2;
+const { standardizeTimestamp } = require("../utils/dateUtils");
 
 // Check if two users are friends
 const areUsersFriends = async (user1, user2) => {
@@ -133,7 +134,7 @@ const getMessages = async (req, res) => {
             return {
                 ...data,
                 id: doc.id,
-                timestamp: data.timestamp.toDate().toISOString()
+                timestamp: standardizeTimestamp(data.timestamp)
             };
         });
 

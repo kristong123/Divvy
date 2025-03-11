@@ -30,21 +30,46 @@ exports.getFriends = async (req, res) => {
       .where('users', 'array-contains', username)
       .get();
 
-    const friends = [];
+    // If there are no friends, return empty array immediately
+    if (friendsRef.empty) {
+      return res.status(200).json([]);
+    }
+
+    // Collect all friend usernames
+    const friendUsernames = [];
+    const friendsData = [];
+
     for (const doc of friendsRef.docs) {
       const data = doc.data();
       // Get the other user's username
       const friendUsername = data.users.find(user => user !== username);
-
-      // Fetch friend's profile data
-      const userDoc = await db.collection('users').doc(friendUsername).get();
-      const userData = userDoc.data();
-
-      friends.push({
-        username: friendUsername,
-        profilePicture: userData?.profilePicture || null
+      friendUsernames.push(friendUsername);
+      friendsData.push({
+        docId: doc.id,
+        friendUsername
       });
     }
+
+    // If there are no friend usernames (shouldn't happen but just in case)
+    if (friendUsernames.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Fetch all friend profiles in a single query
+    const userDocs = await db.collection('users').where("username", "in", friendUsernames).get();
+    const userDataMap = {};
+    userDocs.forEach(doc => {
+      userDataMap[doc.id] = doc.data();
+    });
+
+    // Map the data
+    const friends = friendsData.map(item => {
+      const userData = userDataMap[item.friendUsername] || {};
+      return {
+        username: item.friendUsername,
+        profilePicture: userData.profilePicture || null
+      };
+    });
 
     res.status(200).json(friends);
   } catch (error) {
@@ -62,23 +87,44 @@ exports.getPendingRequests = async (req, res) => {
       .where('status', '==', 'pending')
       .get();
 
-    // Create an array to hold the requests with profile pictures
-    const requests = [];
+    // If there are no pending requests, return empty array immediately
+    if (snapshot.empty) {
+      return res.json([]);
+    }
 
-    // Process each request and fetch the sender's profile picture
+    // Collect all sender usernames
+    const senderUsernames = [];
+    const requestsData = [];
+
     for (const doc of snapshot.docs) {
       const requestData = doc.data();
-
-      // Get the sender's profile data to include their profile picture
-      const senderDoc = await db.collection('users').doc(requestData.sender).get();
-      const senderData = senderDoc.exists ? senderDoc.data() : {};
-
-      requests.push({
+      senderUsernames.push(requestData.sender);
+      requestsData.push({
         id: doc.id,
-        ...requestData,
-        profilePicture: senderData.profilePicture || null
+        ...requestData
       });
     }
+
+    // If there are no sender usernames (shouldn't happen but just in case)
+    if (senderUsernames.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch all sender profiles in a single query
+    const userDocs = await db.collection('users').where("username", "in", senderUsernames).get();
+    const userDataMap = {};
+    userDocs.forEach(doc => {
+      userDataMap[doc.id] = doc.data();
+    });
+
+    // Map the data
+    const requests = requestsData.map(request => {
+      const senderData = userDataMap[request.sender] || {};
+      return {
+        ...request,
+        profilePicture: senderData.profilePicture || null
+      };
+    });
 
     res.json(requests);
   } catch (error) {
@@ -96,23 +142,44 @@ exports.getSentRequests = async (req, res) => {
       .where('status', '==', 'pending')
       .get();
 
-    // Create an array to hold the requests with profile pictures
-    const requests = [];
+    // If there are no sent requests, return empty array immediately
+    if (snapshot.empty) {
+      return res.json([]);
+    }
 
-    // Process each request and fetch the recipient's profile picture
+    // Collect all recipient usernames
+    const recipientUsernames = [];
+    const requestsData = [];
+
     for (const doc of snapshot.docs) {
       const requestData = doc.data();
-
-      // Get the recipient's profile data to include their profile picture
-      const recipientDoc = await db.collection('users').doc(requestData.recipient).get();
-      const recipientData = recipientDoc.exists ? recipientDoc.data() : {};
-
-      requests.push({
+      recipientUsernames.push(requestData.recipient);
+      requestsData.push({
         id: doc.id,
-        ...requestData,
-        profilePicture: recipientData.profilePicture || null
+        ...requestData
       });
     }
+
+    // If there are no recipient usernames (shouldn't happen but just in case)
+    if (recipientUsernames.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch all recipient profiles in a single query
+    const userDocs = await db.collection('users').where("username", "in", recipientUsernames).get();
+    const userDataMap = {};
+    userDocs.forEach(doc => {
+      userDataMap[doc.id] = doc.data();
+    });
+
+    // Map the data
+    const requests = requestsData.map(request => {
+      const recipientData = userDataMap[request.recipient] || {};
+      return {
+        ...request,
+        profilePicture: recipientData.profilePicture || null
+      };
+    });
 
     res.json(requests);
   } catch (error) {

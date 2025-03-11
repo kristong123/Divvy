@@ -2,6 +2,7 @@ const { db } = require("../config/firebase");
 const { getIO } = require('../config/socket');
 const admin = require('firebase-admin');
 const cloudinary = require('cloudinary').v2;
+const { standardizeTimestamp } = require("../utils/dateUtils");
 
 /**
  * Creates a new group chat
@@ -79,23 +80,47 @@ exports.getUserGroups = async (req, res) => {
       .where('users', 'array-contains', username)
       .get();
 
+    // If no groups found, return empty array
+    if (groupsSnapshot.empty) {
+      return res.status(200).json([]);
+    }
+
     const groups = [];
     for (const doc of groupsSnapshot.docs) {
       const groupData = doc.data();
 
-      // Fetch user details for each member including venmoUsername
-      const userPromises = groupData.users.map(async (username) => {
-        const userDoc = await db.collection("users").doc(username).get();
-        const userData = userDoc.data();
+      // Skip fetching user details if there are no users
+      if (!groupData.users || groupData.users.length === 0) {
+        const group = {
+          id: doc.id,
+          name: groupData.name,
+          admin: groupData.admin,
+          users: [],
+          createdBy: groupData.createdBy,
+          createdAt: groupData.createdAt,
+          updatedAt: groupData.updatedAt
+        };
+        groups.push(group);
+        continue;
+      }
+
+      // Fetch all user details in a single query
+      const userDocs = await db.collection("users").where("username", "in", groupData.users).get();
+      const userDataMap = {};
+      userDocs.forEach(doc => {
+        userDataMap[doc.id] = doc.data();
+      });
+
+      // Map user data from the results
+      const users = groupData.users.map(username => {
+        const userData = userDataMap[username] || {};
         return {
           username,
-          profilePicture: userData?.profilePicture || null,
-          venmoUsername: userData?.venmoUsername || null,
+          profilePicture: userData.profilePicture || null,
+          venmoUsername: userData.venmoUsername || null,
           isAdmin: username === groupData.admin
         };
       });
-
-      const users = await Promise.all(userPromises);
 
       const group = {
         id: doc.id,
@@ -147,7 +172,7 @@ exports.sendGroupMessage = async (req, res) => {
     const messageData = {
       id: messageRef.id,
       ...messageDoc.data(),
-      timestamp: messageDoc.data().timestamp.toDate().toISOString()
+      timestamp: standardizeTimestamp(messageDoc.data().timestamp)
     };
 
     res.status(201).json(messageData);
@@ -175,25 +200,8 @@ exports.getGroupMessages = async (req, res) => {
 
     const messages = messagesSnapshot.docs.map(doc => {
       const data = doc.data();
-      let timestamp;
-      try {
-        if (data.timestamp && data.timestamp.toDate) {
-          // Handle Firestore Timestamp
-          timestamp = data.timestamp.toDate().toISOString();
-        } else if (data.timestamp instanceof Date) {
-          // Handle JavaScript Date
-          timestamp = data.timestamp.toISOString();
-        } else if (typeof data.timestamp === 'string') {
-          // Handle ISO string
-          timestamp = data.timestamp;
-        } else {
-          // Fallback to current time
-          timestamp = new Date().toISOString();
-        }
-      } catch (error) {
-        console.error('Error processing timestamp:', error);
-        timestamp = new Date().toISOString();
-      }
+      // Use the standardized timestamp utility function
+      const timestamp = standardizeTimestamp(data.timestamp);
 
       return {
         ...data,
@@ -361,25 +369,35 @@ exports.getGroupDetails = async (req, res) => {
 
     const groupData = groupDoc.data();
 
-    // Fetch user details for each username in the group
-    const userPromises = groupData.users.map(async (username) => {
-      const userDoc = await db.collection("users").doc(username).get();
-      if (!userDoc.exists) {
-        return {
-          username,
-          profilePicture: null,
-          isAdmin: username === groupData.admin
-        };
-      }
-      const userData = userDoc.data();
+    // Handle case with no users
+    if (!groupData.users || groupData.users.length === 0) {
+      return res.status(200).json({
+        id: groupId,
+        name: groupData.name,
+        admin: groupData.admin,
+        users: [],
+        createdBy: groupData.createdBy,
+        createdAt: groupData.createdAt,
+        updatedAt: groupData.updatedAt
+      });
+    }
+
+    // Fetch all user details in a single query
+    const userDocs = await db.collection("users").where("username", "in", groupData.users).get();
+    const userDataMap = {};
+    userDocs.forEach(doc => {
+      userDataMap[doc.id] = doc.data();
+    });
+
+    // Map user data from the results
+    const users = groupData.users.map(username => {
+      const userData = userDataMap[username] || {};
       return {
         username,
         profilePicture: userData.profilePicture || null,
         isAdmin: username === groupData.admin
       };
     });
-
-    const users = await Promise.all(userPromises);
 
     res.status(200).json({
       groupId,
@@ -666,17 +684,21 @@ exports.joinGroup = async (req, res) => {
       }
 
       // Get user details for response
-      const userPromises = groupData.users.map(async (username) => {
-        const userDoc = await db.collection("users").doc(username).get();
-        const userData = userDoc.data();
+      const userDocs = await db.collection("users").where("username", "in", groupData.users).get();
+      const userDataMap = {};
+      userDocs.forEach(doc => {
+        userDataMap[doc.id] = doc.data();
+      });
+
+      // Map user data from the results
+      const users = groupData.users.map(username => {
+        const userData = userDataMap[username] || {};
         return {
           username,
-          profilePicture: userData?.profilePicture || null,
+          profilePicture: userData.profilePicture || null,
           isAdmin: username === groupData.admin
         };
       });
-
-      const users = await Promise.all(userPromises);
 
       // Return success with the current group data
       return res.status(200).json({
@@ -747,18 +769,48 @@ exports.joinGroup = async (req, res) => {
     const updatedGroupDoc = await groupRef.get();
     const updatedData = updatedGroupDoc.data();
 
+    // Handle case with no users (shouldn't happen here but adding for safety)
+    if (updatedData.users.length === 0) {
+      // Ensure currentEvent is included in the response
+      let currentEvent = null;
+      if (updatedData.currentEvent) {
+        currentEvent = {
+          id: updatedData.currentEvent.id || "",
+          title: updatedData.currentEvent.title || "",
+          date: updatedData.currentEvent.date || "",
+          description: updatedData.currentEvent.description || "",
+          expenses: updatedData.currentEvent.expenses || []
+        };
+      }
+
+      return res.status(200).json({
+        id: groupId,
+        name: updatedData.name,
+        admin: updatedData.admin,
+        users: [],
+        createdBy: updatedData.createdBy,
+        createdAt: updatedData.createdAt,
+        updatedAt: updatedData.updatedAt,
+        currentEvent
+      });
+    }
+
     // Fetch user details for response
-    const userPromises = updatedData.users.map(async (username) => {
-      const userDoc = await db.collection("users").doc(username).get();
-      const userData = userDoc.data();
+    const userDocs = await db.collection("users").where("username", "in", updatedData.users).get();
+    const userDataMap = {};
+    userDocs.forEach(doc => {
+      userDataMap[doc.id] = doc.data();
+    });
+
+    // Map user data from the results
+    const users = updatedData.users.map(username => {
+      const userData = userDataMap[username] || {};
       return {
         username,
-        profilePicture: userData?.profilePicture || null,
+        profilePicture: userData.profilePicture || null,
         isAdmin: username === updatedData.admin
       };
     });
-
-    const users = await Promise.all(userPromises);
 
     // Ensure currentEvent is included in the response
     const currentEvent = updatedData.currentEvent || {
@@ -999,6 +1051,7 @@ const updateGroupProfilePicture = async (req, res) => {
 exports.getGroupInvites = async (req, res) => {
   try {
     const { username } = req.params;
+    const invites = [];
 
     // Find all chat IDs where this user is a participant
     const friendsSnapshot = await db.collection('friends')
@@ -1008,8 +1061,6 @@ exports.getGroupInvites = async (req, res) => {
     const chatIds = friendsSnapshot.docs.map(doc => doc.id);
 
     // For each chat, get group invites from the messages subcollection
-    const invites = [];
-
     for (const chatId of chatIds) {
       const invitesSnapshot = await db.collection('friends')
         .doc(chatId)
@@ -1019,16 +1070,18 @@ exports.getGroupInvites = async (req, res) => {
         .where('status', '==', 'sent')
         .get();
 
-      invitesSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        invites.push({
-          id: doc.id,
-          groupId: data.groupId,
-          groupName: data.groupName,
-          invitedBy: data.invitedBy,
-          timestamp: data.timestamp.toDate().toISOString()
+      if (!invitesSnapshot.empty) {
+        invitesSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          invites.push({
+            id: doc.id,
+            groupId: data.groupId,
+            groupName: data.groupName,
+            invitedBy: data.invitedBy,
+            timestamp: standardizeTimestamp(data.timestamp)
+          });
         });
-      });
+      }
     }
 
     res.status(200).json(invites);

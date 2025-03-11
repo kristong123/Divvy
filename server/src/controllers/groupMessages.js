@@ -1,6 +1,7 @@
 const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
 const { getUserGroups, createGroup } = require("./groups");
+const { standardizeTimestamp } = require("../utils/dateUtils");
 
 // Send a message in a group chat
 const sendGroupMessage = async (req, res) => {
@@ -69,25 +70,8 @@ const getGroupMessages = async (req, res) => {
 
         const messages = messagesSnapshot.docs.map(doc => {
             const data = doc.data();
-            let timestamp;
-            try {
-                if (data.timestamp && data.timestamp.toDate) {
-                    // Handle Firestore Timestamp
-                    timestamp = data.timestamp.toDate().toISOString();
-                } else if (data.timestamp instanceof Date) {
-                    // Handle JavaScript Date
-                    timestamp = data.timestamp.toISOString();
-                } else if (typeof data.timestamp === 'string') {
-                    // Handle ISO string
-                    timestamp = data.timestamp;
-                } else {
-                    // Fallback to current time
-                    timestamp = new Date().toISOString();
-                }
-            } catch (error) {
-                console.error('Error processing timestamp:', error);
-                timestamp = new Date().toISOString();
-            }
+            // Use the standardized timestamp utility function
+            const timestamp = standardizeTimestamp(data.timestamp);
 
             return {
                 ...data,
@@ -261,25 +245,35 @@ const getGroupDetails = async (req, res) => {
 
         const groupData = groupDoc.data();
 
-        // Fetch user details for each username in the group
-        const userPromises = groupData.users.map(async (username) => {
-            const userDoc = await db.collection("users").doc(username).get();
-            if (!userDoc.exists) {
-                return {
-                    username,
-                    profilePicture: null,
-                    isAdmin: username === groupData.admin
-                };
-            }
-            const userData = userDoc.data();
+        // Handle case with no users
+        if (!groupData.users || groupData.users.length === 0) {
+            return res.status(200).json({
+                groupId,
+                name: groupData.name,
+                admin: groupData.admin,
+                users: [],
+                createdBy: groupData.createdBy,
+                createdAt: groupData.createdAt,
+                updatedAt: groupData.updatedAt
+            });
+        }
+
+        // Fetch all user details in a single query
+        const userDocs = await db.collection("users").where("username", "in", groupData.users).get();
+        const userDataMap = {};
+        userDocs.forEach(doc => {
+            userDataMap[doc.id] = doc.data();
+        });
+
+        // Map user data from the results
+        const users = groupData.users.map(username => {
+            const userData = userDataMap[username] || {};
             return {
                 username,
                 profilePicture: userData.profilePicture || null,
                 isAdmin: username === groupData.admin
             };
         });
-
-        const users = await Promise.all(userPromises);
 
         res.status(200).json({
             groupId,
@@ -468,18 +462,35 @@ const joinGroup = async (req, res) => {
         const updatedGroupDoc = await groupRef.get();
         const updatedData = updatedGroupDoc.data();
 
-        // Fetch user details for response
-        const userPromises = updatedData.users.map(async (username) => {
-            const userDoc = await db.collection("users").doc(username).get();
-            const userData = userDoc.data();
+        // Handle case with no users (shouldn't happen here but adding for safety)
+        if (!updatedData.users || updatedData.users.length === 0) {
+            return res.status(200).json({
+                groupId,
+                name: updatedData.name,
+                admin: updatedData.admin,
+                users: [],
+                createdBy: updatedData.createdBy,
+                createdAt: updatedData.createdAt,
+                updatedAt: updatedData.updatedAt
+            });
+        }
+
+        // Fetch all user details in a single query
+        const userDocs = await db.collection("users").where("username", "in", updatedData.users).get();
+        const userDataMap = {};
+        userDocs.forEach(doc => {
+            userDataMap[doc.id] = doc.data();
+        });
+
+        // Map user data from the results
+        const users = updatedData.users.map(username => {
+            const userData = userDataMap[username] || {};
             return {
                 username,
-                profilePicture: userData?.profilePicture || null,
+                profilePicture: userData.profilePicture || null,
                 isAdmin: username === updatedData.admin
             };
         });
-
-        const users = await Promise.all(userPromises);
 
         const groupResponse = {
             id: groupId,
