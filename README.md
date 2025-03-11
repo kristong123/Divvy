@@ -50,6 +50,117 @@ Currently with this beta, we implemented the core features of our messaging app.
 - A Firebase project with Firestore enabled
 - A Cloudinary account for image uploads
 
+
+#### Obtaining Required API Keys
+
+1. **Firebase Setup**:
+
+   Client Setup:
+   - Go to [Firebase Console](https://console.firebase.google.com/)
+   - Create a new project or select an existing one
+   - Enable Authentication and Firestore from the left sidebar
+   - Go to Project Settings > General
+   - Under "Your apps", click the web icon (</>)
+   - Register your app and provide a nickname (e.g., "divvy-web")
+   - Copy the provided firebaseConfig object that looks like this:
+     ```js
+     const firebaseConfig = {
+       apiKey: "xxx",
+       authDomain: "xxx",
+       projectId: "xxx",
+       storageBucket: "xxx",
+       messagingSenderId: "xxx",
+       appId: "xxx"
+     };
+     ```
+   - Paste these values into your `/client/.env.local` file, matching the variable names:
+     ```
+     VITE_FIREBASE_API_KEY=xxx
+     VITE_FIREBASE_AUTH_DOMAIN=xxx
+     # etc...
+     ```
+
+   Server Setup:
+   - In Firebase Console, go to Project Settings > Service Accounts
+   - Click "Generate New Private Key"
+   - Save the downloaded JSON file securely
+   - The file will contain a structure like this:
+     ```json
+     {
+       "type": "service_account",
+       "project_id": "your-project-id",
+       "private_key_id": "key-id",
+       "private_key": "-----BEGIN PRIVATE KEY-----\nYour long private key\n-----END PRIVATE KEY-----\n",
+       "client_email": "firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com",
+       "client_id": "123456789",
+       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+       "token_uri": "https://oauth2.googleapis.com/token",
+       "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+       "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxxxx%40your-project.iam.gserviceaccount.com"
+     }
+     ```
+   - Copy the entire contents of the JSON file and paste it as the value for FIREBASE_ADMIN_KEY in `/server/.env`
+   - Important: The JSON must be on a single line in the .env file. You can either:
+     
+     - Remove all newlines from the JSON, or
+     - Escape the newlines in the private key (replace \n with \\n)
+  
+  - Your final FIREBASE_ADMIN_KEY in .env should look like:
+     ```
+     FIREBASE_ADMIN_KEY={"type":"service_account","project_id":"xxx",...}
+     ```
+
+2. **Cloudinary Setup**:
+   - Sign up at [Cloudinary](https://cloudinary.com/users/register/free)
+   - After logging in, go to Dashboard
+   - Your credentials will be displayed in the "Account Details" section:
+     ```
+     Cloud name: xxxxx
+     API Key: 123456789012345
+     API Secret: xXxXxxXXxXxXxxXXXxxXxxXXxXxXx
+     ```
+   - Copy these values into your `/server/.env` file:
+     ```env
+     CLOUDINARY_CLOUD_NAME=your_cloud_name
+     CLOUDINARY_API_KEY=your_api_key
+     CLOUDINARY_API_SECRET=your_api_secret
+     ```
+
+  **Protecting Sensitive Data**
+  - Never commit .env files to version control
+   - Ensure your `.gitignore` file includes:
+     ```
+     # Environment files
+     .env
+     .env.local
+     .env.*.local
+     
+     # Firebase
+     firebase-debug.log
+     firebase-debug.*.log
+     firebase-adminsdk.json
+     
+     # IDE and OS files
+     .DS_Store
+     .idea/
+     .vscode/
+     ```
+### Server Overview
+
+The Divvy server handles:
+- User authentication and session management
+- Real-time messaging through Socket.IO
+- File uploads and media handling via Cloudinary
+- Group and expense management
+- API endpoints for all client-server communications
+
+Key Server Features:
+- RESTful API endpoints for user, group, and expense operations
+- WebSocket implementation for real-time updates
+- Secure file upload handling
+- Firebase Admin SDK integration for enhanced security
+- Rate limiting and request validation
+
 ### Installation
 
 1. Clone the repository
@@ -59,44 +170,39 @@ git clone https://github.com/kristong123/Divvy.git
 cd Divvy
 ```
 
-2. Set up environment variables
+2. Set up environment variables and install dependencies
 
 ```bash
-# For client
+# Setup client
 cd client
-cp .env.example .env.local
-# Edit .env.local with your Firebase configuration
-```
-```bash
-# For server
-cd ../server
-cp .env.example .env
-# Edit .env with your Firebase admin key and other configurations
-```
-
-3. Install dependencies
-
-```bash
-# Install client dependencies
-cd client
+cp .env.example .env.local  # If this fails, create .env.local manually
 npm install
-```
-```bash
-# Install server dependencies
+
+# Setup server
 cd ../server
+cp .env.example .env  # If this fails, create .env manually
 npm install
 ```
 
-4. Start the development servers
+3. Configure your environment files:
+
+For client (.env.local):
+- Get Firebase configuration from Firebase Console > Project Settings > General
+- Replace the placeholder values with your Firebase config
+
+For server (.env):
+- Add your Firebase Admin key from Firebase Console > Project Settings > Service Accounts
+- Add your Cloudinary credentials from Cloudinary Dashboard
+- Ensure the CLIENT_URL matches your frontend URL
+
+4. Start both servers:
 
 ```bash
-# Start the client (in client directory)
-npm run dev
-```
+# In one terminal (from project root)
+cd client && npm run dev
 
-```bash
-# Start the server (in server directory)
-npm run dev
+# In another terminal (from project root)
+cd server && npm run dev
 ```
 
 The application will be available at:
@@ -109,11 +215,7 @@ The application will be available at:
 ```env
 VITE_FIREBASE_API_KEY=your_api_key_here
 VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain_here
-VITE_FIREBASE_PROJECT_ID=your_project_id_here
-VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id_here
-VITE_FIREBASE_APP_ID=your_app_id_here
-VITE_API_URL=http://localhost:3000
+# etc...
 ```
 
 #### Server (.env)
