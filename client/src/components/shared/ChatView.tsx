@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import axios from "axios";
 import { BASE_URL } from "../../config/api";
 import Button from "./Button";
+import { useNavigate } from "react-router-dom";
 import {
   sendMessage,
   getSocket,
@@ -25,7 +26,7 @@ import {
 import { SocketMessageEvent, Message } from "../../types/messageTypes";
 import ProfileFrame from "./ProfileFrame";
 import EditableGroupImage from "./EditableGroupImage";
-import { UserPlus, ArrowLeft, Calendar } from "lucide-react";
+import { UserPlus, ArrowLeft, Calendar, LogOut } from "lucide-react";
 import GroupMembers from "../groupchats/GroupMembers";
 import InviteModal from "../modals/GroupInviteModal";
 import { createSelector } from "@reduxjs/toolkit";
@@ -306,8 +307,54 @@ const formatMessageTimestamp = (timestamp?: string): string => {
   });
 };
 
+// Add this interface for the confirmation modal props
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  message: string;
+}
+
+// Add the ConfirmationModal component
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  message,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className={clsx(
+        "bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md",
+        "shadow-xl transform transition-all"
+      )}>
+        <h3 className="text-lg font-medium mb-4 text-black dark:text-white">
+          {message}
+        </h3>
+        <div className="flex justify-end gap-4 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-md"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
   const [img, setImg] = useState<{file: File | null, url: string}>({
     file: null,
@@ -541,6 +588,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     );
 
   const [showInviteModal, setShowInviteModal] = useState(false);
+  // Add state for leave confirmation modal
+  const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
 
   const inviteButton = clsx(
     // Position
@@ -1378,6 +1427,32 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }
   }, [chat.id, chat.isGroup, dispatch]);
 
+  // Update the leave group handler to handle the actual leaving
+  const handleLeaveGroup = async () => {
+    try {
+      const response = await axios.delete(`${BASE_URL}/api/groups/leave`, {
+        data: {
+          groupId: chat.id,
+          userId: currentUser
+        }
+      });
+
+      if (response.status === 200) {
+        dispatch(groupActions.removeGroup(chat.id));
+        toast.success("Successfully left the group");
+        navigate("/");
+      }
+    } catch (error) {
+      console.error("Error leaving group:", error);
+      toast.error("Failed to leave group");
+    }
+  };
+
+  // Add handler for initiating the leave process
+  const initiateLeaveGroup = () => {
+    setShowLeaveConfirmation(true);
+  };
+
   return (
     <div className="flex w-full h-full">
       {showEventDetails && groupData?.currentEvent ? (
@@ -1617,6 +1692,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                 >
                   <UserPlus className="w-6 h-6 text-[#57E3DC]" />
                 </button>
+                <button
+                  className={inviteButton}
+                  onClick={initiateLeaveGroup}
+                >
+                  <LogOut className="w-6 h-6 text-red-500" />
+                </button>
               </div>
             )}
           </div>
@@ -1685,6 +1766,15 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           }}
         />
       )}
+      <ConfirmationModal
+        isOpen={showLeaveConfirmation}
+        onClose={() => setShowLeaveConfirmation(false)}
+        onConfirm={() => {
+          handleLeaveGroup();
+          setShowLeaveConfirmation(false);
+        }}
+        message="Are you sure you want to leave this group chat permanently?"
+      />
     </div>
   );
 };

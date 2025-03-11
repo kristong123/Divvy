@@ -80,6 +80,11 @@ export const groupSlice = createSlice({
 
       state.groups[action.payload.id] = newGroup;
     },
+    removeGroup: (state, action: PayloadAction<string>) => {
+      const groupId = action.payload;
+      delete state.groups[groupId];
+      delete state.messages[groupId];
+    },
     setGroups: (state, action: PayloadAction<Group[]>) => {
       const newGroups: { [key: string]: Group } = {};
       action.payload.forEach((group) => {
@@ -362,6 +367,7 @@ export const groupSlice = createSlice({
 
 export const {
   addGroup,
+  removeGroup,
   setGroups,
   setGroupMessages,
   addGroupMessage,

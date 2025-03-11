@@ -46,9 +46,9 @@
 
   /* Sidebar */
   .sidebar {
-    width: 14rem; /* Approximately equivalent to 9vw on a 1920px screen */
-    min-width: 12rem; /* Minimum width for smaller screens */
-    max-width: 16rem; /* Maximum width for larger screens */
+    width: 14rem;
+    min-width: 12rem;
+    max-width: 16rem;
     background-color: var(--sidebar-bg);
     @apply border-r transition-colors duration-300;
   }
