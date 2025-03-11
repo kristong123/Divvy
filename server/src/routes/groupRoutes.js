@@ -1,35 +1,28 @@
 const express = require("express");
-const { authenticateUser } = require("../middleware/authMiddleware");
 const {
-    createGroup,
-    getUserGroups,
+    sendGroupMessage,
+    getGroupMessages,
     addUserToGroup,
     removeUserFromGroup,
     leaveGroup,
     deleteGroup,
     getGroupDetails,
     updateGroupChat,
-    sendGroupMessage,
-    getGroupMessages,
+    createGroup,
     sendGroupInvite,
     joinGroup,
     setGroupEvent,
     checkGroupStatus,
-    updateGroupImage,
-    markGroupMessagesAsRead,
+    getUserGroups,
     getGroupInvites,
     declineGroupInvite,
-    getInviteStatus
+    getInviteStatus,
+    updateGroupImage,
+    markGroupMessagesAsRead
 } = require("../controllers/groups");
 const { upload } = require("../utils/multer");
 
 const router = express.Router();
-
-// Public routes (no authentication required)
-router.get("/:groupId/status", checkGroupStatus);
-
-// Protected routes (require Firebase authentication)
-router.use(authenticateUser);
 
 // Group management
 router.post('/create', createGroup);
@@ -52,13 +45,18 @@ router.put("/:groupId/messages/read", markGroupMessagesAsRead);
 router.post("/invite", sendGroupInvite);
 router.post("/join", joinGroup);
 router.post("/invites/decline", declineGroupInvite);
-router.get("/invites/:username", getGroupInvites);
 router.get("/invites/:inviteId/status", getInviteStatus);
 
-// Events
+// Add event routes
 router.put('/:groupId/event', setGroupEvent);
 
-// Group image
+// Add this route
+router.get("/:groupId/status", checkGroupStatus);
+
+// Add this route to fetch group invites
+router.get('/invites/:username', getGroupInvites);
+
+// Add the route for uploading group images
 router.post("/:groupId/image", upload.single('image'), updateGroupImage);
 
 module.exports = router;
