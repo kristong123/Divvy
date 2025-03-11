@@ -207,3 +207,61 @@ To incorporate new frontend tests, you will go into the client folder to access 
 
 To incorporate new backend tests, you will go into the server folder and finally you will find the test folder(for directory path, server/test). The test folder contains backend tests to ensure communication between client and server are operational. When creating a new test, you should follow the naming convention of [YOUR IMPLEMENTATION].test.js.
 
+## CI Service
+The Divvy project uses GitHub Actions for continuous integration. GitHub Actions is directly integrated with our GitHub repository, making it easy to manage our CI/CD pipeline alongside our code.
+
+## Build History
+You can find the complete build history for this project at:
+
+[GitHub Actions](https://github.com/kristong123/Divvy/actions)
+
+Click on any workflow run to see detailed logs, test results, and build artifacts.
+
+## CI Configuration File
+Our CI configuration is defined in the following file:
+
+`.github/workflows/ci.yml` - Main workflow for building and testing the application on push and pull requests
+
+## Workflow Overview
+The main workflow runs on push events to any branch and on pull requests to the main branch. It includes the following steps:
+
+Setup: Configures the environment with Node.js
+Install Dependencies: Installs project dependencies using npm
+Type Checking: Runs type-checking to ensure code quality
+Lint: Runs the linter to ensure code quality
+Build: Builds the application
+Unit Tests: Executes unit tests
+
+## Local Testing
+Before pushing your changes, you can run the same checks locally:
+```bash
+# Install dependencies
+npm install
+
+# Run linting
+npm run lint
+
+# Run tests
+npm run test
+
+# Build the application
+npm run build
+```
+## Troubleshooting
+If you encounter CI-related issues:
+
+1. Check the specific workflow run in GitHub Actions for detailed error logs
+2. Ensure your code passes all tests locally before pushing
+3. Verify that your changes adhere to the project's linting rules
+
+## Contribution Guidelines
+When contributing to this project:
+
+1. Create a new branch for your changes
+2. Make your changes and commit them
+3. Push your branch and create a pull request
+4. Wait for the CI to complete all checks
+5. Address any issues identified by the CI
+6. Request a code review
+
+The CI system will automatically run on your pull request, and maintainers will be able to see the results before merging.
