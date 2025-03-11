@@ -3,48 +3,69 @@ const { getIO } = require('../config/socket');
 const admin = require('firebase-admin');
 const cloudinary = require('cloudinary').v2;
 
+/**
+ * Creates a new group chat
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
 exports.createGroup = async (req, res) => {
   try {
-    const { name, createdBy } = req.body;
+    const { name, createdBy, includeCurrentEvent = true } = req.body;
 
-    const groupRef = await db.collection("groupChats").add({
+    // Base group data
+    const groupData = {
       name,
       createdBy,
       admin: createdBy,
       users: [createdBy],
       lastMessage: "",
       updatedAt: new Date(),
-      createdAt: new Date(),
-      currentEvent: {
+      createdAt: new Date()
+    };
+
+    // Add currentEvent field if requested
+    if (includeCurrentEvent) {
+      groupData.currentEvent = {
         id: "",
         title: "",
         date: "",
         description: "",
         expenses: []
-      }
-    });
+      };
+    }
 
-    // Get user data for response only
+    // Create the group
+    const groupRef = await db.collection("groupChats").add(groupData);
+
+    // Get user data for response
     const userDoc = await db.collection("users").doc(createdBy).get();
     const userData = userDoc.data();
 
-    res.status(201).json({
+    // Prepare response data
+    const responseData = {
       id: groupRef.id,
       name,
       createdBy,
+      admin: createdBy,
       users: [{
         username: createdBy,
         profilePicture: userData?.profilePicture || null,
         isAdmin: true
-      }],
-      currentEvent: {
+      }]
+    };
+
+    // Add currentEvent to response if included in the group
+    if (includeCurrentEvent) {
+      responseData.currentEvent = {
         id: "",
         title: "",
         date: "",
         description: "",
         expenses: []
-      }
-    });
+      };
+    }
+
+    res.status(201).json(responseData);
   } catch (error) {
     console.error("Error creating group:", error);
     res.status(500).json({ message: "Failed to create group" });
@@ -90,58 +111,6 @@ exports.getUserGroups = async (req, res) => {
   } catch (error) {
     console.error('Error fetching groups:', error);
     res.status(500).json({ message: 'Failed to fetch groups' });
-  }
-};
-
-exports.createGroupChat = async (req, res) => {
-  try {
-    const { name, createdBy } = req.body;
-
-    // Create group with just username reference
-    const groupRef = await db.collection("groupChats").add({
-      name,
-      createdBy,
-      admin: createdBy,
-      users: [createdBy],
-      lastMessage: "",
-      updatedAt: new Date(),
-      createdAt: new Date(),
-      // Add an empty currentEvent field to prevent null reference errors
-      currentEvent: {
-        id: "",
-        title: "",
-        date: "",
-        description: "",
-        expenses: []
-      }
-    });
-
-    // Get creator's data for the response only
-    const userDoc = await db.collection("users").doc(createdBy).get();
-    const userData = userDoc.data();
-
-    res.status(201).json({
-      id: groupRef.id,
-      name,
-      createdBy,
-      admin: createdBy,
-      users: [{
-        username: createdBy,
-        profilePicture: userData?.profilePicture || null,
-        isAdmin: true
-      }],
-      // Include the empty currentEvent in the response
-      currentEvent: {
-        id: "",
-        title: "",
-        date: "",
-        description: "",
-        expenses: []
-      }
-    });
-  } catch (error) {
-    console.error("Error creating group chat:", error);
-    res.status(500).json({ message: "Failed to create group chat" });
   }
 };
 

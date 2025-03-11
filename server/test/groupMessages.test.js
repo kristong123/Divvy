@@ -1,6 +1,5 @@
 const { db } = require("../src/config/firebase");
-const { 
-  createGroup,
+const {
   deleteGroup,
   updateGroupChat,
   addUserToGroup,
@@ -10,10 +9,10 @@ const {
   getGroupMessages,
   pinGroupMessage,
   getGroupDetails,
-  createGroupChat,
   sendGroupInvite,
   joinGroup
 } = require('../src/controllers/groupMessages');
+const { createGroup } = require('../src/controllers/groups');
 
 // Mock Firebase
 jest.mock('../src/config/firebase');
@@ -72,7 +71,8 @@ describe('Group Messages Tests', () => {
 
       req.body = {
         name: 'Test Group',
-        createdBy: 'testUser1'
+        createdBy: 'testUser1',
+        includeCurrentEvent: false
       };
 
       await createGroup(req, res);
@@ -82,11 +82,68 @@ describe('Group Messages Tests', () => {
         id: 'group123',
         name: 'Test Group',
         createdBy: 'testUser1',
+        admin: 'testUser1',
         users: [{
           username: 'testUser1',
           profilePicture: 'profile.jpg',
           isAdmin: true
         }]
+      });
+    });
+
+    it('should create a group with currentEvent when includeCurrentEvent is true', async () => {
+      const mockGroupRef = {
+        id: 'group123',
+        collection: jest.fn().mockReturnValue({
+          add: jest.fn().mockResolvedValue(true)
+        })
+      };
+
+      const mockUserDoc = {
+        exists: true,
+        data: () => ({ profilePicture: 'profile.jpg' })
+      };
+
+      db.collection.mockImplementation((collectionName) => {
+        if (collectionName === 'groupChats') {
+          return {
+            add: jest.fn().mockResolvedValue(mockGroupRef)
+          };
+        } else if (collectionName === 'users') {
+          return {
+            doc: jest.fn().mockReturnValue({
+              get: jest.fn().mockResolvedValue(mockUserDoc)
+            })
+          };
+        }
+      });
+
+      req.body = {
+        name: 'Test Group',
+        createdBy: 'testUser1',
+        includeCurrentEvent: true
+      };
+
+      await createGroup(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        id: 'group123',
+        name: 'Test Group',
+        createdBy: 'testUser1',
+        admin: 'testUser1',
+        users: [{
+          username: 'testUser1',
+          profilePicture: 'profile.jpg',
+          isAdmin: true
+        }],
+        currentEvent: {
+          id: "",
+          title: "",
+          date: "",
+          description: "",
+          expenses: []
+        }
       });
     });
 
@@ -549,42 +606,6 @@ describe('Group Messages Tests', () => {
     });
   });
 
-  describe('createGroupChat', () => {
-    it('should create group chat successfully', async () => {
-      const mockGroupRef = {
-        id: 'group123',
-        collection: jest.fn().mockReturnValue({
-          add: jest.fn().mockResolvedValue(true)
-        })
-      };
-
-      const mockUserDoc = {
-        exists: true,
-        data: () => ({ profilePicture: 'profile.jpg' })
-      };
-
-      db.collection.mockImplementation((collectionName) => ({
-        add: jest.fn().mockResolvedValue(mockGroupRef),
-        doc: jest.fn().mockReturnValue({
-          get: jest.fn().mockResolvedValue(mockUserDoc)
-        })
-      }));
-
-      req.body = {
-        name: 'Test Group',
-        createdBy: 'testUser1'
-      };
-
-      await createGroupChat(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        id: 'group123',
-        name: 'Test Group'
-      }));
-    });
-  });
-
   describe('addUserToGroup', () => {
     it('should add user successfully', async () => {
       const mockGroupDoc = {
@@ -916,8 +937,8 @@ describe('Group Messages Tests', () => {
       await joinGroup(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ 
-        message: 'You are already a member of this group' 
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'You are already a member of this group'
       });
     });
   });

@@ -1,42 +1,6 @@
 const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
-const { getUserGroups } = require("./groups");
-
-// Create a group chat
-const createGroupChat = async (req, res) => {
-    try {
-        const { name, createdBy } = req.body;
-
-        // Create group with just username reference
-        const groupRef = await db.collection("groupChats").add({
-            name,
-            createdBy,
-            admin: createdBy,
-            users: [createdBy],
-            lastMessage: "",
-            updatedAt: new Date(),
-            createdAt: new Date()
-        });
-
-        // Get creator's data for the response only
-        const userDoc = await db.collection("users").doc(createdBy).get();
-        const userData = userDoc.data();
-
-        res.status(201).json({
-            id: groupRef.id,
-            name,
-            createdBy,
-            users: [{
-                username: createdBy,
-                profilePicture: userData?.profilePicture || null,
-                isAdmin: true
-            }]
-        });
-    } catch (error) {
-        console.error("Error creating group chat:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
+const { getUserGroups, createGroup } = require("./groups");
 
 // Send a message in a group chat
 const sendGroupMessage = async (req, res) => {
@@ -366,41 +330,6 @@ const updateGroupChat = async (req, res) => {
     }
 };
 
-// Create a new group
-const createGroup = async (req, res) => {
-    try {
-        const { name, createdBy } = req.body;
-
-        const groupRef = await db.collection("groupChats").add({
-            name,
-            createdBy,
-            admin: createdBy,
-            users: [createdBy],
-            lastMessage: "",
-            updatedAt: new Date(),
-            createdAt: new Date()
-        });
-
-        // Get user data for response only
-        const userDoc = await db.collection("users").doc(createdBy).get();
-        const userData = userDoc.data();
-
-        res.status(201).json({
-            id: groupRef.id,
-            name,
-            createdBy,
-            users: [{
-                username: createdBy,
-                profilePicture: userData?.profilePicture || null,
-                isAdmin: true
-            }]
-        });
-    } catch (error) {
-        console.error("Error creating group:", error);
-        res.status(500).json({ message: "Failed to create group" });
-    }
-};
-
 const sendGroupInvite = async (req, res) => {
     try {
         const { groupId, username, invitedBy } = req.body;
@@ -647,7 +576,7 @@ const markGroupMessageAsRead = async (req, res) => {
         const { userId } = req.body;
 
         const groupRef = db.collection('groupChats').doc(groupId);
-        
+
         // Get all messages in order
         const messagesSnapshot = await groupRef.collection('messages')
             .orderBy('timestamp', 'asc')
@@ -668,7 +597,7 @@ const markGroupMessageAsRead = async (req, res) => {
                 readBy.add(userId);
                 const updatedReadBy = Array.from(readBy);
                 batch.update(doc.ref, { readBy: updatedReadBy });
-                
+
                 updatedMessages.push({
                     messageId: doc.id,
                     readBy: updatedReadBy
@@ -701,7 +630,7 @@ const markGroupMessageAsRead = async (req, res) => {
             });
         }
 
-        res.status(200).json({ 
+        res.status(200).json({
             message: 'Messages marked as read',
             latestMessageRead
         });
@@ -712,9 +641,8 @@ const markGroupMessageAsRead = async (req, res) => {
 };
 
 module.exports = {
-    // Group creation and management
+    // Group creation and management (import createGroup from groups.js)
     createGroup,
-    createGroupChat,
     deleteGroup,
     updateGroupChat,
 
