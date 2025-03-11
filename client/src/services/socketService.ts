@@ -1,4 +1,4 @@
-import { io as socketIO } from "socket.io-client";
+import { io } from "socket.io-client";
 import { SOCKET_URL, BASE_URL } from "../config/api";
 import { store } from "../store/store";
 import {
@@ -40,7 +40,7 @@ import {
 import { forceRefreshGroupImages } from "./imageUploadService";
 import { Dispatch, AnyAction } from 'redux';
 
-const socket = socketIO(SOCKET_URL);
+const socket = io(SOCKET_URL);
 
 interface SocketData {
   type: string;
