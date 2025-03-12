@@ -16,7 +16,7 @@ Currently only desktop web browsers can fully access Divvy and mobile support ha
 Now that you have created an account and linked your Venmo account, you can start adding, messaging, and track shared expenses with other users. Below are guides on using all our main features which we recommended to look at these guides if this is your first time using Divvy. 
 
 ### Friend System
-You need friends to start using Divvy! Once your friends have made accounts and set up their profile, it is time to start adding your friends and managing your friend list. The Friend system is still a work in progress and some functions aren’t working/implemented yet. Currently you can add other users but can’t remove or block users. For current bugs, please refer to the Known Bugs section before reporting any bugs.
+You need friends to start using Divvy! Once your friends have made accounts and set up their profile, it is time to start adding your friends and managing your friend list. The Friend system is always improving, so please report any bugs you experiance. For current bugs, please refer to the Known Bugs section before reporting any bugs.
 
 #### Adding Friends
 
@@ -27,7 +27,7 @@ You need friends to start using Divvy! Once your friends have made accounts and 
 
 ### Messaging and Group Chats
 
-It’s time to start messaging your friends whether individually or in a group. In order to directly message another user and invite users into group chats, **you will need to be friends with them first**. If you don’t know how to add other users, refer to the Friend System guide. Our messaging functionality is still a work in progress and some functions aren’t working/implemented yet. Currently a user can’t leave or delete group chats they were in, can’t change group chat’s profile picture, and can’t upload images/videos as messages. For current bugs, please refer to the Known Bugs section before reporting any bugs.
+It’s time to start messaging your friends whether individually or in a group. In order to directly message another user and invite users into group chats, **you will need to be friends with them first**. If you don’t know how to add other users, refer to the Friend System guide. Our messaging functionality is always evolving, so please let us know if you experience any bugs. For current bugs, please refer to the Known Bugs section before reporting any bugs.
 
 #### Direct Messaging
 1. To start messaging your friends, **click on the double person icon to access your friend list**.
@@ -45,7 +45,7 @@ It’s time to start messaging your friends whether individually or in a group. 
 
 ### Event Expenses
 
-Now that you are in a group chat, it’s time to utilize our main feature, the Event Expenses. The Event Expenses is used to help keep track of event cost and to evenly distribute the cost between all members in the group chat. If you don’t know how to create group chats, refer to the Group Chats guide.Our Event Expenses functionality is still a work in progress and some functions aren’t working/implemented yet. Currently a user can’t directly split the cost of an expense and delete/edit existing expense. For current bugs, please refer to the Known Bugs section before reporting any bugs.
+Now that you are in a group chat, it’s time to utilize our main feature, the Event Expenses. The Event Expenses is used to help keep track of event cost and to evenly distribute the cost between all members in the group chat. If you don’t know how to create group chats, refer to the Group Chats guide.Our Event Expenses functionality always improving, so please let us know if you experience any bugs. For current bugs, please refer to the Known Bugs section before reporting any bugs.
 
 1. **To create the Event Expense in the group chat**, look at the top right corner of the group chat and **click on the calendar icon**.
 2. Once you click on the calendar icon, you will get a pop up regarding the details of the event you are trying to create. Enter the desired event name, date of the event and optionally a description of the event. Once you filled out the details of the event, press “Create Event”
@@ -79,8 +79,7 @@ Friend System
 
 Messaging and Group Chats
 - Sending images requires user to upload their image 2 or more times for it to send
-- Sending images in group chats is not properly being displayed. Users who sent images will see it but others will only see the image name. In addition upon re-entering the group chat, the image will display it's image name.
-- Leaving a group chat sometimes causes the chat room to not accurately display new messages being sent. So users will need to refresh their page to have real-time chat functionality to work again.
+- Leaving a group chat sometimes causes the chat room to not accurately update members list and messaging for other users. So users will need to refresh their page to have real-time chat functionality to work again.
 - Group invites only works when the both user and sendee are logged in to accept/decline the invite
 
 Event Expenses
