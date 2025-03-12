@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { updateVenmoUsername as emitVenmoUpdate } from "../../services/socketService";
 import VenmoIcon from "../shared/VenmoIcon";
 import ClickInput from "../shared/ClickInput";
+import { useTheme } from "../../context/ThemeContext";
 
 const VenmoUsernameEditor: React.FC = () => {
   const { username, venmoUsername, isLoggedIn } = useSelector(
@@ -14,6 +15,7 @@ const VenmoUsernameEditor: React.FC = () => {
   );
   const [isEditing, setIsEditing] = useState(false);
   const [newVenmoUsername, setNewVenmoUsername] = useState("");
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (venmoUsername) {
@@ -67,14 +69,16 @@ const VenmoUsernameEditor: React.FC = () => {
           onSave={handleSave}
           onCancel={handleCancel}
           minWidth={80}
-          className="text-black"
+          className={theme === "dark" ? "text-white" : "text-black"}
           placeholder="Venmo username"
           autoFocus
         />
       ) : (
         <span
           onClick={handleEdit}
-          className="text-gray-600 cursor-pointer ml-2"
+          className={`cursor-pointer ml-2 ${
+            theme === "dark" ? "text-gray-300" : "text-gray-600"
+          }`}
         >
           {venmoUsername ? `@${venmoUsername}` : "Add Venmo"}
         </span>

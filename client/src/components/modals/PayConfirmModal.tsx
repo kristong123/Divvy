@@ -8,7 +8,7 @@ import { Expense } from "../../types/groupTypes";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
 
-interface PaymentConfirmationProps {
+interface PayConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
   payee: string;
@@ -17,7 +17,7 @@ interface PaymentConfirmationProps {
   expenses: Expense[];
 }
 
-const PaymentConfirmation: React.FC<PaymentConfirmationProps> = ({
+const PayConfirmModal: React.FC<PayConfirmModalProps> = ({
   isOpen,
   onClose,
   payee,
@@ -168,4 +168,4 @@ const PaymentConfirmation: React.FC<PaymentConfirmationProps> = ({
   );
 };
 
-export default PaymentConfirmation;
+export default PayConfirmModal;

@@ -17,8 +17,9 @@ const {
     getGroupInvites,
     declineGroupInvite,
     getInviteStatus,
-    //updateGroupImage,
-    markGroupMessagesAsRead
+    updateGroupImage,
+    markGroupMessagesAsRead,
+    fixGroupImageUrls
 } = require("../controllers/groups");
 const { upload } = require("../utils/multer");
 
@@ -57,6 +58,9 @@ router.get("/:groupId/status", checkGroupStatus);
 router.get('/invites/:username', getGroupInvites);
 
 // Add the route for uploading group images
-//router.post("/:groupId/image", upload.single('image'), updateGroupImage);
+router.post("/:groupId/image", upload.single('image'), updateGroupImage);
+
+// Add utility route to fix group image URLs
+router.post("/fix-image-urls", fixGroupImageUrls);
 
 module.exports = router;

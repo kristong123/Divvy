@@ -45,7 +45,11 @@ export const userSlice = createSlice({
     },
     updateProfilePicture: (
       state,
-      action: PayloadAction<{ username: string; imageUrl: string }>
+      action: PayloadAction<{ 
+        username: string; 
+        imageUrl: string;
+        profilePicturePath?: string;
+      }>
     ) => {
       state.profilePicture = action.payload.imageUrl;
     },

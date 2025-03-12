@@ -2,6 +2,47 @@ import React, { useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store/store";
+import { getFirebaseStorageUrl } from "../../services/imageUploadService";
+
+// Utility function to validate image URLs or paths
+const isValidImageSource = (source: string | null): boolean => {
+  if (!source) return false;
+
+  // If it's a URL, validate it
+  if (source.startsWith("http")) {
+    // Log the URL for debugging
+    console.log(`Validating image URL: ${source}`);
+
+    // Check for common valid patterns
+    const validPatterns = [
+      /^https:\/\/storage\.googleapis\.com\//,
+      /^https:\/\/.*\.firebasestorage\.app\//,
+      /^https:\/\/firebasestorage\.googleapis\.com\//,
+    ];
+
+    const isValid = validPatterns.some((pattern) => pattern.test(source));
+    console.log(`URL validation result: ${isValid}`);
+    return isValid;
+  }
+
+  // If it's a file path, it should be valid
+  // Log the path for debugging
+  console.log(`Validating image path: ${source}`);
+  return true;
+};
+
+// Function to get the full URL from a path or URL
+const getFullImageUrl = (source: string | null): string | null => {
+  if (!source) return null;
+
+  // If it's already a URL, return it
+  if (source.startsWith("http")) {
+    return source;
+  }
+
+  // Otherwise, convert the path to a URL
+  return getFirebaseStorageUrl(source);
+};
 
 interface ProfileFrameProps {
   username: string;
@@ -20,7 +61,7 @@ const ProfileFrame: React.FC<ProfileFrameProps> = ({
   const currentUser = useSelector((state: RootState) => state.user);
 
   // Find profile picture based on username
-  const imageUrl = useMemo(() => {
+  const imageSource = useMemo(() => {
     // First check if this is the current user
     if (username === currentUser?.username && currentUser?.profilePicture) {
       return currentUser.profilePicture;
@@ -50,11 +91,67 @@ const ProfileFrame: React.FC<ProfileFrameProps> = ({
     return null;
   }, [username, groups, friends, currentUser]);
 
+  // Convert the source to a full URL if it's a path
+  const imageUrl = useMemo(() => {
+    return getFullImageUrl(imageSource);
+  }, [imageSource]);
+
+  // Add a function to preload the image to check if it's valid
+  const checkImageValidity = (url: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  };
+
+  // Use React.useEffect to check image validity
+  const [isImageValid, setIsImageValid] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (imageUrl && isValidImageSource(imageSource)) {
+      // Add a timestamp to prevent caching
+      const urlWithTimestamp = imageUrl.includes("?")
+        ? imageUrl.split("?")[0] + "?t=" + Date.now()
+        : imageUrl + "?t=" + Date.now();
+
+      checkImageValidity(urlWithTimestamp).then((valid) => {
+        setIsImageValid(valid);
+        if (!valid) {
+          console.log(`Image failed to load: ${urlWithTimestamp}`);
+          // Store in session storage to prevent repeated errors
+          const errorKey = `profile_error_${username}`;
+          if (!sessionStorage.getItem(errorKey)) {
+            sessionStorage.setItem(errorKey, "true");
+          }
+        }
+      });
+    } else {
+      setIsImageValid(false);
+    }
+  }, [imageUrl, imageSource, username]);
+
   const handleImageError = (
     e: React.SyntheticEvent<HTMLImageElement, Event>
   ) => {
+    // Prevent the default error behavior
+    e.preventDefault();
+
+    // Set a blank image instead
     e.currentTarget.src = "";
-    toast.error(`Failed to load ${username}'s profile picture`);
+
+    // Use a session-based approach to prevent repeated notifications
+    const errorKey = `profile_error_${username}`;
+    if (!sessionStorage.getItem(errorKey)) {
+      // Only show the error once per session for this user
+      toast.error(`Failed to load ${username}'s profile picture`, {
+        id: `profile-error-${username}`, // Use a unique ID to prevent duplicates
+        duration: 3000, // Show for 3 seconds only
+      });
+      // Mark this error as shown in this session
+      sessionStorage.setItem(errorKey, "true");
+    }
   };
 
   const getInitials = (name: string) => {
@@ -69,7 +166,7 @@ const ProfileFrame: React.FC<ProfileFrameProps> = ({
       style={{ width: `${size}px`, height: `${size}px` }}
       data-username={username}
     >
-      {imageUrl ? (
+      {imageUrl && isValidImageSource(imageSource) && isImageValid ? (
         <img
           key={imageUrl}
           src={

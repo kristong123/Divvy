@@ -8,6 +8,22 @@ import { updateProfilePicture, forceProfileRefresh } from "../store/slice/userSl
 import { GroupMember } from "../types/groupTypes";
 import {ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from "../config/firebase";
+
+/**
+ * Get the full URL for a Firebase Storage file path
+ * @param path The file path in Firebase Storage
+ * @returns The full URL to the file
+ */
+export const getFirebaseStorageUrl = (path: string): string => {
+  if (!path) return '';
+  
+  // If it's already a full URL, return it
+  if (path.startsWith('http')) return path;
+  
+  // Otherwise, construct the URL with the correct bucket name
+  return `https://storage.googleapis.com/divvy-14457/${path}`;
+};
+
 /**
  * Upload a profile picture for a user
  * @param file The image file to upload
@@ -21,6 +37,14 @@ export const uploadProfilePicture = async (
   const loadingToast = toast.loading("Uploading profile picture...");
 
   try {
+    // Validate inputs
+    if (!file || !username) {
+      toast.error("Missing required information for upload", {
+        id: loadingToast,
+      });
+      throw new Error("Missing required information for upload");
+    }
+
     const formData = new FormData();
     formData.append("image", file);
     formData.append("username", username);
@@ -35,19 +59,22 @@ export const uploadProfilePicture = async (
       }
     );
 
-    // Clean the URL to ensure it doesn't have existing timestamps
-    const cleanImageUrl = response.data.url.includes("?")
-      ? response.data.url.split("?")[0]
-      : response.data.url;
+    // Get the file path from the response
+    const filePath = response.data.path;
     
-    // Add a single timestamp
-    const imageUrlWithTimestamp = cleanImageUrl + "?t=" + Date.now();
+    // Get the full URL for display
+    const imageUrl = getFirebaseStorageUrl(filePath);
+    
+    // Add a timestamp to force cache refresh
+    const imageUrlWithTimestamp = imageUrl + "?t=" + Date.now();
 
     // Update Redux store
     store.dispatch(
       updateProfilePicture({
         username: username,
         imageUrl: imageUrlWithTimestamp,
+        // Store the file path separately for future reference
+        profilePicturePath: filePath
       })
     );
 
@@ -64,7 +91,7 @@ export const uploadProfilePicture = async (
       const img = el.querySelector("img");
       if (img) {
         // Always use the clean URL with a new timestamp
-        img.src = cleanImageUrl + "?t=" + Date.now();
+        img.src = imageUrl + "?t=" + Date.now();
       }
     });
 
@@ -73,11 +100,19 @@ export const uploadProfilePicture = async (
     });
 
     return imageUrlWithTimestamp;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Upload error:", error);
-    toast.error("Failed to upload image", {
-      id: loadingToast,
-    });
+    
+    // Ensure we only show one error toast
+    toast.error(
+      error instanceof Error 
+        ? `Failed to upload image: ${error.message}` 
+        : "Failed to upload image", 
+      {
+        id: loadingToast,
+      }
+    );
+    
     throw error;
   }
 };
@@ -198,11 +233,18 @@ export const uploadGroupImage = async (
 
     return imageUrlWithTimestamp;
   } catch (error: unknown) {
+    console.error("Failed to upload group image:", error);
+    
+    // Ensure we only show one error toast with a specific message
     toast.error(
       error instanceof Error 
         ? `Error updating group image: ${error.message}` 
-        : "Error updating group image"
+        : "Error updating group image",
+      {
+        id: loadingToast,
+      }
     );
+    
     throw error;
   }
 };

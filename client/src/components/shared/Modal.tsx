@@ -2,6 +2,7 @@ import React from "react";
 import { Dialog } from "@headlessui/react";
 import { useEnterKeyHandler } from "../../utils/keyboardUtils";
 import Button from "./Button";
+import { useTheme } from "../../context/ThemeContext";
 
 interface ModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface ModalProps {
     disabled?: boolean;
   };
   size?: "sm" | "md" | "lg";
+  hideCancel?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -24,7 +26,10 @@ const Modal: React.FC<ModalProps> = ({
   children,
   actionButton,
   size = "md",
+  hideCancel = false,
 }) => {
+  const { theme } = useTheme();
+
   const sizeClasses = {
     sm: "max-w-md",
     md: "max-w-lg",
@@ -70,6 +75,19 @@ const Modal: React.FC<ModalProps> = ({
             <div className="mt-2">{children}</div>
 
             <div className="mt-4 flex justify-end gap-2">
+              {!hideCancel && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors border ${
+                    theme === "dark"
+                      ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  Cancel
+                </button>
+              )}
               {actionButton && (
                 <Button
                   type="button"

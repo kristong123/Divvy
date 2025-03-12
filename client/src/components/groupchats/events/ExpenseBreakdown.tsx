@@ -12,7 +12,7 @@ import { groupActions } from "../../../store/slice/groupSlice";
 import axios from "axios";
 import { BASE_URL } from "../../../config/api";
 import { useTheme } from "../../../context/ThemeContext";
-import PaymentConfirmation from "../../modals/PaymentConfirmation";
+import PayConfirmModal from "../../modals/PayConfirmModal";
 
 interface ExpenseBreakdownProps {
   groupId: string;
@@ -69,7 +69,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
   >({});
 
   // State for payment confirmation modal
-  const [paymentConfirmation, setPaymentConfirmation] = useState<{
+  const [paymentModalState, setPaymentModalState] = useState<{
     isOpen: boolean;
     payee: string;
     amount: number;
@@ -458,8 +458,8 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
   };
 
   // Function to handle opening the payment confirmation modal
-  const handleOpenPaymentConfirmation = (payee: string, amount: number) => {
-    setPaymentConfirmation({
+  const handleOpenPayConfirmModal = (payee: string, amount: number) => {
+    setPaymentModalState({
       isOpen: true,
       payee,
       amount,
@@ -467,9 +467,9 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
   };
 
   // Function to handle closing the payment confirmation modal
-  const handleClosePaymentConfirmation = () => {
-    setPaymentConfirmation({
-      ...paymentConfirmation,
+  const handleClosePayConfirmModal = () => {
+    setPaymentModalState({
+      ...paymentModalState,
       isOpen: false,
     });
   };
@@ -534,7 +534,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
                         window.open(url, "_blank", "noopener,noreferrer");
 
                         // Open payment confirmation modal after redirecting to Venmo
-                        handleOpenPaymentConfirmation(
+                        handleOpenPayConfirmModal(
                           debt.to,
                           debt.amount as number
                         );
@@ -772,11 +772,11 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
       </div>
 
       {/* Payment Confirmation Modal */}
-      <PaymentConfirmation
-        isOpen={paymentConfirmation.isOpen}
-        onClose={handleClosePaymentConfirmation}
-        payee={paymentConfirmation.payee}
-        amount={paymentConfirmation.amount}
+      <PayConfirmModal
+        isOpen={paymentModalState.isOpen}
+        onClose={handleClosePayConfirmModal}
+        payee={paymentModalState.payee}
+        amount={paymentModalState.amount}
         groupId={groupId}
         expenses={reduxExpenses}
       />
