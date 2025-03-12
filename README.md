@@ -2,7 +2,7 @@
 
 A social and financial app that streamlines expense sharing and group communication. Divvy combines financial management with social features to eliminate the complexity of tracking shared expenses and coordinating group activities.
 
-## Final Release 1.0
+## Final Release 1.0 (Github Version ID a8d3085)
 
 The offical version 1.0 release of Divvy is here! In our offical release, we largely improved the social communication aspects of web app. We improved our messaging system which now includes timestamps and read reciepts! Our group chats also got more improvements by now having group profile pictures, editing group names, and event creation! In addition core features went through a UI makeover and improve their functionality. So you can expect new differences when you send message, create group chats, and events! One last feature that we felt was important was including a dark theme! You can now save your eyes from the dangers of white space! Keep reading to know all our changes we made!
 
