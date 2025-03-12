@@ -249,11 +249,12 @@ export const forceRefreshGroupImages = (groupId: string, imageUrl: string) => {
  * @returns Promise with the download URL
  */
 export const uploadFile = async (file: File): Promise<string> => {
+    console.log("uploading file");
     const date = new Date();
     const storageRef = ref(storage, `image/${date.getTime()}_${file.name}`);
     
     const uploadTask = uploadBytesResumable(storageRef, file);
-    
+    console.log("file in firebase")
     return new Promise((resolve, reject) => {
         uploadTask.on('state_changed',
             (snapshot) => {
