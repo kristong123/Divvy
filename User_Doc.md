@@ -83,6 +83,7 @@ Messaging and Group Chats
 - Sending images requires user to upload their image 2 or more times for it to send
 - Sending images in group chats is not properly being displayed. Users who sent images will see it but others will only see the image name. In addition upon re-entering the group chat, the image will display it's image name.
 - Leaving a group chat sometimes causes the chat room to not accurately display new messages being sent. So users will need to refresh their page to have real-time chat functionality to work again.
+- Group invites only works when the both user and sendee are logged in to accept/decline the invite
 
 Event Expenses
 - N/A
