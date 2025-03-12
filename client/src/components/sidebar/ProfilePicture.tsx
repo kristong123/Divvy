@@ -12,8 +12,11 @@ const ProfilePicture: React.FC = () => {
     if (!username) return;
     try {
       await uploadProfilePicture(file, username);
-    } catch (error) {
+    } catch (error: unknown) {
+      // Error is already handled in the uploadProfilePicture function
+      // Just log it here for debugging purposes
       console.error("Failed to upload profile picture:", error);
+      // Don't show another toast here as it's already shown in the service
     }
   };
 

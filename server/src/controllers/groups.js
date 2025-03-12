@@ -1,8 +1,8 @@
 const { db } = require("../config/firebase");
 const { getIO } = require('../config/socket');
 const admin = require('firebase-admin');
-const cloudinary = require('cloudinary').v2;
 const { standardizeTimestamp } = require("../utils/dateUtils");
+const { upload } = require("../utils/multer");
 
 /**
  * Creates a new group chat
@@ -973,75 +973,105 @@ exports.checkGroupStatus = async (req, res) => {
   }
 };
 
-const updateGroupProfilePicture = async (req, res) => {
+const updateGroupImage = async (req, res) => {
   try {
-    upload(req, res, async (err) => {
-      if (err) {
-        console.error('Multer error:', err);
-        return res.status(400).json({ message: 'File upload error' });
-      }
+    const { groupId } = req.params;
+    const { username } = req.body;
+    const file = req.file;
 
-      const { groupId, adminId } = req.body;
-      const file = req.file;
+    if (!file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
 
-      if (!file) {
-        return res.status(400).json({ message: 'No file uploaded' });
-      }
+    // Verify group exists and user is admin
+    const groupRef = db.collection("groupChats").doc(groupId);
+    const groupDoc = await groupRef.get();
 
-      // Verify group exists and user is admin
-      const groupRef = db.collection("groupChats").doc(groupId);
-      const groupDoc = await groupRef.get();
+    if (!groupDoc.exists) {
+      return res.status(404).json({ message: "Group not found" });
+    }
 
-      if (!groupDoc.exists) {
-        return res.status(404).json({ message: "Group not found" });
-      }
+    const groupData = groupDoc.data();
 
-      const groupData = groupDoc.data();
-      if (groupData.admin !== adminId) {
-        return res.status(403).json({ message: "Only the admin can update group settings" });
-      }
+    // Check if the user is an admin of the group
+    if (groupData.admin !== username) {
+      return res.status(403).json({ message: "Only the admin can update group settings" });
+    }
 
-      try {
-        // Upload new image to Cloudinary
-        const uploadResponse = await cloudinary.uploader.upload(
-          `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-          {
-            folder: 'group_pictures',
-            public_id: `group-${groupId}-${Date.now()}`
-          }
-        );
+    try {
+      // Upload file to Firebase Storage
+      const bucket = admin.storage().bucket();
+      const fileName = `group_pictures/group-${groupId}-${Date.now()}`;
+      const fileBuffer = file.buffer;
+      const fileUpload = bucket.file(fileName);
 
-        // Delete old profile picture if it exists
-        if (groupData.profilePicture) {
-          const oldImageUrl = groupData.profilePicture;
-          const publicId = oldImageUrl.split('/').pop().split('.')[0];
-          await cloudinary.uploader.destroy(`group_pictures/${publicId}`);
+      // Upload the file to Firebase Storage
+      await fileUpload.save(fileBuffer, {
+        metadata: {
+          contentType: file.mimetype
         }
+      });
 
-        // Update group with new profile picture
-        await groupRef.update({
-          profilePicture: uploadResponse.secure_url,
-          updatedAt: new Date()
-        });
+      // Store just the file path, not the full URL
+      const filePath = fileName;
 
-        // notify group members if notifcations doesn't do this
-        // const io = getIO();
-        //groupData.users.forEach(username => {
-        //    io.to(username).emit('group-profile-updated', {
-        //        groupId,
-        //        profilePicture: uploadResponse.secure_url
-        //    });
-        //});
+      // Generate the full URL for the response
+      const bucketName = bucket.name.replace('.firebasestorage.app', '');
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
 
-        res.status(200).json({
-          message: 'Group profile picture updated',
-          url: uploadResponse.secure_url
-        });
-      } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ message: error.message });
+      // Log the path and URL for debugging
+      console.log(`Storing group image path: ${filePath}`);
+      console.log(`Generated group image URL: ${publicUrl}`);
+
+      // Delete old profile picture if it exists
+      if (groupData.imageUrl) {
+        const oldFilePath = groupData.imageUrl;
+        try {
+          // If the old path is a full URL, extract just the path
+          let oldFileName = oldFilePath;
+
+          if (oldFilePath.startsWith('http')) {
+            // Extract the file path from the URL - handle different URL formats
+            if (oldFilePath.includes('storage.googleapis.com')) {
+              // Standard Firebase Storage URL format
+              oldFileName = oldFilePath.split('/').slice(4).join('/');
+            } else if (oldFilePath.includes('firebasestorage.app')) {
+              // Alternative Firebase Storage URL format
+              oldFileName = oldFilePath.split('/').slice(3).join('/');
+            }
+          }
+
+          if (oldFileName) {
+            try {
+              // Delete the old file from Firebase Storage
+              await bucket.file(oldFileName).delete();
+              console.log(`Successfully deleted old group image: ${oldFileName}`);
+            } catch (deleteError) {
+              // Log the error but don't throw - allow the update to continue
+              console.error('Error deleting old group profile picture:', deleteError);
+            }
+          }
+        } catch (parseError) {
+          // If we can't parse the URL, just log and continue
+          console.error('Error parsing old group image URL:', parseError);
+        }
       }
-    });
+
+      // Update group with new profile picture - store just the file path
+      await groupRef.update({
+        imageUrl: filePath,
+        updatedAt: new Date()
+      });
+
+      res.status(200).json({
+        message: 'Group profile picture updated',
+        url: publicUrl,
+        path: filePath
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({ message: error.message });
+    }
   } catch (error) {
     console.error('Error updating group profile picture:', error);
     res.status(500).json({ message: 'Failed to update group profile picture' });
@@ -1203,172 +1233,6 @@ exports.getInviteStatus = async (req, res) => {
   }
 };
 
-// Add the controller function for updating group images
-/*exports.updateGroupImage = async (req, res) => {
-  try {
-    const { groupId } = req.params;
-    const { username } = req.body;
-
-    console.log(`[updateGroupImage] Request received for groupId=${groupId}, username=${username}`);
-
-    if (!username) {
-      console.log(`[updateGroupImage] Error: Username is required`);
-      return res.status(400).json({ message: "Username is required" });
-    }
-
-    // Check if the group exists
-    const groupRef = db.collection("groupChats").doc(groupId);
-    const groupDoc = await groupRef.get();
-
-    if (!groupDoc.exists) {
-      console.log(`[updateGroupImage] Error: Group not found with ID ${groupId}`);
-      return res.status(404).json({ message: "Group not found" });
-    }
-
-    const groupData = groupDoc.data();
-    console.log(`[updateGroupImage] Group found: ${groupData.name}`);
-    console.log(`[updateGroupImage] Group users:`, JSON.stringify(groupData.users));
-
-    // Check if the user is in the group - handle different user data structures
-    let userInGroup = false;
-
-    if (Array.isArray(groupData.users)) {
-      // Check if users are stored as objects with username property
-      if (groupData.users.length > 0 && typeof groupData.users[0] === 'object') {
-        userInGroup = groupData.users.some(user => user && user.username === username);
-      }
-      // Check if users are stored as strings
-      else {
-        userInGroup = groupData.users.includes(username);
-      }
-    }
-
-    console.log(`[updateGroupImage] User ${username} is in group: ${userInGroup}`);
-
-    // For now, allow all users to update the group image for debugging
-    // if (!userInGroup) {
-    //   console.log(`[updateGroupImage] Error: User ${username} is not a member of the group`);
-    //   return res.status(403).json({ message: "User is not a member of this group" });
-    // }
-
-    // If there's an image file
-    if (req.file) {
-      try {
-        // Upload to Cloudinary
-        const uploadResponse = await cloudinary.uploader.upload(
-          `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`,
-          {
-            folder: 'group_pictures',
-            public_id: `group-${groupId}-${Date.now()}`
-          }
-        );
-
-        // Delete old image if it exists
-        if (groupData.imageUrl) {
-          try {
-            const oldImageUrl = groupData.imageUrl;
-            // Extract the public ID from the URL
-            const publicId = oldImageUrl.split('/').pop().split('.')[0];
-            await cloudinary.uploader.destroy(`group_pictures/${publicId}`);
-          } catch (error) {
-            console.error("Error deleting old image:", error);
-            // Continue with the update even if deletion fails
-          }
-        }
-
-        // Get the secure URL from the upload response
-        const imageUrl = uploadResponse.secure_url;
-
-        // Update the group document with the new image URL
-        await groupRef.update({
-          imageUrl,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // Create a system message about the image update
-        const systemMessageRef = await db.collection("groupChats")
-          .doc(groupId)
-          .collection("messages")
-          .add({
-            content: `${username} updated the group image`,
-            senderId: "system",
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            type: "system"
-          });
-
-        const systemMessage = {
-          id: systemMessageRef.id,
-          content: `${username} updated the group image`,
-          senderId: "system",
-          timestamp: new Date().toISOString(),
-          type: "system"
-        };
-
-        // Get the updated group data
-        const updatedGroupDoc = await groupRef.get();
-        const updatedGroupData = updatedGroupDoc.data();
-
-        // Emit a socket event to notify all group members
-        const io = require('../config/socket').getIO();
-        if (io) {
-          // Get all members based on the data structure
-          let members = [];
-          if (Array.isArray(updatedGroupData.users)) {
-            if (updatedGroupData.users.length > 0 && typeof updatedGroupData.users[0] === 'object') {
-              members = updatedGroupData.users.map(user => user.username);
-            } else {
-              members = updatedGroupData.users;
-            }
-          }
-
-          console.log(`[updateGroupImage] Notifying ${members.length} members:`, members);
-
-          // First, broadcast to all connected clients to ensure everyone gets the update
-          console.log(`[updateGroupImage] Broadcasting update to all connected clients`);
-          io.emit('broadcast-group-update', {
-            groupId,
-            imageUrl,
-            updatedBy: username,
-            members,
-          });
-
-          // Then, also send direct messages to each member for redundancy
-          members.forEach(member => {
-            console.log(`[updateGroupImage] Sending direct update to ${member}`);
-            io.to(member).emit('group-updated', {
-              groupId,
-              imageUrl,
-              updatedBy: username,
-              members,
-            });
-          });
-
-          // Send system message to all members
-          members.forEach(member => {
-            io.to(member).emit('system-message', {
-              groupId,
-              message: systemMessage
-            });
-          });
-        }
-
-        return res.status(200).json({
-          message: "Group image updated successfully",
-          url: imageUrl
-        });
-      } catch (uploadError) {
-        console.error("Error uploading to Cloudinary:", uploadError);
-        return res.status(500).json({ message: "Error uploading image" });
-      }
-    }
-
-    return res.status(400).json({ message: "No image file provided" });
-  } catch (error) {
-    console.error("Error updating group image:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};*/
-
 // Add this function to mark group messages as read
 exports.markGroupMessagesAsRead = async (req, res) => {
   try {
@@ -1427,3 +1291,64 @@ exports.markGroupMessagesAsRead = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+exports.updateGroupImage = updateGroupImage;
+
+/**
+ * Fix incorrect group image URLs in the database
+ * This is a utility function to fix URLs that were generated with the wrong format
+ */
+const fixGroupImageUrls = async (req, res) => {
+  try {
+    // Get all groups
+    const groupsSnapshot = await db.collection('groupChats').get();
+
+    if (groupsSnapshot.empty) {
+      return res.status(200).json({ message: 'No groups found' });
+    }
+
+    const updates = [];
+
+    // Check each group's profile picture URL
+    for (const doc of groupsSnapshot.docs) {
+      const groupData = doc.data();
+
+      if (groupData.imageUrl && groupData.imageUrl.includes('storage.googleapis.com/divvy-14457.firebasestorage.app')) {
+        // This is an incorrect URL format
+        console.log(`Found incorrect URL format for group ${doc.id}: ${groupData.imageUrl}`);
+
+        // Fix the URL by removing the .firebasestorage.app part
+        const fixedUrl = groupData.imageUrl.replace(
+          'storage.googleapis.com/divvy-14457.firebasestorage.app',
+          'storage.googleapis.com/divvy-14457'
+        );
+
+        console.log(`Fixed URL: ${fixedUrl}`);
+
+        // Update the group document
+        updates.push(
+          db.collection('groupChats').doc(doc.id).update({
+            imageUrl: fixedUrl,
+            updatedAt: new Date()
+          })
+        );
+      }
+    }
+
+    // Apply all updates
+    if (updates.length > 0) {
+      await Promise.all(updates);
+      return res.status(200).json({
+        message: `Fixed ${updates.length} group image URLs`
+      });
+    }
+
+    return res.status(200).json({ message: 'No URLs needed fixing' });
+  } catch (error) {
+    console.error('Error fixing group image URLs:', error);
+    return res.status(500).json({ message: 'Error fixing group image URLs' });
+  }
+};
+
+// Add the new function to exports
+exports.fixGroupImageUrls = fixGroupImageUrls;

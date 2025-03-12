@@ -39,6 +39,8 @@ import ClickInput from "./ClickInput";
 import { useTheme } from "../../context/ThemeContext";
 import { uploadFile } from "../../services/imageUploadService";
 import ImageUploader from "./ImageUploader";
+import LeaveGroupModal from "../modals/LeaveGroupModal";
+import CancelEventModal from "../modals/CancelEventModal";
 
 interface ChatViewProps {
   chat: {
@@ -307,56 +309,11 @@ const formatMessageTimestamp = (timestamp?: string): string => {
   });
 };
 
-// Add this interface for the confirmation modal props
-interface ConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  message: string;
-}
-
-// Add the ConfirmationModal component
-const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  message,
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={clsx(
-        "bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md",
-        "shadow-xl transform transition-all"
-      )}>
-        <h3 className="text-lg font-medium mb-4 text-black dark:text-white">
-          {message}
-        </h3>
-        <div className="flex justify-end gap-4 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-md"
-          >
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
-  const [img, setImg] = useState<{file: File | null, url: string}>({
+  const [img, setImg] = useState<{ file: File | null; url: string }>({
     file: null,
     url: "",
   });
@@ -590,6 +547,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   // Add state for leave confirmation modal
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
+  const [showCancelEventConfirmation, setShowCancelEventConfirmation] =
+    useState(false);
 
   const inviteButton = clsx(
     // Position
@@ -889,7 +848,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     };
   }, [chat.id, chat.isGroup, dispatch]);
 
-
   // Update the message sending for groups
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -1006,10 +964,14 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
   useEffect(() => {
     console.log("Updated image state:", img);
   }, [img]);
-  
 
-  // Update the event cancellation handler
+  // Update the event cancellation handler to show the confirmation modal
   const handleCancelEvent = () => {
+    setShowCancelEventConfirmation(true);
+  };
+
+  // Add a new function to handle the actual cancellation when confirmed
+  const confirmCancelEvent = () => {
     dispatch(
       groupActions.setGroupEvent({
         groupId: chat.id,
@@ -1060,6 +1022,9 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
         checkExisting,
       }
     );
+
+    // Close the confirmation modal
+    setShowCancelEventConfirmation(false);
 
     // Add a toast notification for event cancellation
     toast.success("Event cancelled successfully");
@@ -1341,9 +1306,14 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                 }
               >
                 {message.attachments ? (
-                  <img src={message.attachments.url} 
-                        alt="Image" className="max-w-[300px] max-h-[300px] rounded-lg cursor-pointer hover:opacity-90"/>
-                ) : message.content}
+                  <img
+                    src={message.attachments.url}
+                    alt="Image"
+                    className="max-w-[300px] max-h-[300px] rounded-lg cursor-pointer hover:opacity-90"
+                  />
+                ) : (
+                  message.content
+                )}
               </div>
               <MessageStatus
                 message={message}
@@ -1432,8 +1402,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       const response = await axios.delete(`${BASE_URL}/api/groups/leave`, {
         data: {
           groupId: chat.id,
-          userId: currentUser
-        }
+          userId: currentUser,
+        },
       });
 
       if (response.status === 200) {
@@ -1491,13 +1461,17 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                       }
                       setEditingTitle(false);
                     }}
-                    className="text-black text-2xl font-bold"
+                    className={`${
+                      theme === "dark" ? "text-white" : "text-black"
+                    } text-2xl font-bold`}
                     minWidth={150}
                     charWidth={16}
                   />
                 ) : (
                   <span
-                    className="text-black text-2xl font-bold cursor-pointer hover:underline"
+                    className={`${
+                      theme === "dark" ? "text-white" : "text-black"
+                    } text-2xl font-bold cursor-pointer hover:underline`}
                     onClick={() => {
                       if (groupData?.currentEvent) {
                         setEditedTitle(groupData.currentEvent.title);
@@ -1691,10 +1665,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                 >
                   <UserPlus className="w-6 h-6 text-[#57E3DC]" />
                 </button>
-                <button
-                  className={inviteButton}
-                  onClick={initiateLeaveGroup}
-                >
+                <button className={inviteButton} onClick={initiateLeaveGroup}>
                   <LogOut className="w-6 h-6 text-red-500" />
                 </button>
               </div>
@@ -1707,11 +1678,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           </div>
 
           <div className={inputSection}>
-            <ImageUploader 
-              onFileSelect={handleImg}
-              overlayText="+"
-            >
-            <button className={plusButton}>+</button>
+            <ImageUploader onFileSelect={handleImg} overlayText="+">
+              <button className={plusButton}>+</button>
             </ImageUploader>
             <input
               type="text"
@@ -1765,14 +1733,20 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
           }}
         />
       )}
-      <ConfirmationModal
+      <LeaveGroupModal
         isOpen={showLeaveConfirmation}
         onClose={() => setShowLeaveConfirmation(false)}
         onConfirm={() => {
           handleLeaveGroup();
           setShowLeaveConfirmation(false);
         }}
-        message="Are you sure you want to leave this group chat permanently?"
+        groupName={chat.name}
+      />
+      <CancelEventModal
+        isOpen={showCancelEventConfirmation}
+        onClose={() => setShowCancelEventConfirmation(false)}
+        onConfirm={confirmCancelEvent}
+        eventTitle={groupData?.currentEvent?.title}
       />
     </div>
   );

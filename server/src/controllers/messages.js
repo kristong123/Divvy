@@ -1,6 +1,6 @@
 const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
-const cloudinary = require("cloudinary").v2;
+const admin = require("firebase-admin");
 const { standardizeTimestamp } = require("../utils/dateUtils");
 
 // Check if two users are friends
@@ -51,7 +51,7 @@ const sendMessage = async (req, res) => {
 };
 
 // Send a message with an image
-/*const sendImageMessage = async (req, res) => {
+const sendImageMessage = async (req, res) => {
     try {
         const { chatId, senderId, receiverId } = req.body;
         const file = req.file;
@@ -67,14 +67,24 @@ const sendMessage = async (req, res) => {
         }
 
         try {
-            // Upload image to Cloudinary
-            const uploadResponse = await cloudinary.uploader.upload(
-                `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-                {
-                    folder: 'chat_images',
-                    resource_type: 'image'
+            // Upload file to Firebase Storage
+            const bucket = admin.storage().bucket();
+            const fileName = `chat_images/${chatId}-${Date.now()}`;
+            const fileBuffer = file.buffer;
+            const fileUpload = bucket.file(fileName);
+
+            // Upload the file to Firebase Storage
+            await fileUpload.save(fileBuffer, {
+                metadata: {
+                    contentType: file.mimetype
                 }
-            );
+            });
+
+            // Make the file publicly accessible
+            await fileUpload.makePublic();
+
+            // Get the public URL
+            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 
             // Add message to friends collection
             const messageRef = await db.collection('friends')
@@ -82,7 +92,7 @@ const sendMessage = async (req, res) => {
                 .collection('messages')
                 .add({
                     type: 'image',
-                    imageUrl: uploadResponse.secure_url,
+                    imageUrl: imageUrl,
                     senderId,
                     receiverId,
                     timestamp: new Date(),
@@ -92,7 +102,7 @@ const sendMessage = async (req, res) => {
             const message = {
                 id: messageRef.id,
                 type: 'image',
-                imageUrl: uploadResponse.secure_url,
+                imageUrl: imageUrl,
                 senderId,
                 receiverId,
                 timestamp: new Date().toISOString(),
@@ -115,7 +125,7 @@ const sendMessage = async (req, res) => {
         console.error('Error processing image message:', error);
         return res.status(500).json({ message: 'Failed to send image message' });
     }
-}; */
+};
 
 // Get messages for a chat
 const getMessages = async (req, res) => {
@@ -284,7 +294,7 @@ const rejectMessageRequest = async (req, res) => {
 
 module.exports = {
     sendMessage,
-    //sendImageMessage,
+    sendImageMessage,
     getMessages,
     markMessagesAsRead,
     deleteMessage,

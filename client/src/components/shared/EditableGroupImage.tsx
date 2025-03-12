@@ -46,8 +46,11 @@ const EditableGroupImage: React.FC<EditableGroupImageProps> = ({
         `Uploading image for group ${groupId} by user ${currentUser}`
       );
       await uploadGroupImage(file, groupId, currentUser);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Error is already handled in the uploadGroupImage function
+      // Just log it here for debugging purposes
       console.error("Failed to upload group image:", error);
+      // Don't show another toast here as it's already shown in the service
     }
   };
 

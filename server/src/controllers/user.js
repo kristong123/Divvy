@@ -1,30 +1,5 @@
-const cloudinary = require('cloudinary').v2;
 const { db } = require('../config/firebase');
-
-// Update the Cloudinary config section
-try {
-    if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-        throw new Error('Missing Cloudinary credentials');
-    }
-    cloudinary.config({
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET
-    });
-} catch (error) {
-    console.error('Cloudinary configuration error:', error);
-}
-
-// At the top, add a validation check
-const validateCloudinaryConfig = () => {
-    const required = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
-    const missing = required.filter(key => !process.env[key]);
-    if (missing.length) {
-        console.error('Missing Cloudinary config:', missing);
-        return false;
-    }
-    return true;
-};
+const admin = require('firebase-admin');
 
 const updateProfilePicture = async (req, res) => {
     try {
@@ -36,16 +11,29 @@ const updateProfilePicture = async (req, res) => {
         }
 
         try {
-            const uploadResponse = await cloudinary.uploader.upload(
-                `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-                {
-                    folder: 'profile_pictures',
-                    public_id: `${username}-${Date.now()}`
+            // Upload file to Firebase Storage
+            const bucket = admin.storage().bucket();
+            const fileName = `profile_pictures/${username}-${Date.now()}`;
+            const fileBuffer = file.buffer;
+            const fileUpload = bucket.file(fileName);
+
+            // Upload the file to Firebase Storage
+            await fileUpload.save(fileBuffer, {
+                metadata: {
+                    contentType: file.mimetype
                 }
-            ).catch(err => {
-                console.error('Cloudinary upload error details:', err);
-                throw err;
             });
+
+            // Store just the file path, not the full URL
+            const filePath = fileName;
+
+            // Generate the full URL for the response
+            const bucketName = bucket.name.replace('.firebasestorage.app', '');
+            const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
+
+            // Log the path and URL for debugging
+            console.log(`Storing file path: ${filePath}`);
+            console.log(`Generated profile picture URL: ${publicUrl}`);
 
             // Check if user exists in users collection
             const userDoc = await db.collection('users').doc(username).get();
@@ -80,20 +68,48 @@ const updateProfilePicture = async (req, res) => {
 
             // Handle existing profile picture
             if (userDoc.exists && userDoc.data().profilePicture) {
-                const oldImageUrl = userDoc.data().profilePicture;
-                const publicId = oldImageUrl.split('/').pop().split('.')[0];
-                await cloudinary.uploader.destroy(`profile_pictures/${publicId}`);
+                const oldFilePath = userDoc.data().profilePicture;
+                try {
+                    // If the old path is a full URL, extract just the path
+                    let oldFileName = oldFilePath;
+
+                    if (oldFilePath.startsWith('http')) {
+                        // Extract the file path from the URL - handle different URL formats
+                        if (oldFilePath.includes('storage.googleapis.com')) {
+                            // Standard Firebase Storage URL format
+                            oldFileName = oldFilePath.split('/').slice(4).join('/');
+                        } else if (oldFilePath.includes('firebasestorage.app')) {
+                            // Alternative Firebase Storage URL format
+                            oldFileName = oldFilePath.split('/').slice(3).join('/');
+                        }
+                    }
+
+                    if (oldFileName) {
+                        try {
+                            // Delete the old file from Firebase Storage
+                            await bucket.file(oldFileName).delete();
+                            console.log(`Successfully deleted old profile picture: ${oldFileName}`);
+                        } catch (deleteError) {
+                            // Log the error but don't throw - allow the update to continue
+                            console.error('Error deleting old profile picture:', deleteError);
+                        }
+                    }
+                } catch (parseError) {
+                    // If we can't parse the URL, just log and continue
+                    console.error('Error parsing old profile picture URL:', parseError);
+                }
             }
 
-            // Update profile picture and updatedAt
+            // Update profile picture and updatedAt - store just the file path
             await db.collection('users').doc(username).update({
-                profilePicture: uploadResponse.secure_url,
+                profilePicture: filePath,
                 updatedAt: new Date()
             });
 
             res.status(200).json({
                 message: 'Profile picture updated',
-                url: uploadResponse.secure_url
+                url: publicUrl,
+                path: filePath
             });
         } catch (error) {
             console.error('Upload error:', error);
@@ -105,4 +121,63 @@ const updateProfilePicture = async (req, res) => {
     }
 };
 
-module.exports = { updateProfilePicture }; 
+/**
+ * Fix incorrect profile picture URLs in the database
+ * This is a utility function to fix URLs that were generated with the wrong format
+ */
+const fixProfilePictureUrls = async (req, res) => {
+    try {
+        // Get all users
+        const usersSnapshot = await db.collection('users').get();
+
+        if (usersSnapshot.empty) {
+            return res.status(200).json({ message: 'No users found' });
+        }
+
+        const updates = [];
+
+        // Check each user's profile picture URL
+        for (const doc of usersSnapshot.docs) {
+            const userData = doc.data();
+
+            if (userData.profilePicture && userData.profilePicture.includes('storage.googleapis.com/divvy-14457.firebasestorage.app')) {
+                // This is an incorrect URL format
+                console.log(`Found incorrect URL format for user ${doc.id}: ${userData.profilePicture}`);
+
+                // Fix the URL by removing the .firebasestorage.app part
+                const fixedUrl = userData.profilePicture.replace(
+                    'storage.googleapis.com/divvy-14457.firebasestorage.app',
+                    'storage.googleapis.com/divvy-14457'
+                );
+
+                console.log(`Fixed URL: ${fixedUrl}`);
+
+                // Update the user document
+                updates.push(
+                    db.collection('users').doc(doc.id).update({
+                        profilePicture: fixedUrl,
+                        updatedAt: new Date()
+                    })
+                );
+            }
+        }
+
+        // Apply all updates
+        if (updates.length > 0) {
+            await Promise.all(updates);
+            return res.status(200).json({
+                message: `Fixed ${updates.length} profile picture URLs`
+            });
+        }
+
+        return res.status(200).json({ message: 'No URLs needed fixing' });
+    } catch (error) {
+        console.error('Error fixing profile picture URLs:', error);
+        return res.status(500).json({ message: 'Error fixing profile picture URLs' });
+    }
+};
+
+module.exports = {
+    updateProfilePicture,
+    fixProfilePictureUrls
+}; 

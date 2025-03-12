@@ -7,6 +7,7 @@ import { clearAllNotifications } from "../../services/socketService";
 import ProfileFrame from "../shared/ProfileFrame";
 import { formatDistanceToNow } from "date-fns";
 import { fetchUserNotifications } from "../../services/socketService";
+import { useTheme } from "../../context/ThemeContext";
 
 interface NotificationsPanelProps {
   onNotificationClick?: (groupId: string, notificationType?: string) => void;
@@ -20,6 +21,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
     (state: RootState) => state.notifications.notifications
   );
   const currentUser = useSelector((state: RootState) => state.user.username);
+  const { theme } = useTheme();
 
   const container = clsx(
     // Layout
@@ -32,7 +34,9 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
 
   const title = clsx(
     // Typography
-    "text-sm font-bold text-black",
+    "text-sm font-bold",
+    // Text color based on theme
+    theme === "dark" ? "text-white" : "text-black",
     // Spacing
     "flex gap-5 items-center"
   );
@@ -80,7 +84,9 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
 
   const notificationTitle = clsx(
     // Typography
-    "text-sm font-medium text-black",
+    "text-sm font-medium",
+    // Text color based on theme
+    theme === "dark" ? "text-white" : "text-black",
     // Spacing
     "ml-2"
   );
