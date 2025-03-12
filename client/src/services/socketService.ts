@@ -1730,7 +1730,7 @@ export const updateGroupName = async (groupId: string, name: string, username: s
 };
 
 // Add this function to update group images
-export const updateGroupImage = async (groupId: string, imageUrl: string, username: string) => {
+/*export const updateGroupImage = async (groupId: string, imageUrl: string, username: string) => {
   try {
     // Get the current group data to get the members
     const currentState = store.getState();
@@ -1769,7 +1769,7 @@ export const updateGroupImage = async (groupId: string, imageUrl: string, userna
     console.error("Error updating group image:", error);
     throw error;
   }
-};
+}; */
 
 // Update the markMessagesAsRead function to use the correct action
 export const markMessagesAsRead = (chatId: string, userId: string, messages: Message[]) => {

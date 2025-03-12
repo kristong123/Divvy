@@ -51,7 +51,7 @@ const sendMessage = async (req, res) => {
 };
 
 // Send a message with an image
-const sendImageMessage = async (req, res) => {
+/*const sendImageMessage = async (req, res) => {
     try {
         const { chatId, senderId, receiverId } = req.body;
         const file = req.file;
@@ -115,7 +115,7 @@ const sendImageMessage = async (req, res) => {
         console.error('Error processing image message:', error);
         return res.status(500).json({ message: 'Failed to send image message' });
     }
-};
+}; */
 
 // Get messages for a chat
 const getMessages = async (req, res) => {
@@ -284,7 +284,7 @@ const rejectMessageRequest = async (req, res) => {
 
 module.exports = {
     sendMessage,
-    sendImageMessage,
+    //sendImageMessage,
     getMessages,
     markMessagesAsRead,
     deleteMessage,

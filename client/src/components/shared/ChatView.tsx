@@ -1343,7 +1343,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
               >
                 {message.attachments ? (
                   <img src={message.attachments.url} 
-                        alt="Image" />
+                        alt="Image" className="max-w-[300px] max-h-[300px] rounded-lg cursor-pointer hover:opacity-90"/>
                 ) : message.content}
               </div>
               <MessageStatus

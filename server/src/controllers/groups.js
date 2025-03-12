@@ -140,6 +140,7 @@ exports.getUserGroups = async (req, res) => {
 };
 
 exports.sendGroupMessage = async (req, res) => {
+  console.log("groups.js")
   try {
     const { groupId } = req.params;  // Get from URL params
     const { content, senderId } = req.body;
@@ -1204,7 +1205,7 @@ exports.getInviteStatus = async (req, res) => {
 };
 
 // Add the controller function for updating group images
-exports.updateGroupImage = async (req, res) => {
+/*exports.updateGroupImage = async (req, res) => {
   try {
     const { groupId } = req.params;
     const { username } = req.body;
@@ -1367,7 +1368,7 @@ exports.updateGroupImage = async (req, res) => {
     console.error("Error updating group image:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
-};
+};*/
 
 // Add this function to mark group messages as read
 exports.markGroupMessagesAsRead = async (req, res) => {

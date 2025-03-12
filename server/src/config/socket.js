@@ -70,7 +70,8 @@ const initializeSocket = (server) => {
                     status: 'sent',
                     readBy: [message.senderId] // Initialize with sender
                 };
-
+                //console.log("direct message store:")
+               // console.log(messageToStore)
                 await friendshipRef
                     .collection('messages')
                     .doc(message.id)
@@ -284,7 +285,6 @@ const initializeSocket = (server) => {
         socket.on('group-message', async (data) => {
             try {
                 const { groupId, message } = data;
-
                 // Ensure the message has an ID
                 if (!message.id) {
                     message.id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -310,16 +310,10 @@ const initializeSocket = (server) => {
 
                 // Save message to database with read status fields
                 const messageToStore = {
-                    content: message.content,
-                    senderId: message.senderId,
-                    senderName: message.senderId,
-                    senderProfile: senderData?.profilePicture || null,
+                    ...message,
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    system: message.system || false,
-                    type: message.type || (message.system ? 'system' : 'user'),
                     status: 'sent',
-                    readBy: [message.senderId], // Initialize with sender
-                    id: message.id
+                    readBy: [message.senderId] // Initialize with sender
                 };
 
                 // Add message to database
