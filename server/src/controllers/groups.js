@@ -140,7 +140,6 @@ exports.getUserGroups = async (req, res) => {
 };
 
 exports.sendGroupMessage = async (req, res) => {
-  console.log("groups.js")
   try {
     const { groupId } = req.params;  // Get from URL params
     const { content, senderId } = req.body;
