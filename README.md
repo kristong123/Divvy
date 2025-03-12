@@ -3,9 +3,9 @@
 A social and financial app that streamlines expense sharing and group communication. Divvy combines financial management with social features to eliminate the complexity of tracking shared expenses and coordinating group activities.
 
 
-## Beta Release
+## Final Release 1.0
 
-Currently with this beta, we implemented the core features of our messaging app. Where users can login/sign up, send messages and create a group chat. This covers most of our basic use cases of messaging others. Then for the main use cases of requesting and sending money to each other we have the front end of this implementation completed. Users can create these events but none of it will be saved to the database.
+The offical version 1.0 release of Divvy is here! In our offical release, we largely improved the social communication aspects of web app. We improved our messaging system which now includes timestamps and read reciepts! Our group chats also got more improvements by now having group profile pictures, editing group names, and event creation! In addition core features went through a UI makeover and improve their functionality. So you can expect new differences when you send message, create group chats, and events! One last feature that we felt was important was including a dark theme! You can now save your eyes from the dangers of white space! Keep reading to know all our changes we made!
 
 ## Features
 
@@ -88,8 +88,17 @@ The Divvy server handles:
 - File uploads and media handling via Cloudinary
 - Group and expense management
 - API endpoints for all client-server communications
-## Getting Started
 
+## Get Started Using Divvy
+
+  ### Accessing Divvy
+  Divvy is very simple to use! All you have to do is go the Divvy website by clicking [here](https://divvy-chi.vercel.app/login) or go to https://divvy-chi.vercel.app/login. It's still only made for desktop browers so be warned if you go on mobile. Then from there all you have to do sign-up, login, and your ready to use Divvy! If you want a full guide on using Divvy, you can click [here](https://github.com/kristong123/Divvy/blob/main/User_Doc.md) for User documentations about Divvy.
+
+### Bug reporting
+  If you experience any sorts of bugs using Divvy you can report it! Before you report a bug, please look at our User Documentations(by going to https://github.com/kristong123/Divvy/blob/main/User_Doc.md) as it has the latest documentation of known bugs that we are trying to fix! If you don't the bug in the "Bugs Known" section then in the User Documention follow the steps to report the bug. Thank you for reporting it!
+
+## Setting up Divvy Locally
+If you're curious about how Divvy is made, well look no further! We allow anyone to clone your repository if they want to play around with our application or maybe tell us what we can improve on! Below are the steps on how to get Divvy working locally on your laptop/desktop. This is just a quick getting started, so if you want more in-deph information click [here](https://github.com/kristong123/Divvy/blob/main/Developer_Doc.md) for our Developer documentions.
 
 ### Prerequisites
 Before setting up Divvy, ensure you have the following:
@@ -201,6 +210,9 @@ npm run test
 cd server
 npm run test
 ```
+### CI Services
+----
+In conjunction with our tests, we use Github Actions for continuous integration. This makes it easy to manage our CI/CD pipeline alongside our code to ensure things are working properly. If you curious about how we implemented our CI service, then click [here](https://github.com/kristong123/Divvy/blob/main/Developer_Doc.md) or go to https://github.com/kristong123/Divvy/blob/main/Developer_Doc.md and head to the "CI Services". This will go in-depth about how we use GitHub Actions and how you can use it.
 
 ## Environment Variables
 
@@ -371,12 +383,14 @@ Divvy implements several security measures:
    - Check that your Firebase project has Authentication enabled
    - Make sure you've added the appropriate authentication providers in Firebase Console
 
+### Need more support or want to do more?
+If you still having trouble or are wanting to play around more with Divvy, you look into our Developer documentions for more information! Click [here](https://github.com/kristong123/Divvy/blob/main/Developer_Doc.md) for the Developer documentions.
 
 ## License
 
 MIT License
 
-Copyright (c) 2024 Kris Tong
+Copyright (c) 2024 Kris Tong, Kevin Duong, Matthew Pham, Kenny Vo, Annmarie Vo, Johny Ho
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

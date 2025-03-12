@@ -70,7 +70,8 @@ If you find bugs please contact us at divvybusiness1@gmail.com! When reporting b
 
 General
 
-- Notifications of a task completion(I.E friend request, group invite, updating profile picture) sometimes doesn’t 
+- Notifications of a task completion(I.E friend request, group invite, updating profile picture) sometimes doesn’t appear.
+
         
 Friend System
 
@@ -79,7 +80,9 @@ Friend System
 Messaging and Group Chats
 
 - When inviting someone to a group chat, text is in white instead of black
-- Timestamps for messages sometimes goes missing
+- Sending images requires user to upload their image 2 or more times for it to send
+- Sending images in group chats is not properly being displayed. Users who sent images will see it but others will only see the image name. In addition upon re-entering the group chat, the image will display it's image name.
+- Leaving a group chat sometimes causes the chat room to not accurately display new messages being sent. So users will need to refresh their page to have real-time chat functionality to work again.
 
 Event Expenses
 - N/A
