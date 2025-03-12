@@ -665,7 +665,7 @@ module.exports = {
     // Group messages
     sendGroupMessage,
     getGroupMessages,
-    pinGroupMessage,
+
 
     // Group info
     getGroupDetails,
