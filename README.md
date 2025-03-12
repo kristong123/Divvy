@@ -2,19 +2,56 @@
 
 A social and financial app that streamlines expense sharing and group communication. Divvy combines financial management with social features to eliminate the complexity of tracking shared expenses and coordinating group activities.
 
+
 ## Beta Release
 
 Currently with this beta, we implemented the core features of our messaging app. Where users can login/sign up, send messages and create a group chat. This covers most of our basic use cases of messaging others. Then for the main use cases of requesting and sending money to each other we have the front end of this implementation completed. Users can create these events but none of it will be saved to the database.
 
 ## Features
 
-- **Expense Splitting**: Automatically calculate individual shares while accounting for taxes and tips
-- **Friend System**: Connect with friends and create custom groups for different sharing scenarios
-- **Event Creation**: Plan and coordinate gatherings with built-in tools for managing RSVPs and schedules
-- **Group Management**: Create and manage groups for different expense sharing scenarios
-- **Integrated Messaging**: Built-in communication system for discussing plans and coordinating payments
-- **Calendar Integration**: Sync events with your preferred calendar applications
-- **Multi-Platform Payment Support**: Integration with Venmo, PayPal, Zelle, and other payment services
+### Core Functionality
+
+- **Expense Splitting**
+  - Automatically calculate individual shares
+  - Account for taxes and tips
+  - Support for uneven splits and special arrangements
+  - Real-time updates and calculations
+
+- **Friend System**
+  - Connect with friends via username
+  - View friend activity and shared expenses
+  - Manage friend requests and connections
+
+- **Event Creation**
+  - Create and manage group events
+  - Set event dates
+  - Add event descriptions and details
+  - Manage event-specific expenses
+
+- **Group Management**
+  - Create unlimited groups
+  - Assign group administrators
+  - Customize group settings and images
+  - Track group-specific expenses
+  - Members can leave group
+
+- **Integrated Messaging**
+  - Real-time chat functionality
+  - Support for image sharing
+  - Message read receipts
+  - Group and direct messaging
+  - Event notifications and updates
+  - Timestamps
+
+- **3rd Party Payment Support**
+  - Venmo integration
+  - Track payment status
+  - Payment history and records
+
+### Additional Features
+- Dark/Light mode support
+- Real-time notifications
+- Profile customization
 
 ## Tech Stack
 
@@ -42,14 +79,161 @@ Currently with this beta, we implemented the core features of our messaging app.
 - Vercel (Frontend)
 - Render (Backend)
 
+
+### Server Overview
+
+The Divvy server handles:
+- User authentication and session management
+- Real-time messaging through Socket.IO
+- File uploads and media handling via Cloudinary
+- Group and expense management
+- API endpoints for all client-server communications
 ## Getting Started
 
-### Prerequisites
-- Node.js (v16 or higher)
-- npm (v8 or higher)
-- A Firebase project with Firestore enabled
-- A Cloudinary account for image uploads
 
+### Prerequisites
+Before setting up Divvy, ensure you have the following:
+- Node.js (v16 or higher) & npm (v8 or higher)
+- Firebase API keys for authentication and database access
+- Cloudinary API keys for image uploads
+
+⚠️ Don’t have Firebase or Cloudinary API keys yet?
+- Follow the Environment Variables section below for step-by-step setup instructions.
+
+### Installation
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/kristong123/Divvy.git
+cd Divvy
+```
+
+2. Install dependencies
+
+```bash
+# Setup client
+cd client
+npm install
+
+# Setup server
+cd ../server
+npm install
+```
+
+3. Set up environment variables:
+
+```bash
+# Client
+cd client && cp .env.example .env.local
+
+# Server
+cd ../server && cp .env.example .env
+```
+
+If the command fails, manually create .env.local and .env and copy from the Environment Variables section below.
+
+For client (.env.local):
+- Get Firebase configuration from Firebase Console > Project Settings > General
+- Replace the placeholder values with your Firebase config
+
+For server (.env):
+- Add your Firebase Admin key from Firebase Console > Project Settings > Service Accounts
+- Add your Cloudinary credentials from Cloudinary Dashboard
+- Ensure the CLIENT_URL matches your frontend URL
+
+4. Start both servers:
+
+```bash
+# In one terminal (from project root)
+cd client && npm run dev
+
+# In another terminal (from project root)
+cd server && npm run dev
+```
+
+The application will be available at:
+- Client: http://localhost:3000
+- Server: http://localhost:3002
+
+
+## Running the System
+
+1. Start the Frontend
+
+```bash
+cd client
+npm run dev
+```
+
+2. Start the Backend
+
+```bash
+cd server
+npm run dev
+```
+
+Production Deployment
+- Frontend is hosted on Vercel
+- Backend is hosted on Render
+- Database is Firestore (NoSQL)
+
+To deploy the frontend to Vercel:
+
+```bash
+vercel --prod
+```
+
+## Testing the System
+We use Vitest for frontend testing and Jest for backend testing.
+
+### Running Tests Locally
+- Run frontend tests (Vitest)
+
+```bash
+cd client
+npm run test
+```
+
+- Run backend tests (Jest)
+
+```bash
+cd server
+npm run test
+```
+
+## Environment Variables
+
+#### Client (.env.local)
+```env
+# Firebase Configuration
+VITE_FIREBASE_API_KEY=your_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain_here
+VITE_FIREBASE_PROJECT_ID=your_project_id_here
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id_here
+VITE_FIREBASE_APP_ID=your_app_id_here
+
+# API Configuration
+VITE_API_URL=http://localhost:3000
+```
+
+#### Server (.env)
+```env
+# Server Configuration
+PORT=3002
+
+# Firebase Admin Configuration
+FIREBASE_ADMIN_KEY={"type": "service_account", ...} # Firebase Admin Key JSON
+
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# CORS Configuration
+CLIENT_URL=http://localhost:3000
+```
 
 #### Obtaining Required API Keys
 
@@ -145,134 +329,6 @@ Currently with this beta, we implemented the core features of our messaging app.
      .idea/
      .vscode/
      ```
-### Server Overview
-
-The Divvy server handles:
-- User authentication and session management
-- Real-time messaging through Socket.IO
-- File uploads and media handling via Cloudinary
-- Group and expense management
-- API endpoints for all client-server communications
-
-Key Server Features:
-- RESTful API endpoints for user, group, and expense operations
-- WebSocket implementation for real-time updates
-- Secure file upload handling
-- Firebase Admin SDK integration for enhanced security
-- Rate limiting and request validation
-
-### Installation
-
-1. Clone the repository
-
-```bash
-git clone https://github.com/kristong123/Divvy.git
-cd Divvy
-```
-
-2. Set up environment variables and install dependencies
-
-```bash
-# Setup client
-cd client
-cp .env.example .env.local  # If this fails, create .env.local manually
-npm install
-
-# Setup server
-cd ../server
-cp .env.example .env  # If this fails, create .env manually
-npm install
-```
-
-3. Configure your environment files:
-
-For client (.env.local):
-- Get Firebase configuration from Firebase Console > Project Settings > General
-- Replace the placeholder values with your Firebase config
-
-For server (.env):
-- Add your Firebase Admin key from Firebase Console > Project Settings > Service Accounts
-- Add your Cloudinary credentials from Cloudinary Dashboard
-- Ensure the CLIENT_URL matches your frontend URL
-
-4. Start both servers:
-
-```bash
-# In one terminal (from project root)
-cd client && npm run dev
-
-# In another terminal (from project root)
-cd server && npm run dev
-```
-
-The application will be available at:
-- Client: http://localhost:3000
-- Server: http://localhost:3002
-
-## Environment Variables
-
-#### Client (.env.local)
-```env
-VITE_FIREBASE_API_KEY=your_api_key_here
-VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain_here
-# etc...
-```
-
-#### Server (.env)
-```env
-PORT=3002
-FIREBASE_ADMIN_KEY={"type": "service_account", ...}
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-CLIENT_URL=http://localhost:3000
-```
-
-## Running the System
-
-1. Start the Frontend
-
-```bash
-cd client
-npm run dev
-```
-
-2. Start the Backend
-
-```bash
-cd server
-npm run dev
-```
-
-Production Deployment
-- Frontend is hosted on Vercel
-- Backend is hosted on Render
-- Database is Firestore (NoSQL)
-
-To deploy the frontend to Vercel:
-
-```bash
-vercel --prod
-```
-
-## Testing the System
-We use Vitest for frontend testing and Jest for backend testing.
-
-### Running Tests Locally
-- Run frontend tests (Vitest)
-
-```bash
-cd client
-npm run test
-```
-
-- Run backend tests (Jest)
-
-```bash
-cd server
-npm run test
-```
-
 ## Security
 
 Divvy implements several security measures:
