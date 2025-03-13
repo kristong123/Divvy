@@ -991,56 +991,6 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     if (!inputText.trim()) return;
 
     try {
-      const messageContent = inputText.trim();
-      setInputText("");
-
-      if (chat.isGroup) {
-        // For group messages, ensure the chatId is properly formatted
-        // If the chat.id already starts with 'group_', use it as is
-        // Otherwise, add the 'group_' prefix
-        const groupChatId = chat.id.startsWith("group_")
-          ? chat.id
-          : `group_${chat.id}`;
-
-        await sendMessage(
-          {
-            chatId: groupChatId,
-            content: messageContent,
-            senderId: currentUser,
-            type: "text",
-          },
-          {
-            dispatch,
-          }
-        );
-      } else {
-        // For direct messages, ensure we're using the correct friendship ID
-        // The chat.id might already be the correct friendship ID, but let's make sure
-        const recipient = chat.name; // For direct messages, the chat name is the other user's username
-        const friendshipId = generateFriendshipId(currentUser, recipient);
-
-        await sendMessage({
-          chatId: friendshipId,
-          content: messageContent,
-          senderId: currentUser,
-          type: "text",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      toast.error("Failed to send message. Please try again.");
-    }
-  };
-  // Update the image messages
-  const handleSendImage = async (imgURL: string) => {
-    if (!imgURL) return; // imgURL is already passed, no need to check img.file
-
-    console.log("Start image handling");
-    console.log("Waiting to upload...");
-
-    try {
-      console.log("Handling message");
-
       // Group message handling
       if (chat.isGroup) {
         const groupChatId = chat.id.startsWith("group_")
@@ -1049,54 +999,91 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
         await sendMessage(
           {
             chatId: groupChatId,
-            content: imgURL,
+            content: inputText,
             senderId: currentUser,
-            type: "image",
-            attachments: { url: imgURL, type: "image" },
+            type: "text",
           },
           { dispatch }
         );
-        console.log("Image sent to group");
       } else {
         // Direct message handling
         const recipient = chat.name; // Chat name for direct messages
         const friendshipId = generateFriendshipId(currentUser, recipient);
         await sendMessage({
           chatId: friendshipId,
-          content: imgURL,
+          content: inputText,
           senderId: currentUser,
-          type: "image",
-          attachments: { url: imgURL, type: "image" },
+          type: "text",
         });
-        console.log("Image sent to direct message");
       }
 
-      // Clear image state after sending the message
-      setImg({ file: null, url: "" });
+      // Clear input after sending
+      setInputText("");
     } catch (error) {
-      console.error("Failed to send image message:", error);
-      toast.error("Failed to send image. Please try again.");
+      console.error("Failed to send message:", error);
+      toast.error("Failed to send message. Please try again.");
     }
   };
+  
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
+  
   // Allows for users to upload images
   const handleImg = async (file: File) => {
     try {
       const downloadUrl = await uploadFile(file); // Upload file and get the URL
+      
+      // Create attachment object that matches the Message type
+      const attachment = {
+        url: downloadUrl,
+        type: 'image' as const,
+        name: file.name,
+        size: file.size
+      };
+      
       // Update the state with the file and its URL
       setImg({
         file: file,
         url: downloadUrl,
       });
-      // Call handleSendImage after the state update
-      handleSendImage(downloadUrl);
+      
+      // Send the image message with proper type and attachment
+      if (chat.isGroup) {
+        const groupChatId = chat.id.startsWith("group_")
+          ? chat.id
+          : `group_${chat.id}`;
+        await sendMessage(
+          {
+            chatId: groupChatId,
+            content: downloadUrl,
+            senderId: currentUser,
+            type: "image",
+            attachments: attachment,
+          },
+          { dispatch }
+        );
+      } else {
+        // Direct message handling
+        const recipient = chat.name; // Chat name for direct messages
+        const friendshipId = generateFriendshipId(currentUser, recipient);
+        await sendMessage({
+          chatId: friendshipId,
+          content: downloadUrl,
+          senderId: currentUser,
+          type: "image",
+          attachments: attachment,
+        });
+      }
+      
+      // Clear image state after sending
+      setImg({ file: null, url: "" });
     } catch (error) {
       console.error("File upload failed:", error);
+      toast.error("Failed to upload image. Please try again.");
     }
   };
   useEffect(() => {
@@ -1448,6 +1435,12 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
                     src={message.attachments.url}
                     alt="Image"
                     className="max-w-[300px] max-h-[300px] rounded-lg cursor-pointer hover:opacity-90"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (message.attachments) {
+                        window.open(message.attachments.url, '_blank');
+                      }
+                    }}
                   />
                 ) : (
                   message.content

@@ -35,6 +35,7 @@ const userRoutes = require('./src/routes/userRoutes');
 const groupRoutes = require('./src/routes/groupRoutes');
 const messagesRoutes = require('./src/routes/messagesRoutes');
 const usersRoutes = require('./src/routes/usersRoutes');
+const uploadRoutes = require('./src/routes/uploadRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/friends', friendsRoutes);
@@ -42,6 +43,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Basic test route
 app.get('/test', (req, res) => {
