@@ -15,6 +15,9 @@ initializeSocket(server);
 // Use the corsOptions configuration
 app.use(cors(corsOptions));
 
+// Add preflight OPTIONS handling for all routes
+app.options('*', cors(corsOptions));
+
 // Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
 app.use(bodyParser.json({ limit: '10mb' }));

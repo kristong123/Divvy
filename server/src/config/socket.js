@@ -7,7 +7,12 @@ let io;
 
 const initializeSocket = (server) => {
     io = new Server(server, {
-        cors: corsOptions,
+        cors: {
+            origin: corsOptions.origin,
+            methods: corsOptions.methods,
+            credentials: corsOptions.credentials,
+            allowedHeaders: corsOptions.allowedHeaders
+        },
         allowEIO3: true,
         pingTimeout: 60000,
         pingInterval: 25000,
