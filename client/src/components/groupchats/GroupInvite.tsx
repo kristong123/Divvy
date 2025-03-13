@@ -110,18 +110,53 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
         if (response.data && response.data.status) {
           // If the server has a saved status, use it
           console.log(`Server returned invite status: ${response.data.status}`);
-          dispatch(
-            setInviteStatus({
-              inviteId: id,
-              status: response.data.status,
-            })
-          );
-          return;
+
+          // Map "read" status to "valid" to make buttons clickable
+          let mappedStatus = response.data.status;
+          if (mappedStatus === "read") {
+            console.log(`Mapping "read" status to "valid" for invite ${id}`);
+            mappedStatus = "valid";
+          }
+
+          // Only use the status if it's a valid InviteStatus
+          if (
+            [
+              "valid",
+              "invalid",
+              "already_member",
+              "accepted",
+              "declined",
+              "sent",
+            ].includes(mappedStatus)
+          ) {
+            dispatch(
+              setInviteStatus({
+                inviteId: id,
+                status: mappedStatus as InviteStatus,
+              })
+            );
+            return;
+          } else {
+            console.log(
+              `Received unknown status "${mappedStatus}", defaulting to "valid"`
+            );
+            dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+            return;
+          }
         }
       } catch (statusError) {
         console.error("Error fetching invite status:", statusError);
         // Mark status check as failed to avoid repeated failures
         setStatusCheckFailed(true);
+
+        // Set to valid or sent status to allow interaction even if the status check fails
+        if (inviteStatus === "loading") {
+          console.log(
+            `Setting invite status to valid after failed status check`
+          );
+          dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+        }
+        return;
       }
 
       // If we get here, either there's no saved status or there was an error
@@ -159,6 +194,21 @@ const GroupInvite: React.FC<GroupInviteProps> = ({
       checkInviteStatus();
     }
   }, [inviteStatus, checkInviteStatus]);
+
+  // Add a fallback timer to ensure invite becomes interactive if status checks fail
+  useEffect(() => {
+    // If the invite is still in loading state after 3 seconds, set it to valid
+    if (inviteStatus === "loading") {
+      const timer = setTimeout(() => {
+        console.log(
+          `Invite status still loading after timeout, setting to valid: ${id}`
+        );
+        dispatch(setInviteStatus({ inviteId: id, status: "valid" }));
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [id, inviteStatus, dispatch]);
 
   // Listen for socket events that might affect the invite status
   useEffect(() => {

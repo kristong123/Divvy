@@ -71,7 +71,7 @@ const initializeSocket = (server) => {
                     readBy: [message.senderId] // Initialize with sender
                 };
                 //console.log("direct message store:")
-               // console.log(messageToStore)
+                // console.log(messageToStore)
                 await friendshipRef
                     .collection('messages')
                     .doc(message.id)
@@ -742,6 +742,109 @@ const initializeSocket = (server) => {
         socket.on('user-removed-from-group', ({ groupId, username }) => {
             // Notify the specific user that they've been removed
             io.to(username).emit('user-removed-from-group', { groupId });
+        });
+
+        // When a user leaves a group
+        socket.on('user-left-group', async ({ groupId, username }) => {
+            try {
+                // Get group data
+                const groupRef = db.collection('groupChats').doc(groupId);
+                const groupDoc = await groupRef.get();
+
+                if (!groupDoc.exists) {
+                    console.log(`Group ${groupId} not found, skipping leave event`);
+                    // Just notify the user who tried to leave that they've left
+                    io.to(username).emit('left-group', { groupId });
+                    return;
+                }
+
+                const groupData = groupDoc.data();
+
+                // Check if user is already removed (to prevent duplicate processing)
+                if (!groupData.users.includes(username)) {
+                    console.log(`User ${username} already removed from group ${groupId}, skipping`);
+                    // Just notify the user who tried to leave that they've left
+                    io.to(username).emit('left-group', { groupId });
+                    return;
+                }
+
+                // Remove user from group
+                const updatedUsers = groupData.users.filter(user => user !== username);
+
+                // If no users left, delete the group and notify the user
+                if (updatedUsers.length === 0) {
+                    console.log(`Deleting group ${groupId} as the last user left`);
+                    await groupRef.delete();
+
+                    // Notify the user who left that the group was deleted
+                    io.to(username).emit('group-deleted', { groupId });
+                    io.to(username).emit('left-group', { groupId });
+
+                    return;
+                }
+
+                // Update admin if needed
+                if (groupData.admin === username) {
+                    // Assign new admin
+                    await groupRef.update({
+                        admin: updatedUsers[0],
+                        users: updatedUsers,
+                        updatedAt: new Date()
+                    });
+                } else {
+                    // Just update users
+                    await groupRef.update({
+                        users: updatedUsers,
+                        updatedAt: new Date()
+                    });
+                }
+
+                // Add system message
+                const systemMessage = {
+                    content: `${username} left the group`,
+                    senderId: 'system',
+                    timestamp: new Date(),
+                    system: true,
+                    type: 'system'
+                };
+
+                // Add to database
+                const systemMessageRef = await groupRef.collection('messages').add(systemMessage);
+                const systemMessageId = systemMessageRef.id;
+
+                // Prepare the message to send
+                const messageToSend = {
+                    ...systemMessage,
+                    id: systemMessageId,
+                    chatId: `group_${groupId}`, // Use the correct format with group_ prefix
+                    timestamp: systemMessage.timestamp.toISOString(),
+                    status: 'sent'
+                };
+
+                // Notify all remaining members - only send one notification per member
+                updatedUsers.forEach(member => {
+                    const memberUsername = typeof member === 'string' ? member : member.username;
+
+                    // Emit system message
+                    io.to(memberUsername).emit('system-message', {
+                        groupId,
+                        message: messageToSend
+                    });
+
+                    // Also notify about user leaving for UI updates - only once per member
+                    io.to(memberUsername).emit('user-left-group', {
+                        groupId,
+                        username
+                    });
+                });
+
+                // Notify the user who left - only once
+                io.to(username).emit('left-group', { groupId });
+
+            } catch (error) {
+                console.error('Error handling user leaving group:', error);
+                socket.emit('error', { message: 'Failed to process group leave' });
+            }
         });
 
         socket.on('update-expense', async (data) => {

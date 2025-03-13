@@ -1,6 +1,7 @@
 import React from "react";
 import clsx from "clsx";
 import { useTheme } from "../../context/ThemeContext";
+import { Users } from "lucide-react";
 
 interface GroupCardProps {
   name: string;
@@ -56,7 +57,13 @@ const GroupCard: React.FC<GroupCardProps> = ({ name, imageUrl, onClick }) => {
   return (
     <div className={card} onClick={onClick}>
       <div className={photoContainer}>
-        {imageUrl && <img className={image} src={imageUrl} alt={name} />}
+        {imageUrl ? (
+          <img className={image} src={imageUrl} alt={name} />
+        ) : (
+          <div className="flex items-center justify-center w-full h-full bg-slate-300">
+            <Users className="text-white" size={48} />
+          </div>
+        )}
       </div>
       <div className={groupName}>{name}</div>
     </div>

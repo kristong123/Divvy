@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
-import { toast } from "react-hot-toast";
-import { useSelector } from "react-redux";
+import React, { useMemo, useEffect, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store/store";
-import { getFirebaseStorageUrl } from "../../services/imageUploadService";
+import { getImageUrl } from "../../services/imageUploadService";
+import { cacheProfilePicture } from "../../store/slice/friendsSlice";
+import { UserRound } from "lucide-react";
 
 // Utility function to validate image URLs or paths
 const isValidImageSource = (source: string | null): boolean => {
@@ -10,55 +11,37 @@ const isValidImageSource = (source: string | null): boolean => {
 
   // If it's a URL, validate it
   if (source.startsWith("http")) {
-    // Log the URL for debugging
-    console.log(`Validating image URL: ${source}`);
-
-    // Check for common valid patterns
-    const validPatterns = [
-      /^https:\/\/storage\.googleapis\.com\//,
-      /^https:\/\/.*\.firebasestorage\.app\//,
-      /^https:\/\/firebasestorage\.googleapis\.com\//,
-    ];
-
-    const isValid = validPatterns.some((pattern) => pattern.test(source));
-    console.log(`URL validation result: ${isValid}`);
-    return isValid;
+    // Check for Cloudinary URLs only (no placeholders)
+    return source.match(/^https:\/\/res\.cloudinary\.com\//) !== null;
   }
 
   // If it's a file path, it should be valid
-  // Log the path for debugging
-  console.log(`Validating image path: ${source}`);
   return true;
-};
-
-// Function to get the full URL from a path or URL
-const getFullImageUrl = (source: string | null): string | null => {
-  if (!source) return null;
-
-  // If it's already a URL, return it
-  if (source.startsWith("http")) {
-    return source;
-  }
-
-  // Otherwise, convert the path to a URL
-  return getFirebaseStorageUrl(source);
 };
 
 interface ProfileFrameProps {
   username: string;
-  size?: number; // Use numeric size instead of preset sizes
+  size?: number;
   className?: string;
 }
 
 const ProfileFrame: React.FC<ProfileFrameProps> = ({
   username,
-  size = 32, // Default size of 32px
+  size = 32,
   className,
 }) => {
+  const dispatch = useDispatch();
+
   // Get data from Redux store
   const groups = useSelector((state: RootState) => state.groups.groups);
   const friends = useSelector((state: RootState) => state.friends.friends);
   const currentUser = useSelector((state: RootState) => state.user);
+
+  // Get cached profile picture from friends slice
+  const cachedProfilePictures = useSelector(
+    (state: RootState) => state.friends.profilePictureCache
+  );
+  const cachedPicture = cachedProfilePictures[username];
 
   // Find profile picture based on username
   const imageSource = useMemo(() => {
@@ -91,74 +74,115 @@ const ProfileFrame: React.FC<ProfileFrameProps> = ({
     return null;
   }, [username, groups, friends, currentUser]);
 
-  // Convert the source to a full URL if it's a path
-  const imageUrl = useMemo(() => {
-    return getFullImageUrl(imageSource);
-  }, [imageSource]);
+  // State for the actual download URL
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [imageSrc, setImageSrc] = useState<string>("");
+  const [hasValidImage, setHasValidImage] = useState<boolean>(false);
 
-  // Add a function to preload the image to check if it's valid
-  const checkImageValidity = (url: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      img.src = url;
-    });
-  };
-
-  // Use React.useEffect to check image validity
-  const [isImageValid, setIsImageValid] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (imageUrl && isValidImageSource(imageSource)) {
-      // Add a timestamp to prevent caching
-      const urlWithTimestamp = imageUrl.includes("?")
-        ? imageUrl.split("?")[0] + "?t=" + Date.now()
-        : imageUrl + "?t=" + Date.now();
-
-      checkImageValidity(urlWithTimestamp).then((valid) => {
-        setIsImageValid(valid);
-        if (!valid) {
-          console.log(`Image failed to load: ${urlWithTimestamp}`);
-          // Store in session storage to prevent repeated errors
-          const errorKey = `profile_error_${username}`;
-          if (!sessionStorage.getItem(errorKey)) {
-            sessionStorage.setItem(errorKey, "true");
-          }
+  // Function to load the image
+  const loadImage = async () => {
+    try {
+      // Check if we already have this image in the cache and it's not too old
+      if (cachedPicture && cachedPicture.isValid) {
+        const cacheAge = Date.now() - cachedPicture.lastUpdated;
+        // Use cache if it's less than 30 minutes old
+        if (cacheAge < 30 * 60 * 1000) {
+          console.log(`[ProfileFrame] Using cached image for ${username}`);
+          setImageSrc(cachedPicture.downloadUrl);
+          setHasValidImage(true);
+          setIsLoading(false);
+          return;
         }
-      });
-    } else {
-      setIsImageValid(false);
-    }
-  }, [imageUrl, imageSource, username]);
+      }
 
-  const handleImageError = (
-    e: React.SyntheticEvent<HTMLImageElement, Event>
-  ) => {
-    // Prevent the default error behavior
-    e.preventDefault();
+      setIsLoading(true);
 
-    // Set a blank image instead
-    e.currentTarget.src = "";
+      // Get the profile picture URL from the user data
+      let imageUrl = imageSource;
 
-    // Use a session-based approach to prevent repeated notifications
-    const errorKey = `profile_error_${username}`;
-    if (!sessionStorage.getItem(errorKey)) {
-      // Only show the error once per session for this user
-      toast.error(`Failed to load ${username}'s profile picture`, {
-        id: `profile-error-${username}`, // Use a unique ID to prevent duplicates
-        duration: 3000, // Show for 3 seconds only
-      });
-      // Mark this error as shown in this session
-      sessionStorage.setItem(errorKey, "true");
+      console.log(
+        `[ProfileFrame] Loading image for ${username}, source:`,
+        imageUrl
+      );
+
+      // If we have a valid URL, use it directly
+      if (imageUrl && isValidImageSource(imageUrl)) {
+        console.log(
+          `[ProfileFrame] Valid image source for ${username}:`,
+          imageUrl
+        );
+
+        // Use the URL directly (with possible timestamp for cache busting)
+        const directUrl = getImageUrl(imageUrl);
+        console.log(
+          `[ProfileFrame] Using direct URL for ${username}:`,
+          directUrl
+        );
+
+        setImageSrc(directUrl);
+        setHasValidImage(true);
+
+        // Cache the profile picture URL
+        dispatch(
+          cacheProfilePicture({
+            username,
+            imageSource: imageUrl,
+            downloadUrl: directUrl,
+            isValid: true,
+            useProxy: false,
+          })
+        );
+      } else {
+        console.log(
+          `[ProfileFrame] Invalid or missing image source for ${username}, using UserRound icon`
+        );
+        // No valid image, we'll use the UserRound icon
+        setHasValidImage(false);
+      }
+    } catch (error) {
+      console.error(
+        `[ProfileFrame] Error loading profile picture for ${username}:`,
+        error
+      );
+      setHasValidImage(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return "?";
-    const parts = name.split(" ");
-    return parts.map((part) => part.charAt(0)).join("");
+  const handleImageError = () => {
+    // If image fails to load, use UserRound icon
+    console.log(
+      `[ProfileFrame] Image failed to load for ${username}, using UserRound icon`
+    );
+
+    // Log the image source that failed
+    console.log(`[ProfileFrame] Failed image source: ${imageSrc}`);
+
+    // Mark as invalid
+    setHasValidImage(false);
+
+    // Update the cache to mark this image as invalid
+    if (imageSource) {
+      dispatch(
+        cacheProfilePicture({
+          username,
+          imageSource,
+          downloadUrl: "",
+          isValid: false,
+          useProxy: false,
+        })
+      );
+    }
   };
+
+  // Add useEffect to load the image when the component mounts or when the image source changes
+  useEffect(() => {
+    console.log(`[ProfileFrame] Component mounted/updated for ${username}`);
+    console.log(`[ProfileFrame] Current imageSource:`, imageSource);
+    console.log(`[ProfileFrame] Current cachedPicture:`, cachedPicture);
+    loadImage();
+  }, [imageSource, username, dispatch]);
 
   return (
     <div
@@ -166,21 +190,23 @@ const ProfileFrame: React.FC<ProfileFrameProps> = ({
       style={{ width: `${size}px`, height: `${size}px` }}
       data-username={username}
     >
-      {imageUrl && isValidImageSource(imageSource) && isImageValid ? (
+      {hasValidImage && !isLoading ? (
         <img
-          key={imageUrl}
-          src={
-            imageUrl.includes("?")
-              ? imageUrl.split("?")[0] + "?t=" + Date.now()
-              : imageUrl + "?t=" + Date.now()
-          }
+          key={imageSrc}
+          src={imageSrc}
           alt={username}
           className="absolute inset-0 m-auto w-[90%] h-[90%] object-cover rounded-full"
-          onError={handleImageError}
+          onError={(e) => {
+            console.log(`[ProfileFrame] Image error for ${username}:`, e);
+            handleImageError();
+          }}
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+          loading="lazy"
         />
       ) : (
         <div className="flex items-center rounded-full justify-center w-[90%] h-[90%] bg-slate-300">
-          <span className="text-white">{getInitials(username)}</span>
+          <UserRound className="text-white" size={size * 0.6} />
         </div>
       )}
     </div>

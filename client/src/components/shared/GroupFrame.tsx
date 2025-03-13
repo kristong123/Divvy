@@ -1,47 +1,20 @@
-import { toast } from "react-hot-toast";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store/store";
-import React from "react";
-import { getFirebaseStorageUrl } from "../../services/imageUploadService";
+import React, { useState, useEffect } from "react";
+import { getImageUrl } from "../../services/imageUploadService";
+import { cacheGroupImage } from "../../store/slice/groupSlice";
+import { Users } from "lucide-react";
 
-// Utility function to validate image URLs or paths
-const isValidImageSource = (source: string | null): boolean => {
-  if (!source) return false;
-
-  // If it's a URL, validate it
-  if (source.startsWith("http")) {
-    // Log the URL for debugging
-    console.log(`Validating group image URL: ${source}`);
-
-    // Check for common valid patterns
-    const validPatterns = [
-      /^https:\/\/storage\.googleapis\.com\//,
-      /^https:\/\/.*\.firebasestorage\.app\//,
-      /^https:\/\/firebasestorage\.googleapis\.com\//,
-    ];
-
-    const isValid = validPatterns.some((pattern) => pattern.test(source));
-    console.log(`Group URL validation result: ${isValid}`);
-    return isValid;
+// Function to check if the image source is valid
+const isValidImageSource = (source: string): boolean => {
+  // Check for Cloudinary URLs only (no placeholders)
+  if (source && typeof source === "string") {
+    if (source.startsWith("http")) {
+      return source.match(/^https:\/\/res\.cloudinary\.com\//) !== null;
+    }
+    return true;
   }
-
-  // If it's a file path, it should be valid
-  // Log the path for debugging
-  console.log(`Validating group image path: ${source}`);
-  return true;
-};
-
-// Function to get the full URL from a path or URL
-const getFullImageUrl = (source: string | null): string | null => {
-  if (!source) return null;
-
-  // If it's already a URL, return it
-  if (source.startsWith("http")) {
-    return source;
-  }
-
-  // Otherwise, convert the path to a URL
-  return getFirebaseStorageUrl(source);
+  return false;
 };
 
 interface GroupFrameProps {
@@ -55,103 +28,144 @@ const GroupFrame: React.FC<GroupFrameProps> = ({
   size = 32,
   className = "",
 }) => {
+  const dispatch = useDispatch();
+
   // Get group data from Redux store
   const group = useSelector((state: RootState) => state.groups.groups[groupId]);
+
+  // Get cached group image from groups slice
+  const cachedGroupImages = useSelector(
+    (state: RootState) => state.groups.groupImageCache
+  );
+  const cachedImage = cachedGroupImages[groupId];
 
   const groupName = group?.name || "Group";
   // Use imageUrl property as defined in the Group interface
   const imageSource = group?.imageUrl || null;
 
-  // Convert the source to a full URL if it's a path
-  const imageUrl = React.useMemo(() => {
-    return getFullImageUrl(imageSource);
-  }, [imageSource]);
+  // State for the actual download URL
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [imageSrc, setImageSrc] = useState<string>("");
+  const [hasValidImage, setHasValidImage] = useState<boolean>(false);
 
-  // Add a function to preload the image to check if it's valid
-  const checkImageValidity = (url: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      img.src = url;
-    });
-  };
-
-  // Use React.useEffect to check image validity
-  const [isImageValid, setIsImageValid] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (imageUrl && isValidImageSource(imageSource)) {
-      // Add a timestamp to prevent caching
-      const urlWithTimestamp = imageUrl.includes("?")
-        ? imageUrl.split("?")[0] + "?t=" + Date.now()
-        : imageUrl + "?t=" + Date.now();
-
-      checkImageValidity(urlWithTimestamp).then((valid) => {
-        setIsImageValid(valid);
-        if (!valid) {
-          console.log(`Group image failed to load: ${urlWithTimestamp}`);
-          // Store in session storage to prevent repeated errors
-          const errorKey = `group_error_${groupId}`;
-          if (!sessionStorage.getItem(errorKey)) {
-            sessionStorage.setItem(errorKey, "true");
-          }
+  // Function to load the image
+  const loadImage = async () => {
+    try {
+      // Check if we already have this image in the cache and it's not too old
+      if (cachedImage && cachedImage.isValid) {
+        const cacheAge = Date.now() - cachedImage.lastUpdated;
+        // Use cache if it's less than 30 minutes old
+        if (cacheAge < 30 * 60 * 1000) {
+          console.log(`[GroupFrame] Using cached image for ${groupId}`);
+          setImageSrc(cachedImage.downloadUrl);
+          setHasValidImage(true);
+          setIsLoading(false);
+          return;
         }
-      });
-    } else {
-      setIsImageValid(false);
-    }
-  }, [imageUrl, imageSource, groupId]);
+      }
 
-  const handleImageError = (
-    e: React.SyntheticEvent<HTMLImageElement, Event>
-  ) => {
-    // Prevent the default error behavior
-    e.preventDefault();
+      setIsLoading(true);
 
-    // Set a blank image instead
-    e.currentTarget.src = "";
+      // Get the group image URL
+      let imageUrl = imageSource;
 
-    // Use a session-based approach to prevent repeated notifications
-    const errorKey = `group_error_${groupId}`;
-    if (!sessionStorage.getItem(errorKey)) {
-      // Only show the error once per session for this group
-      toast.error(`Failed to load ${groupName}'s image`, {
-        id: `group-error-${groupId}`, // Use a unique ID to prevent duplicates
-        duration: 3000, // Show for 3 seconds only
-      });
-      // Mark this error as shown in this session
-      sessionStorage.setItem(errorKey, "true");
+      console.log(
+        `[GroupFrame] Loading image for ${groupId}, source:`,
+        imageUrl
+      );
+
+      // If we have a valid URL, use it directly
+      if (imageUrl && isValidImageSource(imageUrl)) {
+        console.log(
+          `[GroupFrame] Valid image source for ${groupId}:`,
+          imageUrl
+        );
+
+        // Use the URL directly (with possible timestamp for cache busting)
+        const directUrl = getImageUrl(imageUrl);
+        console.log(`[GroupFrame] Using direct URL for ${groupId}:`, directUrl);
+
+        setImageSrc(directUrl);
+        setHasValidImage(true);
+
+        // Cache the group image URL
+        dispatch(
+          cacheGroupImage({
+            groupId,
+            imageSource: imageUrl,
+            downloadUrl: directUrl,
+            isValid: true,
+            useProxy: false,
+          })
+        );
+      } else {
+        console.log(
+          `[GroupFrame] Invalid or missing image source for ${groupId}, using Users icon`
+        );
+        // No valid image, we'll use the Users icon
+        setHasValidImage(false);
+      }
+    } catch (error) {
+      console.error(
+        `[GroupFrame] Error loading group image for ${groupId}:`,
+        error
+      );
+      setHasValidImage(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return "G";
-    const parts = name.split(" ");
-    return parts.map((part) => part.charAt(0)).join("");
+  const handleImageError = () => {
+    // If image fails to load, use Users icon
+    console.log(
+      `[GroupFrame] Image failed to load for ${groupId}, using Users icon`
+    );
+
+    // Log the image source that failed
+    console.log(`[GroupFrame] Failed image source: ${imageSrc}`);
+
+    // Mark as invalid
+    setHasValidImage(false);
+
+    // Update the cache to mark this image as invalid
+    if (imageSource) {
+      dispatch(
+        cacheGroupImage({
+          groupId,
+          imageSource,
+          downloadUrl: "",
+          isValid: false,
+          useProxy: false,
+        })
+      );
+    }
   };
+
+  useEffect(() => {
+    loadImage();
+  }, [imageSource, groupId, dispatch]);
 
   return (
     <div
       className={`relative flex items-center justify-center rounded-2xl shadow-md overflow-hidden bg-gradient-to-br from-[#57E3DC] to-[#4DC8C2] ${className}`}
       style={{ width: `${size}px`, height: `${size}px` }}
-      data-groupid={groupId}
+      data-group-id={groupId}
     >
-      {imageUrl && isValidImageSource(imageSource) && isImageValid ? (
+      {hasValidImage && !isLoading ? (
         <img
-          key={imageUrl}
-          src={
-            imageUrl.includes("?")
-              ? imageUrl.split("?")[0] + "?t=" + Date.now()
-              : imageUrl + "?t=" + Date.now()
-          }
+          key={imageSrc}
+          src={imageSrc}
           alt={groupName}
           className="absolute inset-0 m-auto w-[90%] h-[90%] object-cover rounded-2xl"
           onError={handleImageError}
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+          loading="lazy"
         />
       ) : (
         <div className="flex items-center rounded-2xl justify-center w-[90%] h-[90%] bg-slate-300">
-          <span className="text-white">{getInitials(groupName)}</span>
+          <Users className="text-white" size={size * 0.6} />
         </div>
       )}
     </div>

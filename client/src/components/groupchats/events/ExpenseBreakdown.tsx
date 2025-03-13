@@ -9,10 +9,10 @@ import { removeExpense, updateExpense } from "../../../services/socketService";
 import { X } from "lucide-react";
 import { store } from "../../../store/store";
 import { groupActions } from "../../../store/slice/groupSlice";
-import axios from "axios";
-import { BASE_URL } from "../../../config/api";
 import { useTheme } from "../../../context/ThemeContext";
 import PayConfirmModal from "../../modals/PayConfirmModal";
+import { AppDispatch } from "../../../store/store";
+import { fetchUserDetails } from "../../../store/slice/userSlice";
 
 interface ExpenseBreakdownProps {
   groupId: string;
@@ -29,7 +29,7 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
   const group = useSelector((state: RootState) => state.groups.groups[groupId]);
   const reduxExpenses = group?.currentEvent?.expenses || [];
   const groupMembers = group?.users || [];
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { theme } = useTheme();
 
   // State for editing expense amounts
@@ -130,12 +130,16 @@ const ExpenseBreakdown: React.FC<ExpenseBreakdownProps> = ({ groupId }) => {
     username: string
   ): Promise<string | undefined> => {
     try {
-      const response = await axios.get(`${BASE_URL}/api/users/${username}`);
-      if (response.data && response.data.venmoUsername) {
-        console.log(
-          `Fetched latest Venmo username for ${username}: ${response.data.venmoUsername}`
-        );
-        return response.data.venmoUsername;
+      // Use the fetchUserDetails AsyncThunk instead of direct API call
+      const resultAction = await dispatch(fetchUserDetails(username));
+      if (fetchUserDetails.fulfilled.match(resultAction)) {
+        const userData = resultAction.payload;
+        if (userData && userData.venmoUsername) {
+          console.log(
+            `Fetched latest Venmo username for ${username}: ${userData.venmoUsername}`
+          );
+          return userData.venmoUsername;
+        }
       }
       return undefined;
     } catch (error) {

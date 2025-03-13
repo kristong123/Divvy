@@ -4,12 +4,10 @@ import Sidebar from "./Sidebar";
 import AddGroupButton from "./groupchats/AddGroupButton";
 import GroupCard from "./groupchats/GroupCard";
 import ChatView from "./shared/ChatView";
-import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useSelector, useDispatch } from "react-redux";
-import { BASE_URL } from "../config/api";
-import { RootState } from "../store/store";
-import { groupActions } from "../store/slice/groupSlice";
+import { RootState, AppDispatch } from "../store/store";
+import { fetchUserGroups, createGroup } from "../store/slice/groupSlice";
 import { useTheme } from "../context/ThemeContext";
 import { Settings } from "lucide-react";
 import FloatingButton from "./shared/FloatingButton";
@@ -25,7 +23,6 @@ interface GroupData {
   id: string;
   name: string;
   imageUrl?: string;
-  amount?: string;
   isGroup: true;
   users: GroupMember[];
   admin: string;
@@ -42,25 +39,6 @@ interface DirectChat {
   lastMessage?: string;
 }
 
-// Add interface for the API response
-interface GroupResponse {
-  id: string;
-  name: string;
-  currentEvent: Event; // Use the Event type from your groupSlice
-  users: UserResponse[];
-  admin: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// For handleCreateGroup:
-interface UserResponse {
-  username: string;
-  profilePicture: string | null;
-  isAdmin: boolean;
-}
-
 const Main: React.FC = () => {
   const { theme } = useTheme();
   const username = useSelector((state: RootState) => state.user.username);
@@ -70,7 +48,7 @@ const Main: React.FC = () => {
     () => Object.values(groups) as GroupData[],
     [groups]
   );
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [selectedChat, setSelectedChat] = useState<{
     type: "group" | "direct";
@@ -94,53 +72,18 @@ const Main: React.FC = () => {
   );
 
   useEffect(() => {
-    const fetchGroups = async () => {
-      if (username) {
-        try {
-          const response = await axios.get(
-            `${BASE_URL}/api/groups/user/${username}`
-          );
-          const groups = response.data.map((group: GroupResponse) => ({
-            ...group,
-            isGroup: true,
-          }));
-          dispatch(groupActions.setGroups(groups));
-        } catch (_error) {
-          console.error("Failed to fetch groups:", _error);
-          toast.error("Failed to fetch groups");
-        }
-      }
-    };
-
-    fetchGroups();
+    if (username) {
+      // Use the fetchUserGroups AsyncThunk instead of direct API call
+      dispatch(fetchUserGroups(username));
+    }
   }, [username, dispatch]);
 
   const handleCreateGroup = async (groupName: string) => {
     try {
-      const response = await axios.post(`${BASE_URL}/api/groups/create`, {
-        name: groupName,
-        createdBy: username,
-        pendingInvites: [],
-      });
-
-      const newGroup: GroupData = {
-        id: response.data.id,
-        name: response.data.name,
-        isGroup: true,
-        users: response.data.users.map((user: UserResponse) => ({
-          username: user.username,
-          profilePicture: user.profilePicture,
-          isAdmin: user.isAdmin,
-        })),
-        admin: response.data.admin,
-        createdBy: response.data.createdBy,
-        createdAt: response.data.createdAt,
-        updatedAt: response.data.updatedAt,
-      };
-
-      dispatch(groupActions.addGroup(newGroup));
+      // Use the createGroup AsyncThunk instead of direct API call
+      await dispatch(createGroup({ groupName, username }));
     } catch (error) {
-      console.error("Error creating group:", error);
+      console.error("Failed to create group:", error);
       toast.error("Failed to create group");
     }
   };
@@ -179,8 +122,12 @@ const Main: React.FC = () => {
         id: group.id,
         name: group.name,
         imageUrl: group.imageUrl,
-        amount: group.amount,
         isGroup: true,
+        users: group.users,
+        admin: group.admin,
+        createdBy: group.createdBy,
+        createdAt: group.createdAt,
+        updatedAt: group.updatedAt,
         notificationType,
       },
     });
@@ -213,7 +160,25 @@ const Main: React.FC = () => {
             </div>
           </>
         ) : (
-          <ChatView chat={selectedChat.data} />
+          <ChatView
+            chat={{
+              id: selectedChat.data.id,
+              name: selectedChat.data.name,
+              imageUrl: selectedChat.data.imageUrl,
+              lastMessage:
+                "lastMessage" in selectedChat.data
+                  ? selectedChat.data.lastMessage
+                  : undefined,
+              isGroup:
+                "isGroup" in selectedChat.data
+                  ? selectedChat.data.isGroup
+                  : undefined,
+              notificationType:
+                "notificationType" in selectedChat.data
+                  ? selectedChat.data.notificationType
+                  : undefined,
+            }}
+          />
         )}
       </div>
 

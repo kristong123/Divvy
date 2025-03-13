@@ -18,6 +18,21 @@ export interface Expense {
   timestamp?: Date | string;
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  isGroup: true;
+  users: GroupMember[];
+  admin: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  currentEvent?: Event | null;
+  messages?: Message[];
+  keepEventOpen?: boolean;
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -28,22 +43,6 @@ export interface Event {
     _seconds: number;
     _nanoseconds: number;
   };
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  imageUrl?: string;
-  amount?: string;
-  isGroup: true;
-  users: GroupMember[];
-  admin: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  currentEvent?: Event | null;
-  messages?: Message[];
-  keepEventOpen?: boolean;
 }
 
 export interface GroupState {

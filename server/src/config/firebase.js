@@ -12,8 +12,7 @@ try {
 
   // Initialize Firebase Admin
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: "divvy-14457.firebasestorage.app"
+    credential: admin.credential.cert(serviceAccount)
   });
 
   // Get Firestore instance

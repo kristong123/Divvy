@@ -5,7 +5,7 @@ import chatReducer from "./slice/chatSlice";
 import friendsReducer from "./slice/friendsSlice";
 import groupReducer from "./slice/groupSlice";
 import notificationsReducer from "./slice/notificationsSlice";
-import { loggerMiddleware } from "./slice/notificationsSlice";
+import { loggerMiddleware } from "./middleware/loggerMiddleware";
 
 export const store = configureStore({
   reducer: {

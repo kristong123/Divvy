@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction, createAction, Middleware } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAction } from '@reduxjs/toolkit';
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { BASE_URL } from '../../config/api';
@@ -133,9 +133,4 @@ export const markAllNotificationsAsRead = createAsyncThunk(
     markAllNotificationsRead(username);
     return;
   }
-);
-
-// Create a middleware to log all actions
-export const loggerMiddleware: Middleware = () => next => action => {
-  return next(action);
-}; 
+); 

@@ -5,6 +5,7 @@ import {
   setFriends,
   setPendingRequests,
   setSentRequests,
+  updateFriendProfilePicture,
 } from "../store/slice/friendsSlice";
 import { addMessage } from "../store/slice/chatSlice";
 import { toast } from "react-hot-toast";
@@ -14,7 +15,7 @@ import {
   SocketErrorEvent,
   FriendRequestEvent,
 } from "../types/messageTypes";
-import { groupActions } from "../store/slice/groupSlice";
+import { groupActions, clearGroupImageCache } from "../store/slice/groupSlice";
 import axios from "axios";
 import { Event } from "../types/groupTypes";
 import {
@@ -37,7 +38,7 @@ import {
   removeGroupInvite,
   InviteStatus,
 } from "../store/slice/groupSlice";
-import { forceRefreshGroupImages } from "./imageUploadService";
+import { forceRefreshGroupImages, forceRefreshProfilePictures } from "./imageUploadService";
 import { Dispatch, AnyAction } from 'redux';
 
 const socket = io(SOCKET_URL);
@@ -375,28 +376,66 @@ export const initializeSocket = (username: string) => {
   socket.on("system-message", (data: SocketMessageEvent) => {
     if (!data.message) return;
 
+    // Create a unique key for this system message
+    const messageKey = `system_${data.groupId || data.chatId}_${data.message.content}_${data.message.timestamp}`;
+    
+    // Skip if we've already processed this system message
+    if (processedMessageIds.has(messageKey)) {
+      console.log(`Skipping duplicate system message: ${messageKey}`);
+      return;
+    }
+    
+    // Add to processed set
+    processedMessageIds.add(messageKey);
+    if (data.message.id) {
+      processedMessageIds.add(data.message.id);
+    }
+
     const isGroupMessage = !!data.groupId;
     
-    if (isGroupMessage) {
-      store.dispatch(
-        groupActions.addGroupMessage({
-          groupId: data.groupId!,
-          message: {
-            ...data.message,
-            type: 'system'
-          } as Message
-        })
-      );
-    } else if (data.chatId) {
-      store.dispatch(
-        addMessage({
-          chatId: data.chatId,
-          message: {
-            ...data.message,
-            type: 'system'
-          } as Message
-        })
-      );
+    // Check if this is a message about any user leaving
+    const isUserLeavingMessage = 
+      data.message.content && 
+      typeof data.message.content === 'string' && 
+      data.message.content.includes('left the group');
+    
+    // Don't show toast notifications for user leaving messages - they're handled by the user-left-group event
+    if (!isUserLeavingMessage) {
+      // Only dispatch to store if it's not about a user leaving
+      if (isGroupMessage) {
+        store.dispatch(
+          groupActions.addGroupMessage({
+            groupId: data.groupId!,
+            message: {
+              ...data.message,
+              type: 'system'
+            } as Message
+          })
+        );
+      } else {
+        store.dispatch(
+          addMessage({
+            chatId: data.chatId!,
+            message: {
+              ...data.message,
+              type: 'system'
+            } as Message
+          })
+        );
+      }
+    } else {
+      // For user leaving messages, only add to the message list but don't show toast
+      if (isGroupMessage) {
+        store.dispatch(
+          groupActions.addGroupMessage({
+            groupId: data.groupId!,
+            message: {
+              ...data.message,
+              type: 'system'
+            } as Message
+          })
+        );
+      }
     }
   });
 
@@ -1048,35 +1087,64 @@ export const initializeSocket = (username: string) => {
     }
   );
 
-  // Add this to your socket service
-  socket.on(
-    "profile-picture-updated",
-    (data: { username: string; imageUrl: string }) => {
-      const currentUser = store.getState().user.username;
-
-      // Update the current user's profile picture if it's their update
-      if (currentUser === data.username) {
-        // Then dispatch the Redux action separately
-        store.dispatch(
-          updateProfilePicture({
-            username: data.username,
-            imageUrl: data.imageUrl,
-          })
-        );
-      }
-
-      // Force a refresh of all avatars for this user
-      const avatarElements = document.querySelectorAll(
-        `[data-username="${data.username}"]`
+  // Add handler for profile picture updates
+  socket.on("profile-picture-updated", (data: { username: string; imageUrl: string }) => {
+    console.log(`[socketService] Received profile picture update for ${data.username}:`, data.imageUrl);
+    
+    // Get the current user's username
+    const currentUser = store.getState().user.username;
+    
+    // Update the Redux store with the new profile picture for the specific user
+    // This ensures the profile picture is updated everywhere in the app
+    console.log(`[socketService] Updating Redux store for ${data.username}`);
+    
+    // 1. Update in the user slice if it's the current user
+    if (data.username === currentUser) {
+      console.log(`[socketService] Updating current user's profile picture`);
+      store.dispatch(
+        updateProfilePicture({
+          username: data.username,
+          imageUrl: data.imageUrl
+        })
       );
-      avatarElements.forEach((el) => {
-        const img = el.querySelector("img");
-        if (img) {
-          img.src = data.imageUrl + "?t=" + Date.now();
+    }
+    
+    // 2. Update in the friends slice
+    console.log(`[socketService] Updating profile picture in friends list`);
+    // Update the friend's profile picture in the friends slice
+    store.dispatch(
+      updateFriendProfilePicture({
+        username: data.username,
+        profilePicture: data.imageUrl
+      })
+    );
+    
+    // 3. Update in all groups where this user is a member
+    console.log(`[socketService] Updating profile picture in group members`);
+    const groups = store.getState().groups.groups;
+    
+    if (groups) {
+      Object.keys(groups).forEach(groupId => {
+        const group = groups[groupId];
+        if (group && Array.isArray(group.users)) {
+          const userIndex = group.users.findIndex(u => u && u.username === data.username);
+          if (userIndex !== -1) {
+            console.log(`[socketService] Updating user in group ${groupId}`);
+            store.dispatch(
+              groupActions.updateAllUserProfilePictures({
+                username: data.username,
+                profilePicture: data.imageUrl
+              })
+            );
+          }
         }
       });
     }
-  );
+    
+    // 4. Force refresh of all avatar elements with this username in the DOM
+    console.log(`[socketService] Forcing refresh of all profile pictures for ${data.username}`);
+    forceRefreshProfilePictures(data.username, data.imageUrl);
+  });
 
   // Add this socket event handler in the initializeSocket function after the other event handlers
   socket.on("group-updated", (data: { 
@@ -1146,24 +1214,24 @@ export const initializeSocket = (username: string) => {
     updatedBy: string; 
     members: string[] 
   }) => {
-    console.log(`🔄 Received broadcast group update for ${data.groupId}:`, data);
+    console.log(`[socketService] Received broadcast group update for ${data.groupId}:`, data);
     
     // Process for all users, regardless of membership
     const currentUser = store.getState().user.username;
     
     // Check if this update is relevant to this user
     const isRelevant = data.members.includes(currentUser);
-    console.log(`Update is relevant to current user: ${isRelevant}`);
+    console.log(`[socketService] Update is relevant to current user: ${isRelevant}`);
     
     if (isRelevant) {
-      console.log(`Updating group ${data.groupId} for user ${currentUser}`);
+      console.log(`[socketService] Updating group ${data.groupId} for user ${currentUser}`);
       
       // Create update object with only the fields that were updated
       const updateObj: Partial<Group> & { id: string } = { id: data.groupId };
       if (data.name) updateObj.name = data.name;
       if (data.imageUrl) {
         updateObj.imageUrl = data.imageUrl;
-        console.log(`Setting image URL to: ${data.imageUrl}`);
+        console.log(`[socketService] Setting image URL to: ${data.imageUrl}`);
       }
       
       // Update the group in the Redux store
@@ -1196,8 +1264,10 @@ export const initializeSocket = (username: string) => {
     // If there's an image update, force refresh all group images with this ID
     // Do this regardless of membership to ensure all instances are updated
     if (data.imageUrl) {
-      console.log(`Forcing refresh of all images for group ${data.groupId}`);
-      // Use the imported function directly
+      console.log(`[socketService] Forcing refresh of all images for group ${data.groupId}`);
+      // Clear the group image cache first
+      store.dispatch(clearGroupImageCache(data.groupId));
+      // Then force refresh all DOM elements
       forceRefreshGroupImages(data.groupId, data.imageUrl);
     }
   });
@@ -1674,11 +1744,19 @@ export const updateProfilePictureSocket = (
   imageUrl: string
 ) => {
   try {
+    // Get the current user's username for logging
+    const currentUser = store.getState().user.username;
+    
+    console.log(`[updateProfilePictureSocket] Current user: ${currentUser}, updating profile for: ${username}`);
+    console.log(`[updateProfilePictureSocket] Image URL: ${imageUrl}`);
+    
     // Emit the profile picture update to all connected clients
     const socket = getSocket();
     socket.emit("profile-picture-updated", { username, imageUrl });
+    
+    console.log(`[updateProfilePictureSocket] Socket event emitted successfully`);
   } catch (error) {
-    console.error("Error updating profile picture:", error);
+    console.error("[updateProfilePictureSocket] Error updating profile picture:", error);
   }
 };
 
@@ -1730,46 +1808,40 @@ export const updateGroupName = async (groupId: string, name: string, username: s
 };
 
 // Add this function to update group images
-/*export const updateGroupImage = async (groupId: string, imageUrl: string, username: string) => {
+export const updateGroupImageSocket = (
+  groupId: string,
+  imageUrl: string,
+  updatedBy: string
+) => {
   try {
-    // Get the current group data to get the members
-    const currentState = store.getState();
-    const groupData = currentState.groups.groups[groupId];
-    
-    if (!groupData) {
-      console.error("Group not found in store:", groupId);
-      return false;
-    }
+    console.log(`[updateGroupImageSocket] Updating group image for ${groupId}`);
+    console.log(`[updateGroupImageSocket] Image URL: ${imageUrl}`);
     
     // Get all users in the group
-    const members = groupData.users.map(user => user.username);
+    const groups = store.getState().groups.groups;
+    const group = groups[groupId];
     
-    // Update the Redux store immediately for the current user
-    store.dispatch(
-      groupActions.updateGroup({
-        id: groupId,
-        imageUrl
-      })
-    );
+    if (!group) {
+      console.error(`[updateGroupImageSocket] Group not found: ${groupId}`);
+      return;
+    }
     
-    // Force a re-render of the groups list by dispatching setGroups
-    const updatedGroups = store.getState().groups.groups;
-    store.dispatch(groupActions.setGroups(Object.values(updatedGroups)));
+    const members = group.users.map(user => user.username);
     
-    // Emit socket event to notify other users
+    // Emit the group image update to all connected clients
+    const socket = getSocket();
     socket.emit("broadcast-group-update", {
       groupId,
       imageUrl,
-      updatedBy: username,
+      updatedBy,
       members
     });
     
-    return true;
+    console.log(`[updateGroupImageSocket] Socket event emitted successfully`);
   } catch (error) {
-    console.error("Error updating group image:", error);
-    throw error;
+    console.error("[updateGroupImageSocket] Error updating group image:", error);
   }
-}; */
+};
 
 // Update the markMessagesAsRead function to use the correct action
 export const markMessagesAsRead = (chatId: string, userId: string, messages: Message[]) => {

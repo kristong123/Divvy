@@ -2,6 +2,8 @@ const { db } = require("../config/firebase");
 const { getIO } = require("../config/socket");
 const admin = require("firebase-admin");
 const { standardizeTimestamp } = require("../utils/dateUtils");
+const { cloudinary } = require('../config/cloudinary');
+const streamifier = require('streamifier');
 
 // Check if two users are friends
 const areUsersFriends = async (user1, user2) => {
@@ -53,7 +55,7 @@ const sendMessage = async (req, res) => {
 // Send a message with an image
 const sendImageMessage = async (req, res) => {
     try {
-        const { chatId, senderId, receiverId } = req.body;
+        const { chatId, senderId, receiverId } = req.params;
         const file = req.file;
 
         if (!file) {
@@ -67,24 +69,30 @@ const sendImageMessage = async (req, res) => {
         }
 
         try {
-            // Upload file to Firebase Storage
-            const bucket = admin.storage().bucket();
-            const fileName = `chat_images/${chatId}-${Date.now()}`;
-            const fileBuffer = file.buffer;
-            const fileUpload = bucket.file(fileName);
+            // Upload file to Cloudinary
+            const uploadPromise = new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: 'chat_images',
+                        public_id: `chat-${chatId}-${Date.now()}`,
+                        resource_type: 'auto'
+                    },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
 
-            // Upload the file to Firebase Storage
-            await fileUpload.save(fileBuffer, {
-                metadata: {
-                    contentType: file.mimetype
-                }
+                streamifier.createReadStream(file.buffer).pipe(uploadStream);
             });
 
-            // Make the file publicly accessible
-            await fileUpload.makePublic();
+            const uploadResult = await uploadPromise;
 
-            // Get the public URL
-            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+            // Store the Cloudinary URL
+            const imageUrl = uploadResult.secure_url;
+
+            // Log the URL for debugging
+            console.log(`Generated chat image URL: ${imageUrl}`);
 
             // Add message to friends collection
             const messageRef = await db.collection('friends')

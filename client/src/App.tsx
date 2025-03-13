@@ -1,14 +1,15 @@
 // client/src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { useEffect } from 'react';
-import { RootState } from './store/store';
-import Login from './components/Login';
-import Main from './components/Main';
-import { Toaster } from 'react-hot-toast';
-import { initializeSocket } from './services/socketService';
-import { loadUserData } from './services/auth';
-import { ThemeProvider, useTheme } from './context/ThemeContext'; // Import useTheme
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { useEffect } from "react";
+import { RootState } from "./store/store";
+import Login from "./components/Login";
+import Main from "./components/Main";
+import { Toaster } from "react-hot-toast";
+import { initializeSocket } from "./services/socketService";
+import { loadUserData } from "./services/auth";
+import { preloadProfilePictures } from "./services/imageUploadService";
+import { ThemeProvider, useTheme } from "./context/ThemeContext"; // Import useTheme
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -43,6 +44,10 @@ function App({ RouterComponent = BrowserRouter }: AppProps) {
           // This will load all messages for the user
           await loadUserData(username, dispatch);
 
+          // Preload all profile pictures
+          console.log(`[App] Preloading profile pictures for all users`);
+          preloadProfilePictures();
+
           // Preload the profile picture
           if (profilePicture) {
             const img = new Image();
@@ -59,18 +64,28 @@ function App({ RouterComponent = BrowserRouter }: AppProps) {
     }
   }, [username, dispatch, profilePicture]);
   return (
-    <ThemeProvider>  {/* Wrap everything inside ThemeProvider */}
+    <ThemeProvider>
+      {" "}
+      {/* Wrap everything inside ThemeProvider */}
       <MainContent RouterComponent={RouterComponent} />
     </ThemeProvider>
   );
 }
 
 // Move useTheme inside a child component so it executes AFTER ThemeProvider is applied
-function MainContent({ RouterComponent }: { RouterComponent: typeof BrowserRouter }) {
-  const { theme } = useTheme();  
+function MainContent({
+  RouterComponent,
+}: {
+  RouterComponent: typeof BrowserRouter;
+}) {
+  const { theme } = useTheme();
 
   return (
-    <div className={`min-h-screen w-full transition-colors duration-300 ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100 text-black"}`}>
+    <div
+      className={`min-h-screen w-full transition-colors duration-300 ${
+        theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100 text-black"
+      }`}
+    >
       <Toaster position="top-center" />
       <RouterComponent>
         <Routes>

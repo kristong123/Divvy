@@ -1,6 +1,9 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, PayloadAction, createAsyncThunk } from "@reduxjs/toolkit";
 import { Message } from "../../types/messageTypes";
 import { Group, Event } from "../../types/groupTypes";
+import axios from "axios";
+import { BASE_URL } from "../../config/api";
+import { toast } from "react-hot-toast";
 
 interface GroupInvite {
   id: string;
@@ -18,6 +21,16 @@ export type InviteStatus =
   | "loading"
   | "sent";
 
+// Interface for cached group images
+interface CachedGroupImage {
+  groupId: string;
+  imageSource: string; // The original path or URL
+  downloadUrl: string; // The actual download URL
+  isValid: boolean;
+  lastUpdated: number; // Timestamp for cache invalidation
+  useProxy?: boolean; // Whether to use a proxy for this image
+}
+
 interface LocalGroupState {
   groups: { [key: string]: Group };
   messages: { [key: string]: Message[] };
@@ -25,6 +38,8 @@ interface LocalGroupState {
   error: string | null;
   groupInvites: { [username: string]: GroupInvite[] };
   inviteStatus: { [inviteId: string]: InviteStatus };
+  // Add group image cache
+  groupImageCache: { [groupId: string]: CachedGroupImage };
 }
 
 const initialState: LocalGroupState = {
@@ -34,7 +49,67 @@ const initialState: LocalGroupState = {
   error: null,
   groupInvites: {},
   inviteStatus: {},
+  groupImageCache: {},
 };
+
+// AsyncThunk for fetching user groups
+export const fetchUserGroups = createAsyncThunk(
+  "groups/fetchUserGroups",
+  async (username: string) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/groups/user/${username}`);
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch groups:", error);
+      throw error;
+    }
+  }
+);
+
+// AsyncThunk for creating a new group
+export const createGroup = createAsyncThunk(
+  "groups/createGroup",
+  async ({ groupName, username }: { groupName: string; username: string }) => {
+    try {
+      const response = await axios.post(`${BASE_URL}/api/groups/create`, {
+        name: groupName,
+        createdBy: username,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Failed to create group:", error);
+      throw error;
+    }
+  }
+);
+
+// AsyncThunk for fetching group messages
+export const fetchGroupMessages = createAsyncThunk(
+  "groups/fetchMessages",
+  async (groupId: string) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/groups/${groupId}/messages`);
+      return { groupId, messages: response.data };
+    } catch (error) {
+      console.error(`Failed to load messages for group ${groupId}:`, error);
+      throw error;
+    }
+  }
+);
+
+// AsyncThunk for fetching group invites
+export const fetchGroupInvites = createAsyncThunk(
+  "groups/fetchInvites",
+  async (username: string) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/groups/invites/${username}`);
+      return { username, invites: response.data };
+    } catch (error) {
+      console.error("Failed to fetch group invites:", error);
+      throw error;
+    }
+  }
+);
 
 export const groupSlice = createSlice({
   name: "groups",
@@ -84,6 +159,8 @@ export const groupSlice = createSlice({
       const groupId = action.payload;
       delete state.groups[groupId];
       delete state.messages[groupId];
+      // Also clear the image cache for this group
+      delete state.groupImageCache[groupId];
     },
     setGroups: (state, action: PayloadAction<Group[]>) => {
       const newGroups: { [key: string]: Group } = {};
@@ -170,6 +247,11 @@ export const groupSlice = createSlice({
           // Use deduplicated users if available
           users: updatedUsers || state.groups[action.payload.id].users,
         };
+        
+        // If imageUrl is updated, clear the image cache for this group
+        if (action.payload.imageUrl) {
+          delete state.groupImageCache[action.payload.id];
+        }
       }
     },
     addGroupMember: (
@@ -279,6 +361,50 @@ export const groupSlice = createSlice({
         );
       }
     },
+    // Group image caching actions
+    cacheGroupImage: (
+      state,
+      action: PayloadAction<{
+        groupId: string;
+        imageSource: string;
+        downloadUrl: string;
+        isValid: boolean;
+        useProxy?: boolean;
+      }>
+    ) => {
+      const { groupId, imageSource, downloadUrl, isValid, useProxy } = action.payload;
+      state.groupImageCache[groupId] = {
+        groupId,
+        imageSource,
+        downloadUrl,
+        isValid,
+        useProxy,
+        lastUpdated: Date.now(),
+      };
+    },
+    clearGroupImageCache: (
+      state,
+      action: PayloadAction<string> // groupId
+    ) => {
+      delete state.groupImageCache[action.payload];
+    },
+    clearAllGroupImageCache: (state) => {
+      state.groupImageCache = {};
+    },
+    forceGroupImageRefresh: (
+      state,
+      action: PayloadAction<string> // groupId
+    ) => {
+      const groupId = action.payload;
+      if (state.groupImageCache[groupId]) {
+        // Add a timestamp to the URL to force a refresh
+        const url = state.groupImageCache[groupId].downloadUrl;
+        state.groupImageCache[groupId].downloadUrl = url.includes("?")
+          ? url.split("?")[0] + "?t=" + Date.now()
+          : url + "?t=" + Date.now();
+        state.groupImageCache[groupId].lastUpdated = Date.now();
+      }
+    },
     addGroupInvite: (
       state,
       action: PayloadAction<{ username: string; invite: GroupInvite }>
@@ -359,9 +485,81 @@ export const groupSlice = createSlice({
         }
       }
     },
+    updateAllUserProfilePictures: (
+      state,
+      action: PayloadAction<{
+        username: string;
+        profilePicture: string;
+      }>
+    ) => {
+      const { username, profilePicture } = action.payload;
+      
+      // Update the profile picture for this user in all groups
+      Object.keys(state.groups).forEach(groupId => {
+        const group = state.groups[groupId];
+        if (group && Array.isArray(group.users)) {
+          const userIndex = group.users.findIndex(u => u && u.username === username);
+          if (userIndex !== -1) {
+            // Update the profile picture for this user in this group
+            group.users[userIndex].profilePicture = profilePicture;
+          }
+        }
+      });
+    },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch user groups
+      .addCase(fetchUserGroups.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserGroups.fulfilled, (state, action) => {
+        state.loading = false;
+        // Convert array to object with groupId as key
+        const groupsObject: { [key: string]: Group } = {};
+        action.payload.forEach((group: Group) => {
+          groupsObject[group.id] = group;
+        });
+        state.groups = groupsObject;
+      })
+      .addCase(fetchUserGroups.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to fetch groups";
+        toast.error("Failed to fetch groups");
+      })
+      
+      // Create group
+      .addCase(createGroup.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createGroup.fulfilled, (state, action) => {
+        state.loading = false;
+        // Add the new group to the state
+        state.groups[action.payload.id] = action.payload;
+        toast.success(`Group "${action.payload.name}" created successfully!`);
+      })
+      .addCase(createGroup.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to create group";
+        toast.error("Failed to create group");
+      })
+      
+      // Fetch group messages
+      .addCase(fetchGroupMessages.fulfilled, (state, action) => {
+        const { groupId, messages } = action.payload;
+        state.messages[groupId] = messages;
+      })
+      
+      // Fetch group invites
+      .addCase(fetchGroupInvites.fulfilled, (state, action) => {
+        const { username, invites } = action.payload;
+        state.groupInvites[username] = invites;
+      });
   },
 });
 
@@ -377,6 +575,11 @@ export const {
   setGroupEvent,
   addExpense,
   updateGroupUser,
+  // Group image caching actions
+  cacheGroupImage,
+  clearGroupImageCache,
+  clearAllGroupImageCache,
+  forceGroupImageRefresh,
   addGroupInvite,
   removeGroupInvite,
   setInviteStatus,
@@ -384,6 +587,7 @@ export const {
   markGroupInvitesInvalid,
   markUserInvitesAsMember,
   updateMessageReadStatus,
+  updateAllUserProfilePictures,
   setLoading
 } = groupSlice.actions;
 export const groupActions = groupSlice.actions;

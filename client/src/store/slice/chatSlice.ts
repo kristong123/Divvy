@@ -1,4 +1,6 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
+import axios from 'axios';
+import { BASE_URL } from '../../config/api';
 
 interface Message {
   id?: string;
@@ -20,6 +22,20 @@ const initialState: ChatState = {
   loading: false,
   error: null
 };
+
+// AsyncThunk for fetching chat messages
+export const fetchChatMessages = createAsyncThunk(
+  'chat/fetchMessages',
+  async (chatId: string) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/messages/${chatId}`);
+      return { chatId, messages: response.data };
+    } catch (error) {
+      console.error(`Failed to load messages for chat ${chatId}:`, error);
+      throw error;
+    }
+  }
+);
 
 const chatSlice = createSlice({
   name: 'chat',
@@ -64,6 +80,25 @@ const chatSlice = createSlice({
         }
       }
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchChatMessages.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchChatMessages.fulfilled, (state, action) => {
+        state.loading = false;
+        const { chatId, messages } = action.payload;
+        const uniqueMessages = messages.filter((message: Message, index: number, self: Message[]) =>
+          index === self.findIndex((m: Message) => m.id === message.id)
+        );
+        state.messages[chatId] = uniqueMessages;
+      })
+      .addCase(fetchChatMessages.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch messages';
+      });
   }
 });
 

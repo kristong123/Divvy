@@ -24,12 +24,24 @@ interface Friend {
   profilePicture: string | null;
 }
 
+// Interface for cached profile pictures
+interface CachedProfilePicture {
+  username: string;
+  imageSource: string; // The original path or URL
+  downloadUrl: string; // The actual download URL
+  isValid: boolean;
+  lastUpdated: number; // Timestamp for cache invalidation
+  useProxy?: boolean; // Whether to use a proxy for this image
+}
+
 interface FriendState {
   friends: Friend[];
   pendingRequests: PendingRequest[];
   sentRequests: SentRequest[];
   loading: boolean;
   error: string | null;
+  // Add profile picture cache
+  profilePictureCache: { [username: string]: CachedProfilePicture };
 }
 
 const initialState: FriendState = {
@@ -38,6 +50,7 @@ const initialState: FriendState = {
   sentRequests: [],
   loading: false,
   error: null,
+  profilePictureCache: {},
 };
 
 // Async thunks for API calls
@@ -143,6 +156,88 @@ const friendsSlice = createSlice({
         (request) => request.sender !== action.payload
       );
     },
+    // Profile picture caching actions
+    cacheProfilePicture: (
+      state,
+      action: PayloadAction<{
+        username: string;
+        imageSource: string;
+        downloadUrl: string;
+        isValid: boolean;
+        useProxy?: boolean;
+      }>
+    ) => {
+      const { username, imageSource, downloadUrl, isValid, useProxy } = action.payload;
+      state.profilePictureCache[username] = {
+        username,
+        imageSource,
+        downloadUrl,
+        isValid,
+        useProxy,
+        lastUpdated: Date.now(),
+      };
+    },
+    clearProfilePictureCache: (
+      state,
+      action: PayloadAction<string> // username
+    ) => {
+      delete state.profilePictureCache[action.payload];
+    },
+    clearAllProfilePictureCache: (state) => {
+      state.profilePictureCache = {};
+    },
+    forceProfilePictureRefresh: (
+      state,
+      action: PayloadAction<string> // username
+    ) => {
+      const username = action.payload;
+      if (state.profilePictureCache[username]) {
+        // Add a timestamp to the URL to force a refresh
+        const url = state.profilePictureCache[username].downloadUrl;
+        state.profilePictureCache[username].downloadUrl = url.includes("?")
+          ? url.split("?")[0] + "?t=" + Date.now()
+          : url + "?t=" + Date.now();
+        state.profilePictureCache[username].lastUpdated = Date.now();
+      }
+    },
+    updateFriendProfilePicture: (
+      state,
+      action: PayloadAction<{
+        username: string;
+        profilePicture: string;
+      }>
+    ) => {
+      const { username, profilePicture } = action.payload;
+      
+      // Update in friends list
+      const friendIndex = state.friends.findIndex(friend => friend.username === username);
+      if (friendIndex !== -1) {
+        state.friends[friendIndex].profilePicture = profilePicture;
+      }
+      
+      // Update in pending requests
+      const pendingIndex = state.pendingRequests.findIndex(request => request.sender === username);
+      if (pendingIndex !== -1) {
+        state.pendingRequests[pendingIndex].profilePicture = profilePicture;
+      }
+      
+      // Update in sent requests
+      const sentIndex = state.sentRequests.findIndex(request => request.recipient === username);
+      if (sentIndex !== -1) {
+        state.sentRequests[sentIndex].profilePicture = profilePicture;
+      }
+      
+      // Update in cache
+      if (state.profilePictureCache[username]) {
+        state.profilePictureCache[username] = {
+          ...state.profilePictureCache[username],
+          imageSource: profilePicture,
+          downloadUrl: profilePicture,
+          isValid: true,
+          lastUpdated: Date.now()
+        };
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -186,11 +281,47 @@ export const {
   setSentRequests,
   clearRequests,
   removePendingRequest,
+  // Export profile picture caching actions
+  cacheProfilePicture,
+  clearProfilePictureCache,
+  clearAllProfilePictureCache,
+  forceProfilePictureRefresh,
+  updateFriendProfilePicture,
 } = friendsSlice.actions;
 
+// Helper function to accept a friend request
+export const acceptFriendRequest = (
+  requestId: string,
+  sender: string,
+  profilePicture: string | null
+) => {
+  return async (dispatch: AppDispatch) => {
+    try {
+      await axios.post(`${BASE_URL}/api/friends/accept`, {
+        requestId,
+      });
+
+      // Add the sender to friends list
+      dispatch(
+        setFriends([
+          {
+            username: sender,
+            profilePicture,
+          },
+        ])
+      );
+
+      // Remove from pending requests
+      dispatch(removePendingRequest(sender));
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+    }
+  };
+};
+
 // Socket.IO event handlers
-export const setupFriendsListeners =
-  (username: string) =>
+export const setupFriendsListeners = 
+  (username: string) => 
   async (dispatch: AppDispatch): Promise<() => void> => {
     const fetchInitialData = async () => {
       try {

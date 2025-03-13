@@ -1,21 +1,18 @@
 import { AppDispatch } from "../store/store";
-import { setUser } from "../store/slice/userSlice";
-import { groupActions } from "../store/slice/groupSlice";
-import axios from "axios";
-import { BASE_URL } from "../config/api";
+import { loginUser } from "../store/slice/userSlice";
+import { fetchUserGroups, fetchGroupMessages, fetchGroupInvites } from "../store/slice/groupSlice";
+import { fetchChatMessages, setLoading } from "../store/slice/chatSlice";
+import { fetchFriends } from "../store/slice/friendsSlice";
 import { store } from "../store/store";
-import { setMessages, setLoading } from "../store/slice/chatSlice";
-import { setFriends } from "../store/slice/friendsSlice";
-import { addGroupInvite } from "../store/slice/groupSlice";
-import { initializeSocket } from "./socketService";
+import { groupActions } from "../store/slice/groupSlice";
 
 // Update UserData interface
 interface UserData {
   username: string;
-  profilePicture: string | null; // Change from string | undefined to string | null
+  profilePicture: string | null;
   venmoUsername?: string;
   isAdmin?: boolean;
-  token: string; // Add token property
+  token: string;
 }
 
 // Load user's groups and messages after login
@@ -24,65 +21,31 @@ export const loadUserData = async (username: string, dispatch: AppDispatch) => {
     // Set loading state
     dispatch(setLoading(true));
 
-    // Load friends, groups, and invites
-    const [groupsResponse, friendsResponse, invitesResponse] =
-      await Promise.all([
-        axios.get(`${BASE_URL}/api/groups/user/${username}`),
-        axios.get(`${BASE_URL}/api/friends/${username}`),
-        axios.get(`${BASE_URL}/api/groups/invites/${username}`),
-      ]);
+    // Load friends, groups, and invites using AsyncThunks
+    await Promise.all([
+      dispatch(fetchUserGroups(username)),
+      dispatch(fetchFriends(username)),
+      dispatch(fetchGroupInvites(username)),
+    ]);
 
-    // Process groups
-    dispatch(groupActions.setGroups(groupsResponse.data));
-
-    // Process friends
-    dispatch(setFriends(friendsResponse.data));
-
-    // Process invites
-    invitesResponse.data.forEach(
-      (invite: {
-        id: string;
-        groupId: string;
-        groupName: string;
-        invitedBy: string;
-        timestamp: string;
-      }) => {
-        dispatch(
-          addGroupInvite({
-            username,
-            invite: {
-              id: invite.id,
-              groupId: invite.groupId,
-              groupName: invite.groupName,
-              invitedBy: invite.invitedBy,
-            },
-          })
-        );
-      }
-    );
+    // Get the loaded data from the store
+    const state = store.getState();
+    const friends = state.friends.friends;
+    const groups = Object.values(state.groups.groups);
 
     // Then load messages sequentially to ensure they're all loaded
-    for (const friend of friendsResponse.data) {
+    for (const friend of friends) {
       const chatId = [username, friend.username].sort().join("_");
       try {
-        const response = await axios.get(`${BASE_URL}/api/messages/${chatId}`);
-        dispatch(setMessages({ chatId, messages: response.data }));
+        await dispatch(fetchChatMessages(chatId));
       } catch (error) {
         console.error(`Failed to load messages for chat ${chatId}:`, error);
       }
     }
 
-    for (const group of groupsResponse.data) {
+    for (const group of groups) {
       try {
-        const response = await axios.get(
-          `${BASE_URL}/api/groups/${group.id}/messages`
-        );
-        dispatch(
-          groupActions.setGroupMessages({
-            groupId: group.id,
-            messages: response.data,
-          })
-        );
+        await dispatch(fetchGroupMessages(group.id));
       } catch (error) {
         console.error(`Failed to load messages for group ${group.id}:`, error);
       }
@@ -103,47 +66,17 @@ export const login = async (
   dispatch: AppDispatch
 ): Promise<UserData> => {
   try {
-    console.log(`🔑 Authenticating user: ${username}`);
+    // Use the loginUser AsyncThunk
+    const resultAction = await dispatch(loginUser({ username, password }));
     
-    const response = await axios.post(`${BASE_URL}/api/auth/login`, {
-      username,
-      password,
-    });
-    
-    // Add a timestamp to the profile picture URL to prevent caching
-    const profilePictureWithTimestamp = response.data.profilePicture
-      ? `${response.data.profilePicture}?t=${Date.now()}`
-      : null;
-    
-    const userData: UserData = {
-      username: response.data.username,
-      profilePicture: profilePictureWithTimestamp,
-      venmoUsername: response.data.venmoUsername || null,
-      token: response.data.token || '',
-    };
-
-    // Store user data in Redux
-    dispatch(setUser({
-      username: userData.username,
-      profilePicture: userData.profilePicture,
-      venmoUsername: userData.venmoUsername,
-    }));
-
-    console.log(`✅ Authentication successful for: ${username}`);
-    
-    // Initialize socket connection
-    initializeSocket(userData.username);
-
-    return userData;
+    if (loginUser.fulfilled.match(resultAction)) {
+      // Return the user data from the fulfilled action
+      return resultAction.payload;
+    } else {
+      throw new Error("Login failed");
+    }
   } catch (error) {
     console.error('❌ Authentication failed:', error);
-    
-    // Add more detailed error logging
-    if (axios.isAxiosError(error) && error.response) {
-      console.error('Server response:', error.response.data);
-      console.error('Status code:', error.response.status);
-    }
-    
     throw error;
   }
 };

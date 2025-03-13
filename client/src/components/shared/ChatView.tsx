@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import clsx from "clsx";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../../store/store";
+import { store } from "../../store/store";
 import { toast } from "react-hot-toast";
 import axios from "axios";
 import { BASE_URL } from "../../config/api";
@@ -16,6 +17,7 @@ import {
   generateFriendshipId,
   loadReadReceipts,
   markMessagesAsRead,
+  showUniqueToast,
 } from "../../services/socketService";
 import {
   addMessage,
@@ -47,7 +49,6 @@ interface ChatViewProps {
     id: string;
     name: string;
     imageUrl?: string;
-    amount?: string; // For group chats
     lastMessage?: string; // For direct messages
     isGroup?: boolean;
     notificationType?: string;
@@ -353,6 +354,22 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     if (!hasMessages) {
       dispatch(setLoading(true));
 
+      // For group chats, check if the group exists in Redux first
+      if (isGroupChat) {
+        // Check if the group exists in the Redux store
+        const state = store.getState();
+        const groupExists = !!state.groups.groups[chat.id];
+
+        // If the group doesn't exist in Redux, don't try to fetch messages
+        if (!groupExists) {
+          console.log(
+            `Group ${chat.id} not found in Redux store, skipping message fetch in first useEffect`
+          );
+          dispatch(setLoading(false));
+          return;
+        }
+      }
+
       // Choose the correct endpoint based on chat type
       const endpoint = isGroupChat
         ? `${BASE_URL}/api/groups/${chat.id}/messages`
@@ -379,13 +396,29 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
         })
         .catch((error) => {
           console.error("Failed to load messages:", error);
-          toast.error("Failed to load messages");
+
+          // If we get a 404 for a group, the group has been deleted
+          if (
+            isGroupChat &&
+            axios.isAxiosError(error) &&
+            error.response?.status === 404
+          ) {
+            console.log(
+              `Group ${chat.id} has been deleted, removing from Redux`
+            );
+            // Remove the group from Redux to prevent further attempts to load it
+            dispatch(groupActions.removeGroup(chat.id));
+            // Navigate away from the deleted group
+            navigate("/");
+          } else {
+            toast.error("Failed to load messages");
+          }
         })
         .finally(() => {
           dispatch(setLoading(false));
         });
     }
-  }, [chat.id, chat.isGroup, chatId, dispatch, messages.length]);
+  }, [chat.id, chat.isGroup, chatId, dispatch, messages.length, navigate]);
 
   // Create memoized selectors
   const selectGroupData = useMemo(
@@ -744,7 +777,67 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
 
     socket.on("message-read", handleMessageRead);
 
-    // Clean up
+    // Listen for user leaving the group
+    socket.on(
+      "user-left-group",
+      (data: { groupId: string; username: string }) => {
+        console.log(`User ${data.username} left group ${data.groupId}`);
+
+        if (data.groupId === chat.id) {
+          // Get current group data
+          const groupData = store.getState().groups.groups[chat.id];
+
+          if (groupData && groupData.users) {
+            // Update the group users list
+            const updatedUsers = groupData.users.filter(
+              (user) => user.username !== data.username
+            );
+
+            dispatch(
+              groupActions.updateGroupUsers({
+                groupId: chat.id,
+                users: updatedUsers,
+              })
+            );
+
+            // Show a toast notification - but only if it's not the current user
+            // and only if we haven't shown this notification already
+            if (data.username !== currentUser) {
+              // Create a unique key for this notification to prevent duplicates
+              const notificationKey = `user_left_${data.groupId}_${
+                data.username
+              }_${Date.now()}`;
+
+              // Use the showUniqueToast function from socketService to prevent duplicates
+              showUniqueToast(
+                notificationKey,
+                `${data.username} left the group`
+              );
+            }
+          }
+        }
+      }
+    );
+
+    // Listen for when the current user has left a group
+    socket.on("left-group", (data: { groupId: string }) => {
+      if (data.groupId === chat.id) {
+        console.log(`User ${currentUser} has left group ${chat.id}`);
+
+        // Remove the group from the state
+        dispatch(groupActions.removeGroup(chat.id));
+
+        // Only show toast once
+        toast.success("Successfully left the group");
+
+        // Navigate away from the group chat
+        navigate("/");
+      }
+    });
+
+    // Join the group's room
+    socket.emit("join_group", chat.id);
+
     return () => {
       socket.off("new-message", handleNewMessage);
       socket.off("new-group-message", handleNewMessage);
@@ -758,6 +851,7 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     chatId,
     messages,
     dispatch,
+    navigate,
   ]);
 
   // Add this effect to automatically close event view when event is cleared
@@ -838,12 +932,56 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       }
     );
 
+    // Listen for user leaving the group
+    socket.on(
+      "user-left-group",
+      (data: { groupId: string; username: string }) => {
+        console.log(`User ${data.username} left group ${data.groupId}`);
+
+        if (data.groupId === chat.id) {
+          // Get current group data
+          const groupData = store.getState().groups.groups[chat.id];
+
+          if (groupData && groupData.users) {
+            // Update the group users list
+            const updatedUsers = groupData.users.filter(
+              (user) => user.username !== data.username
+            );
+
+            dispatch(
+              groupActions.updateGroupUsers({
+                groupId: chat.id,
+                users: updatedUsers,
+              })
+            );
+
+            // Show a toast notification - but only if it's not the current user
+            // and only if we haven't shown this notification already
+            if (data.username !== currentUser) {
+              // Create a unique key for this notification to prevent duplicates
+              const notificationKey = `user_left_${data.groupId}_${
+                data.username
+              }_${Date.now()}`;
+
+              // Use the showUniqueToast function from socketService to prevent duplicates
+              showUniqueToast(
+                notificationKey,
+                `${data.username} left the group`
+              );
+            }
+          }
+        }
+      }
+    );
+
     // Join the group's room
     socket.emit("join_group", chat.id);
 
     return () => {
       socket.off(`group_message_${chat.id}`);
       socket.off(`group_message_update_${chat.id}`);
+      socket.off("user-left-group");
+      socket.off("left-group");
       socket.emit("leave_group", chat.id);
     };
   }, [chat.id, chat.isGroup, dispatch]);
@@ -893,51 +1031,51 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       toast.error("Failed to send message. Please try again.");
     }
   };
- // Update the image messages
- const handleSendImage = async (imgURL: string) => {
-  if (!imgURL) return; // imgURL is already passed, no need to check img.file
-  
-  console.log("Start image handling");
-  console.log("Waiting to upload...");
+  // Update the image messages
+  const handleSendImage = async (imgURL: string) => {
+    if (!imgURL) return; // imgURL is already passed, no need to check img.file
 
-  try {
-    console.log("Handling message");
+    console.log("Start image handling");
+    console.log("Waiting to upload...");
 
-    // Group message handling
-    if (chat.isGroup) {
-      const groupChatId = chat.id.startsWith("group_") ? chat.id : `group_${chat.id}`;
-      await sendMessage(
-        {
-          chatId: groupChatId,
-          content: imgURL,
-          senderId: currentUser,
-          type: "image",
-          attachments: { url: imgURL, type: "image" },
-        },
-        { dispatch }
-      );
-      console.log("Image sent to group");
-    } else {
-      // Direct message handling
-      const recipient = chat.name; // Chat name for direct messages
-      const friendshipId = generateFriendshipId(currentUser, recipient);
-      await sendMessage(
-        {
+    try {
+      console.log("Handling message");
+
+      // Group message handling
+      if (chat.isGroup) {
+        const groupChatId = chat.id.startsWith("group_")
+          ? chat.id
+          : `group_${chat.id}`;
+        await sendMessage(
+          {
+            chatId: groupChatId,
+            content: imgURL,
+            senderId: currentUser,
+            type: "image",
+            attachments: { url: imgURL, type: "image" },
+          },
+          { dispatch }
+        );
+        console.log("Image sent to group");
+      } else {
+        // Direct message handling
+        const recipient = chat.name; // Chat name for direct messages
+        const friendshipId = generateFriendshipId(currentUser, recipient);
+        await sendMessage({
           chatId: friendshipId,
           content: imgURL,
           senderId: currentUser,
           type: "image",
           attachments: { url: imgURL, type: "image" },
-        }
-      );
-      console.log("Image sent to direct message");
-    }
+        });
+        console.log("Image sent to direct message");
+      }
 
-    // Clear image state after sending the message
-    setImg({ file: null, url: "" });
-  } catch (error) {
-    console.error("Failed to send image message:", error);
-    toast.error("Failed to send image. Please try again.");
+      // Clear image state after sending the message
+      setImg({ file: null, url: "" });
+    } catch (error) {
+      console.error("Failed to send image message:", error);
+      toast.error("Failed to send image. Please try again.");
     }
   };
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -1364,37 +1502,52 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
     }
   }, [messages, chat.id, chat.isGroup, chatId, currentUser]);
 
-  // Add this effect to load group messages
+  // Add this effect to load group messages when the component mounts
   useEffect(() => {
-    const loadGroupMessages = async () => {
-      if (!chat.isGroup || !chat.id) return;
+    if (!chat.isGroup || !chat.id) return;
 
+    const loadGroupMessages = async () => {
       try {
-        dispatch(setLoading(true));
+        // Check if the group exists in the Redux store first
+        const state = store.getState();
+        const groupExists = !!state.groups.groups[chat.id];
+
+        // If the group doesn't exist in Redux, don't try to fetch messages
+        if (!groupExists) {
+          console.log(
+            `Group ${chat.id} not found in Redux store, skipping message fetch`
+          );
+          return;
+        }
+
+        setLoading(true);
         const response = await axios.get(
           `${BASE_URL}/api/groups/${chat.id}/messages`
         );
-
-        if (response.data) {
-          dispatch(
-            groupActions.setGroupMessages({
-              groupId: chat.id,
-              messages: response.data,
-            })
-          );
-        }
+        dispatch(
+          groupActions.setGroupMessages({
+            groupId: chat.id,
+            messages: response.data,
+          })
+        );
+        setLoading(false);
       } catch (error) {
-        console.error("Error loading group messages:", error);
-        toast.error("Failed to load messages");
-      } finally {
-        dispatch(setLoading(false));
+        console.error("Failed to load messages:", error);
+        setLoading(false);
+
+        // If we get a 404, the group has been deleted
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          console.log(`Group ${chat.id} has been deleted, removing from Redux`);
+          // Remove the group from Redux to prevent further attempts to load it
+          dispatch(groupActions.removeGroup(chat.id));
+          // Navigate away from the deleted group
+          navigate("/");
+        }
       }
     };
 
-    if (chat.isGroup) {
-      loadGroupMessages();
-    }
-  }, [chat.id, chat.isGroup, dispatch]);
+    loadGroupMessages();
+  }, [chat.id, chat.isGroup, dispatch, navigate]);
 
   // Update the leave group handler to handle the actual leaving
   const handleLeaveGroup = async () => {
@@ -1407,9 +1560,18 @@ const ChatView: React.FC<ChatViewProps> = ({ chat }) => {
       });
 
       if (response.status === 200) {
-        dispatch(groupActions.removeGroup(chat.id));
-        toast.success("Successfully left the group");
-        navigate("/");
+        // Emit socket event to notify other users
+        const socket = getSocket();
+        socket.emit("user-left-group", {
+          groupId: chat.id,
+          username: currentUser,
+        });
+
+        // Don't send a system message from client side - it's already sent from the server
+        // This prevents duplicate messages
+
+        // Don't update local state or show toast here - the 'left-group' socket event will handle it
+        // This prevents duplicate toasts and state updates
       }
     } catch (error) {
       console.error("Error leaving group:", error);
