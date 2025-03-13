@@ -44,6 +44,8 @@ const createTestStore = () =>
         profilePicture: null,
         isLoggedIn: false,
         isAuthenticated: false,
+        loading: false,
+        error: null,
       },
       friends: {
         friends: [],
@@ -51,6 +53,7 @@ const createTestStore = () =>
         sentRequests: [],
         loading: false,
         error: null,
+        profilePictureCache: {},
       },
       groups: {
         groups: {},
@@ -59,6 +62,7 @@ const createTestStore = () =>
         error: null,
         groupInvites: {},
         inviteStatus: {},
+        groupImageCache: {},
       },
       chat: {
         messages: {},
